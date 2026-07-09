@@ -2,5 +2,8 @@ id: researcher
 label: researcher
 controls:
   pi:
+    provider: kimi-coding
+    model: k2p7
+    thinking: low
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/research

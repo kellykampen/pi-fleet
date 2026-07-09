@@ -2,5 +2,10 @@ id: implementer
 label: implementer
 controls:
   pi:
+    provider: openai-codex
+    model: gpt-5.5
+    thinking: high
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/implementation
+  append_system_prompt: |
+    Default to GPT-5.5 for hard implementation. For simple, fully-specified, low-risk tasks, the orchestrator should override this profile to Kimi (provider kimi-coding, model k2p7) for cost arbitration.

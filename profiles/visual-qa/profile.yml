@@ -2,5 +2,8 @@ id: visual-qa
 label: visual-qa
 controls:
   pi:
+    provider: openrouter
+    model: google/gemini-3.1-pro-preview
+    thinking: medium
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/visual-qa

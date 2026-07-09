@@ -2,5 +2,8 @@ id: orchestrator
 label: orchestrator
 controls:
   pi:
+    provider: openai-codex
+    model: gpt-5.5
+    thinking: high
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/orchestration
