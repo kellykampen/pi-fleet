@@ -1,0 +1,6 @@
+id: researcher
+label: researcher
+controls:
+  pi:
+    skills:
+      - /Users/kellykampen/code/pi-fleet/skills/research

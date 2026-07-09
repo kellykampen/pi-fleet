@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Hybrid: outfitter composes skills/extensions/prompt/model; this wrapper hardcodes the
+# --tools allowlist (outfitter's pi adapter can't set it). Enforcement lives here.
+set -euo pipefail
+exec outfitter run --profile visual-qa --agent pi -- --tools read,grep,find,ls "$@"

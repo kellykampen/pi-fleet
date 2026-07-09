@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Hybrid: outfitter composes skills/prompt/model; this wrapper HARDCODES the read-only
+# tool allowlist (outfitter's pi adapter can't set --tools). Enforcement lives here.
+set -euo pipefail
+exec outfitter run --profile reviewer --agent pi -- \
+  --tools read,grep,find,ls \
+  "$@"

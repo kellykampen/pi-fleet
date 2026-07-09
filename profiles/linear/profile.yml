@@ -1,0 +1,8 @@
+id: linear
+label: linear
+controls:
+  pi:
+    skills:
+      - /Users/kellykampen/code/pi-fleet/skills/linear-management
+    extensions:
+      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts

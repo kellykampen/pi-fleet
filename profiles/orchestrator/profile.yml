@@ -1,0 +1,6 @@
+id: orchestrator
+label: orchestrator
+controls:
+  pi:
+    skills:
+      - /Users/kellykampen/code/pi-fleet/skills/orchestration

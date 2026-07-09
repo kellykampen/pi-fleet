@@ -1,0 +1,6 @@
+id: implementer
+label: implementer
+controls:
+  pi:
+    skills:
+      - /Users/kellykampen/code/pi-fleet/skills/implementation

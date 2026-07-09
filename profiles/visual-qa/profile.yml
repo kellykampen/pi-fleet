@@ -1,0 +1,6 @@
+id: visual-qa
+label: visual-qa
+controls:
+  pi:
+    skills:
+      - /Users/kellykampen/code/pi-fleet/skills/visual-qa
