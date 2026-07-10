@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { sanitizeSecrets } from "./secrets.js";
 import type { FleetJob, JobStatus } from "./types.js";
 import { isTerminal } from "./types.js";
 
@@ -21,9 +22,20 @@ export function newJobId(): string {
 	return randomUUID();
 }
 
+function sanitizeForPersistence(value: unknown): unknown {
+	if (typeof value === "string") return sanitizeSecrets(value);
+	if (Array.isArray(value)) return value.map((item) => sanitizeForPersistence(item));
+	if (value && typeof value === "object") {
+		return Object.fromEntries(
+			Object.entries(value).map(([key, item]) => [key, sanitizeForPersistence(item)]),
+		);
+	}
+	return value;
+}
+
 export async function writeJob(job: FleetJob): Promise<FleetJob> {
 	await ensureJobsDir();
-	const next = { ...job, updatedAt: new Date().toISOString() };
+	const next = sanitizeForPersistence({ ...job, updatedAt: new Date().toISOString() }) as FleetJob;
 	await writeFile(jobPath(job.jobId), `${JSON.stringify(next, null, 2)}\n`, "utf8");
 	return next;
 }

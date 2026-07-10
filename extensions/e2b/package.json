@@ -2,7 +2,13 @@
   "name": "pi-fleet-e2b-extension",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "tsx --test *.test.ts"
+  },
   "dependencies": {
     "e2b": "^2.32.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.0"
   }
 }
