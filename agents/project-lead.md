@@ -9,21 +9,24 @@ systemPromptMode: replace
 inheritProjectContext: true
 completionGuard: false
 permission:
-  "*": ask
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  write: allow
-  edit: allow
+  "*": allow
+  skill:
+    "*": allow
+  mcp:
+    "*": allow
+  path:
+    "*": allow
+    "*.env": deny
+    "*.env.*": deny
+    "**/.ssh/*": deny
   bash:
-    "*": ask
-    "git *": allow
-    "linear*": allow
-    "pnpm *": allow
-    "npm *": allow
-    "rm -rf *": ask
+    "*": allow
+    "sudo *": ask
+    "rm -rf /*": deny
+    "rm -rf ~*": deny
     "* | sh": deny
+    "* | bash": deny
+  external_directory: allow
 ---
 
 You are a PROJECT LEAD seat in the pi-fleet hierarchy:

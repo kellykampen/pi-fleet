@@ -1,6 +1,14 @@
 {
+  "yoloMode": true,
+  "permissionReviewLog": true,
   "permission": {
     "*": "allow",
+    "skill": {
+      "*": "allow"
+    },
+    "mcp": {
+      "*": "allow"
+    },
     "path": {
       "*": "allow",
       "*.env": "deny",
@@ -18,6 +26,10 @@
       "* | bash": "deny",
       "curl * | *": "deny"
     },
-    "external_directory": "allow"
+    "external_directory": {
+      "*": "allow",
+      "**/.ssh/*": "deny",
+      "**/.aws/credentials": "deny"
+    }
   }
 }

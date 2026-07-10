@@ -201,6 +201,20 @@ The security boundary is the wrapper's `--tools` line — a read-only seat simpl
 
 ---
 
+## Permissions (no click-ops on fleet seats)
+
+Fleet seats should not stop for “Permission Required” dialogs. Policy lives in:
+
+- Global: `permission-system/config.json` (bootstrapped into `~/.pi/agent/...`)
+- Project: `.pi/extensions/pi-permission-system/config.json` (**yoloMode** + allow; denials for `.env` / ssh)
+- Subagent frontmatter: `agents/project-lead.md`, `agents/conductor.md`
+
+Details: [`docs/permissions.md`](./docs/permissions.md). **One project lead per project workspace.**
+
+After pulling: `bin/pi-fleet-bootstrap`, then restart seats.
+
+---
+
 ## E2B remote implementers (v0)
 
 The **project lead** can cast an **implementer** into an [E2B](https://e2b.dev) sandbox instead of
