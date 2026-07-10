@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# pi-fleet-bootstrap — wire the pi-fleet repo into ~/.pi so global pi discovers everything.
+# Idempotent; safe to re-run. Run once per machine (and after cloning pi-fleet fresh).
+set -euo pipefail
+
+REPO="$HOME/code/pi-fleet"
+AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+
+link() { # link <target> <linkpath>
+  local target="$1" link="$2"
+  mkdir -p "$(dirname "$link")"
+  if [ -L "$link" ]; then rm "$link"; elif [ -e "$link" ]; then mv "$link" "$link.bak.$$"; fi
+  ln -s "$target" "$link"
+  echo "  ✓ $link -> $target"
+}
+
+echo "pi-fleet bootstrap:"
+# MCP servers (context7/playwright/convex/claude_design)
+link "$REPO/mcp.json" "$AGENT_DIR/mcp.json"
+# Spawnable subagent roster (pi-subagents discovers ~/.pi/agent/agents/**/*.md)
+link "$REPO/agents" "$AGENT_DIR/agents"
+# Permission policy baseline (pi-permission-system)
+link "$REPO/permission-system/config.json" "$AGENT_DIR/extensions/pi-permission-system/config.json"
+
+# Re-apply the outfitter MCP-state-persistence patch (reverted by `outfitter update`).
+"$REPO/bin/pi-fleet-repair"
+
+echo "Done. Required global pi packages: pi-mcp-adapter, pi-subagents, @gotgenes/pi-permission-system"
+echo "Verify with: pi list"
