@@ -8,13 +8,17 @@ cat <<EOF
 ${bold}pi-fleet${reset} ${dim}— reusable Pi agent seats (outfitter profile + tool-enforcing wrapper)${reset}
 
 ${bold}PROFILES${reset}  ${dim}(run the command; cd to your target dir first)${reset}
-  ${cyan}pi-implementer${reset}          GPT-5.6 Sol · rw+bash  Build a ticket in a worktree (code+tests→PR)
-  ${cyan}pi-reviewer${reset}             Kimi K2.7 · read-only  Independent review/QC (different model than build)
-  ${cyan}pi-researcher${reset}           Kimi K2.7 · read-only  Read-only scouting / investigation
-  ${cyan}pi-orchestrator${reset}         GPT-5.5 · rw+bash    Project orchestrator (delegates + holds gates)
-  ${cyan}pi-visual-qa${reset}            Gemini 3.1 Pro · read  Compare app screenshot to the design comp
-  ${cyan}pi-linear${reset}               Kimi K2.7 · linear   Linear issue/project management
-  ${cyan}pi-personal-assistant${reset}   GPT-5.6 Terra · full  Personal social/X + comms/notes/tasks
+  ${cyan}pi-implementer${reset}          GPT-5.6 Sol · rw+bash    Build a ticket in a worktree (code+tests→PR)
+  ${cyan}pi-reviewer${reset}             Kimi K2.7 · read-only    Independent review/QC (different model than build)
+  ${cyan}pi-ac-verifier${reset}          Gemini 3.1 Pro · bash    RUN the AC verification (tests/build); check boxes on pass
+  ${cyan}pi-researcher${reset}           Kimi K2.7 · read-only    Read-only scouting / investigation
+  ${cyan}pi-designer${reset}             GPT-5.6 Terra · rw+bash  Design / architecture / API + planning docs
+  ${cyan}pi-planner${reset}              GPT-5.6 Terra · bash     Feature → Linear project + issues breakdown
+  ${cyan}pi-security-reviewer${reset}    Grok 4.5 · read-only     Security-focused review (severity + file:line)
+  ${cyan}pi-orchestrator${reset}         GPT-5.5 · rw+bash        Routes worker+model per task (model-classifier), gates
+  ${cyan}pi-visual-qa${reset}            Gemini 3.1 Pro · bash    Capture app screenshot + compare to the comp
+  ${cyan}pi-linear${reset}               Kimi K2.7 · bash+linear  Full Linear issue/project management
+  ${cyan}pi-personal-assistant${reset}   GPT-5.6 Terra · full     Personal social/X + comms/notes/tasks
                                              ${dim}(finch·gog·imsg·wacli·obsidian-cli·ntn·linear; draft→approve→execute)${reset}
 
 ${bold}USAGE${reset}

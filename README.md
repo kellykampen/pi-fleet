@@ -24,13 +24,17 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 
 | Command | Model (default) | Tools | What it does |
 |---|---|---|---|
-| **`pi-implementer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls, **write, edit, bash** | Builds one ticket end-to-end in a worktree (code + tests → PR). Override to Kimi `k2p7` for simple, fully-specified work. |
-| **`pi-reviewer`** | Kimi K2.7 (`kimi-coding`) · medium | read, grep, find, ls *(no bash/write)* | Independent **read-only** code review/QC. Must run on a **different model** than the implementer — if the build used Kimi, override this to another provider. |
+| **`pi-implementer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls, **write, edit, bash** + linear read | Builds one ticket end-to-end in a worktree (code + tests → PR). Override to Kimi `k2p7` for simple work. |
+| **`pi-reviewer`** | Kimi K2.7 (`kimi-coding`) · medium | read, grep, find, ls + linear read *(no bash)* | Independent **read-only** code review/QC. Must run on a **different model** than the implementer. |
+| **`pi-ac-verifier`** | Gemini 3.1 Pro (`openrouter`) · high | read, grep, find, ls, **bash** + linear | **Runs** the acceptance-criteria verification (tests/build), checks the AC boxes only on real pass. Different model than the build. |
 | **`pi-researcher`** | Kimi K2.7 · low | read, grep, find, ls | Read-only scouting / codebase investigation. |
-| **`pi-orchestrator`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash | Project orchestrator — delegates to worker seats, holds the QC gates. |
-| **`pi-visual-qa`** | Gemini 3.1 Pro (`openrouter`) · medium | read, grep, find, ls *(+ image input)* | Compares an app screenshot to the design comp (vision model). |
-| **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls + `linear_*` | Linear issue/project management (via the bundled `linear.ts` extension). |
-| **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends/posts without an explicit per-item OK). |
+| **`pi-designer`** | GPT-5.6 Terra (`openai-codex`) · high | read, grep, find, ls, write, edit, bash | Design / architecture / API + planning docs (taste model). Uses a project's Claude design assets where available; hands build to `pi-implementer`. |
+| **`pi-planner`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Breaks a feature into a Linear project + ≤3-pt issues with checkbox AC + blockers. |
+| **`pi-security-reviewer`** | Grok 4.5 (`openrouter`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. |
+| **`pi-orchestrator`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Routes each task to the right worker + model (via the **model-classifier** skill), delegates, holds the QC gates. |
+| **`pi-visual-qa`** | Gemini 3.1 Pro (`openrouter`) · high | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. |
+| **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
+| **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
 
 The `pi-personal-assistant` toolkit (all via `bash`, documented in its skill):
 `finch` (X) · `gog` (Google Workspace) · `imsg` (iMessage) · `wacli` (WhatsApp) ·

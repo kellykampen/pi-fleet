@@ -8,3 +8,5 @@ controls:
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/orchestration
       - /Users/kellykampen/code/pi-fleet/skills/model-classifier
+    extensions:
+      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts

@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
 set -euo pipefail
-exec outfitter run --profile visual-qa --agent pi -- --tools read,grep,find,ls,bash "$@"
+exec outfitter run --profile designer --agent pi -- --tools read,grep,find,ls,write,edit,bash "$@"

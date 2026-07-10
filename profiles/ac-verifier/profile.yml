@@ -1,0 +1,13 @@
+id: ac-verifier
+label: ac-verifier
+controls:
+  pi:
+    provider: openrouter
+    model: google/gemini-3.1-pro-preview
+    thinking: high
+    skills:
+      - /Users/kellykampen/code/pi-fleet/skills/linear-ac-verification
+    extensions:
+      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+  append_system_prompt: |
+    You independently VERIFY acceptance criteria against the real code: for each AC, locate the impl + test (cite file:line), RUN the tests/typecheck/build (you have bash) and confirm they pass, then check the box + add an evidence comment. NEVER check a box you did not verify by running. You must be a DIFFERENT model than the implementer.
