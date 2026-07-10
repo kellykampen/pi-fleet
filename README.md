@@ -24,7 +24,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 
 | Command | Model (default) | Tools | What it does |
 |---|---|---|---|
-| **`pi-implementer`** | GPT-5.5 (`openai-codex`) · high | read, grep, find, ls, **write, edit, bash** | Builds one ticket end-to-end in a worktree (code + tests → PR). Override to Kimi `k2p7` for simple, fully-specified work. |
+| **`pi-implementer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls, **write, edit, bash** | Builds one ticket end-to-end in a worktree (code + tests → PR). Override to Kimi `k2p7` for simple, fully-specified work. |
 | **`pi-reviewer`** | Kimi K2.7 (`kimi-coding`) · medium | read, grep, find, ls *(no bash/write)* | Independent **read-only** code review/QC. Must run on a **different model** than the implementer — if the build used Kimi, override this to another provider. |
 | **`pi-researcher`** | Kimi K2.7 · low | read, grep, find, ls | Read-only scouting / codebase investigation. |
 | **`pi-orchestrator`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash | Project orchestrator — delegates to worker seats, holds the QC gates. |
@@ -36,8 +36,10 @@ The `pi-personal-assistant` toolkit (all via `bash`, documented in its skill):
 `finch` (X) · `gog` (Google Workspace) · `imsg` (iMessage) · `wacli` (WhatsApp) ·
 `obsidian-cli` (Obsidian) · `ntn` (Notion) · `linear-cli` · `gh`/`git`.
 
-Model defaults follow cost-arbitrage (cheap models on cheap roles; taste model for voice; a
-different model for review than build). The orchestrator may override the model per cast.
+**Models are defaults, not locks.** Each profile's model is a sensible fallback so `pi-<role>` runs
+standalone — but the **`pi-orchestrator`** picks the model per task using the **model-classifier
+skill** (loaded into it) and overrides via `--provider/--model` on the cast. So routing = "which
+worker profile + which model," decided per task, not baked rigidly into the profile.
 
 ---
 

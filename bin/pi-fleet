@@ -8,7 +8,7 @@ cat <<EOF
 ${bold}pi-fleet${reset} ${dim}— reusable Pi agent seats (outfitter profile + tool-enforcing wrapper)${reset}
 
 ${bold}PROFILES${reset}  ${dim}(run the command; cd to your target dir first)${reset}
-  ${cyan}pi-implementer${reset}          GPT-5.5 · rw+bash    Build a ticket in a worktree (code+tests→PR)
+  ${cyan}pi-implementer${reset}          GPT-5.6 Sol · rw+bash  Build a ticket in a worktree (code+tests→PR)
   ${cyan}pi-reviewer${reset}             Kimi K2.7 · read-only  Independent review/QC (different model than build)
   ${cyan}pi-researcher${reset}           Kimi K2.7 · read-only  Read-only scouting / investigation
   ${cyan}pi-orchestrator${reset}         GPT-5.5 · rw+bash    Project orchestrator (delegates + holds gates)

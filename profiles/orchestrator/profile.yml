@@ -7,3 +7,4 @@ controls:
     thinking: high
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/orchestration
+      - /Users/kellykampen/code/pi-fleet/skills/model-classifier

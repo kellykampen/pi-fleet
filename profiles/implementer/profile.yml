@@ -3,9 +3,9 @@ label: implementer
 controls:
   pi:
     provider: openai-codex
-    model: gpt-5.5
+    model: gpt-5.6-sol
     thinking: high
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/implementation
   append_system_prompt: |
-    Default to GPT-5.5 for hard implementation. For simple, fully-specified, low-risk tasks, the orchestrator should override this profile to Kimi (provider kimi-coding, model k2p7) for cost arbitration.
+    Default to GPT-5.6 Sol for hard implementation. This default is a fallback — the orchestrator picks the model per task via the model-classifier and overrides with --provider/--model (e.g. Kimi kimi-coding/k2p7 for simple, fully-specified, low-risk work; a taste model for user-facing surfaces).
