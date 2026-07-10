@@ -8,7 +8,8 @@ planner              | yes  | no    | no   | PASS
 security-reviewer    | no   | no    | no   | PASS
 visual-qa            | yes  | no    | no   | PASS
 linear               | yes  | no    | no   | PASS
-orchestrator         | yes  | yes   | yes  | PASS
+project-lead         | yes  | yes   | yes  | PASS
+conductor            | yes  | yes   | yes  | PASS
 personal-assistant   | yes  | yes   | yes  | PASS
 remotion             | yes  | yes   | yes  | PASS
 === done ===

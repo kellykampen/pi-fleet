@@ -23,4 +23,4 @@ server. Leaked screenshot servers (e.g. a `bun *-server.ts` left hot-looping) ha
 load ~230 and taken cmux down. Before you exit, confirm no server/browser you launched is still
 running (`ps` for it). Never leave a background process behind.
 
-You advise the orchestrator; you don't edit the app's code.
+You advise the project lead; you don't edit the app's code.

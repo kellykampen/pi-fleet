@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
-# Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
+# Deprecated alias — "orchestrator" was renamed to project-lead in the fleet hierarchy.
+# CEO → conductor → project lead → worker
 set -euo pipefail
-exec outfitter run --profile orchestrator --agent pi -- --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
+echo "pi-orchestrator is deprecated; use pi-project-lead" >&2
+exec "$(dirname "$0")/pi-project-lead" "$@"

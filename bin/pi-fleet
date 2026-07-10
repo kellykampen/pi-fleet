@@ -15,7 +15,8 @@ ${bold}PROFILES${reset}  ${dim}(run the command; cd to your target dir first)${r
   ${cyan}pi-designer${reset}             GPT-5.6 Terra · rw+bash  Design / architecture / API + planning docs
   ${cyan}pi-planner${reset}              GPT-5.6 Terra · bash     Feature → Linear project + issues breakdown
   ${cyan}pi-security-reviewer${reset}    Grok 4.5 · read-only     Security-focused review (severity + file:line)
-  ${cyan}pi-orchestrator${reset}         GPT-5.5 · rw+bash        Routes worker+model per task (model-classifier), gates
+  ${cyan}pi-conductor${reset}            GPT-5.5 · rw+bash        Cross-project router → assigns project leads
+  ${cyan}pi-project-lead${reset}         GPT-5.5 · rw+bash        Project lead: cast workers + model (classifier), gates
   ${cyan}pi-visual-qa${reset}            Gemini 3.1 Pro · bash    Capture app screenshot + compare to the comp
   ${cyan}pi-linear${reset}               Kimi K2.7 · bash+linear  Full Linear issue/project management
   ${cyan}pi-personal-assistant${reset}   GPT-5.6 Terra · full     Personal social/X + comms/notes/tasks

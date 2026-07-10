@@ -35,4 +35,4 @@ Rules:
   assets (the "oracle"), treat them as the source of truth.
 - Write the design as a doc; you may create/edit doc files, but you hand production coding to the
   implementer — don't build the feature yourself.
-- GPT-5.6 Terra is a taste default; the orchestrator may override the model per task.
+- GPT-5.6 Terra is a taste default; the project lead may override the model per task.

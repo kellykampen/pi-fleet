@@ -4,6 +4,27 @@ Versioned, reusable **agent profiles** for the [Pi coding agent](https://pi.dev)
 restricted "seat" with a fixed toolset, model, and skill. Launch any of them from the terminal
 with a single command.
 
+## Hierarchy
+
+Fixed vocabulary for every skill, agent, and cast:
+
+```
+CEO  →  conductor  →  project lead  →  worker
+(you)   (portfolio)   (one project)    (implementer, reviewer, …)
+```
+
+| Seat | Command | Owns |
+|---|---|---|
+| **CEO** | (human) | Goals, priorities, merge-to-main, risk/money |
+| **Conductor** | `pi-conductor` | Cross-project routing; assigns project leads; escalates to CEO |
+| **Project lead** | `pi-project-lead` | One project/stream; casts workers; holds QC gates; reports to conductor |
+| **Worker** | `pi-implementer`, `pi-reviewer`, … | Single-purpose work; reports to the project lead |
+
+**Cast** = spin up a worker seat (project lead → worker). The conductor assigns work to project
+leads; it does not cast workers directly.
+
+(`pi-orchestrator` remains a deprecated alias for `pi-project-lead`.)
+
 Every profile is a **hybrid** of two pieces:
 
 - **[outfitter](https://pi.dev/packages/@ai-outfitter/outfitter)** composes the loadout —
@@ -31,7 +52,8 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 | **`pi-designer`** | GPT-5.6 Terra (`openai-codex`) · high | read, grep, find, ls, write, edit, bash | Design / architecture / API + planning docs (taste model). Uses a project's Claude design assets where available; hands build to `pi-implementer`. |
 | **`pi-planner`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Breaks a feature into a Linear project + ≤3-pt issues with checkbox AC + blockers. |
 | **`pi-security-reviewer`** | Grok 4.5 (`openrouter`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. |
-| **`pi-orchestrator`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Routes each task to the right worker + model (via the **model-classifier** skill), delegates, holds the QC gates. |
+| **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Cross-project router — assigns **project leads**, watches portfolio health, escalates to the CEO. Does not cast workers. |
+| **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Owns one project — routes each task to the right worker + model (via **model-classifier**), casts seats, holds QC gates. |
 | **`pi-visual-qa`** | Gemini 3.1 Pro (`openrouter`) · high | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. |
 | **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
 | **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
@@ -41,7 +63,7 @@ The `pi-personal-assistant` toolkit (all via `bash`, documented in its skill):
 `obsidian-cli` (Obsidian) · `ntn` (Notion) · `linear-cli` · `gh`/`git`.
 
 **Models are defaults, not locks.** Each profile's model is a sensible fallback so `pi-<role>` runs
-standalone — but the **`pi-orchestrator`** picks the model per task using the **model-classifier
+standalone — but the **`pi-project-lead`** picks the model per task using the **model-classifier
 skill** (loaded into it) and overrides via `--provider/--model` on the cast. So routing = "which
 worker profile + which model," decided per task, not baked rigidly into the profile.
 
@@ -60,7 +82,7 @@ pi-fleet composes **three upstream packages** — nothing is forked:
 So each role exists in two forms:
 - **Top-level seat** — `bin/pi-<role>` (outfitter + `--tools`). Start it yourself from a terminal.
 - **Spawnable subagent** — `agents/<role>.md`, discovered globally at `~/.pi/agent/agents/`. Any seat
-  (typically `pi-orchestrator`) delegates to it via the `subagent` tool. Its `tools:` frontmatter is
+  (typically `pi-project-lead`) delegates to it via the `subagent` tool. Its `tools:` frontmatter is
   the visibility allowlist; `permission:` is the bash/CLI policy. Read-only roles
   (`reviewer`, `researcher`, `security-reviewer`) carry no `bash`/`write`/`edit` **by construction**.
 
@@ -132,6 +154,10 @@ profile_sources:
 pi-fleet/
 ├── profiles/<role>/profile.yml   # outfitter loadout: model, thinking, skills, extensions, prompt
 ├── skills/<role>/SKILL.md        # the role's skill (instructions/persona)
+│   skills/conductor/             # cross-project conductor
+│   skills/project-lead/          # per-project lead (casts workers)
+│   skills/implementation/ …      # worker skills
+├── agents/<role>.md              # pi-subagents roster (spawnable children)
 ├── extensions/linear.ts          # Pi extension exposing narrow linear_* tools (no bash needed)
 └── bin/pi-<role>                 # wrapper: hardcodes --tools, launches Pi via outfitter
 ```

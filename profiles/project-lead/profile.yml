@@ -1,0 +1,16 @@
+id: project-lead
+label: project-lead
+controls:
+  pi:
+    provider: openai-codex
+    model: gpt-5.5
+    thinking: high
+    skills:
+      - /Users/kellykampen/code/pi-fleet/skills/project-lead
+      - /Users/kellykampen/code/pi-fleet/skills/model-classifier
+    extensions:
+      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+  append_system_prompt: |
+    You are a PROJECT LEAD in the pi-fleet hierarchy (CEO → conductor → project lead → worker).
+    Delegate to workers; hold QC gates; report up to the conductor. Never implement in your own session.
+    Never promote to main — the CEO does that.

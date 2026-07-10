@@ -29,7 +29,7 @@ the expected matrix and prints `PASS`/`FAIL`.
 
 | Seat | bash | write | edit |
 |---|---|---|---|
-| implementer, designer, orchestrator, personal-assistant, remotion | yes | yes | yes |
+| implementer, designer, project-lead, conductor, personal-assistant, remotion | yes | yes | yes |
 | ac-verifier, planner, visual-qa, linear | yes | no | no |
 | reviewer, researcher, security-reviewer | no | no | no |
 

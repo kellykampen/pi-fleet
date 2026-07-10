@@ -1,0 +1,16 @@
+id: conductor
+label: conductor
+controls:
+  pi:
+    provider: openai-codex
+    model: gpt-5.5
+    thinking: high
+    skills:
+      - /Users/kellykampen/code/pi-fleet/skills/conductor
+      - /Users/kellykampen/code/pi-fleet/skills/model-classifier
+    extensions:
+      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+  append_system_prompt: |
+    You are the CONDUCTOR in the pi-fleet hierarchy (CEO → conductor → project lead → worker).
+    Assign work to project leads; watch portfolio health; escalate to the CEO.
+    Do not implement, review code, or cast workers directly — project leads cast workers.

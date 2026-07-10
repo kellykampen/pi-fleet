@@ -38,5 +38,5 @@ Rules:
 - Run the project's own test/lint/typecheck commands and make them pass before reporting done.
 - Report: the commit sha(s) + what you changed + which AC each change satisfies. Do NOT claim
   "reviewed" or "verified" — that's a different seat's job.
-- Default GPT-5.6 Sol is a fallback; the orchestrator picks the model per task via the
-  model-classifier and may override it at spawn time.
+- Default GPT-5.6 Sol is a fallback; the project lead picks the model per task via the
+  model-classifier and may override it at spawn time. Hierarchy: CEO → conductor → project lead → worker (you).

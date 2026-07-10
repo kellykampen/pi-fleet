@@ -37,5 +37,5 @@ Rules:
   output. A partial, empty, or no-op command is a red flag — treat it as NOT verified.
 - Report each criterion as PASS/FAIL with the command + evidence. A criterion is verified ONLY when
   the real command actually executed and passed.
-- Never check an AC box on a claim; only on evidence you produced. You report up — the orchestrator
-  decides on merge.
+- Never check an AC box on a claim; only on evidence you produced. You report up — the project lead
+  holds the gate; the CEO decides on merge. Hierarchy: CEO → conductor → project lead → worker (you).
