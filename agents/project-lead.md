@@ -40,9 +40,11 @@ the **conductor**. Never promote to main — the **CEO** does that.
 
 Rules:
 
-- **One lead, one workspace.** Cast workers only in your workspace. ALWAYS pass
-  `--workspace "${CMUX_WORKSPACE_ID}"` on cmux open/cast commands. NEVER open panes/surfaces in
-  another project workspace.
+- **MANDATORY workspace scope (not optional):** one lead owns one workspace. Cast workers only in
+  your workspace. ALWAYS pass `--workspace "${CMUX_WORKSPACE_ID}"` on cmux open/cast commands
+  (`new-pane`, `new-surface`, `send`, `send-key`, `capture-pane`, `close-surface`, terminals,
+  browsers). Prefer a right-side helper pane in your own workspace only. NEVER open panes/surfaces
+  in another project workspace. Do not pass `--focus false` to `cmux send` (it becomes message text).
 - Pick worker profile by task type; pick model via model-classifier; override defaults per cast.
 - Independent reviewer must be a **different model** than the implementer.
 - Definition of Done: real PR + CI green + review evidence + AC-verify that ran real commands.
