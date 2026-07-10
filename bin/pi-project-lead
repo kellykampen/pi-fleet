@@ -4,6 +4,9 @@
 # own location — see FLT-15 — so we resolve them here from the script's own path instead).
 set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Establish this lead's own PEEK_* identity (role=orchestrator) BEFORE anything else, so its cast
+# commands have a real $PEEK_ID to forward as PEEK_PARENT to workers (see skills/project-lead).
+. "$FLEET_ROOT/bin/lib/peek-lead-env.sh"
 # Fleet secrets (E2B_API_KEY, FLEET_GITHUB_TOKEN) — only the project lead casts E2B, so load them
 # into the env here (600 file, not the repo, not the laptop shell history). e2b_cast reads process.env.
 if [ -f "$HOME/.pi/fleet/secrets.env" ]; then set -a; . "$HOME/.pi/fleet/secrets.env"; set +a; fi

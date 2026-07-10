@@ -314,9 +314,26 @@ cmux send --workspace "${CMUX_WORKSPACE_ID}" --surface surface:<N> \
 (or `PEEK_ORCH_ID`) it inherited as the caster's id, promotes that to `PEEK_PARENT`, and *only then*
 mints the worker's own fresh `PEEK_ID` — so the parent link is never lost to a premature overwrite.
 `skills/project-lead/SKILL.md`'s "How to cast" steps have this `PEEK_PARENT` forwarding built in.
-Conductor/project-lead wrappers do **not** source this helper — orchestrator/lead role semantics
-are untouched. Verify the contract with `bin/pi-fleet-eval-peekenv` (see
-[evals/README.md](evals/README.md)).
+
+That forwarding only works if `$PEEK_ID` is actually set in the lead's own shell — so
+`bin/pi-project-lead` and `bin/pi-conductor` each establish their **own** identity at startup too,
+via a *different* helper than the worker one (role semantics stay orchestrator/conductor, never
+`worker`):
+
+| Wrapper | Helper | `PEEK_ROLE` | `PEEK_ID` |
+| --- | --- | --- | --- |
+| `pi-project-lead` | `bin/lib/peek-lead-env.sh` | `orchestrator` (unless already set) | fresh `lead-<uuid>` (unless already set) |
+| `pi-conductor` | `bin/lib/peek-conductor-env.sh` | `conductor` (unless already set) | fixed `conductor` (unless already set) — cwd-agnostic per `peek`'s own "special case" |
+
+Both wrappers export their identity **before** anything else runs, so it's inherited by every bash
+tool call the session makes for its whole lifetime — including the `cmux send` cast command above.
+If a lead is ever started in a way that bypasses its wrapper (so `$PEEK_ID` stays unset), the cast
+command forwards `PEEK_PARENT=""` and the worker degrades to a parentless-but-valid registration
+rather than erroring — `bin/pi-fleet-eval-peekenv` covers this degradation case explicitly so it's a
+known, tested behavior rather than a silent gap.
+
+Verify the whole contract — worker, lead, and conductor identity, plus the full cast chain and the
+degradation case — with `bin/pi-fleet-eval-peekenv` (see [evals/README.md](evals/README.md)).
 
 ---
 

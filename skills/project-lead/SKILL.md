@@ -45,6 +45,9 @@ Exact steps:
    that does not inherit your process env, so without this the worker has no way to know who cast
    it and registers as parentless in `peek`. Every worker wrapper exports `PEEK_ID`/`PEEK_ROLE`/
    `PEEK_WORKSPACE` on its own (see `bin/lib/peek-env.sh`); only the parent link needs your help.
+   `$PEEK_ID` is always non-empty here — `pi-project-lead` establishes its own identity
+   (`bin/lib/peek-lead-env.sh`, role=`orchestrator`) at startup, before anything else, precisely so
+   this forwarding never sends an empty string.
 3. Send the brief the same way; monitor with
    `cmux capture-pane --workspace "${CMUX_WORKSPACE_ID}" --surface surface:<N>`.
 4. When done, collect the result and
