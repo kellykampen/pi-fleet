@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# pi-fleet-eval-subagents — spawn each agents/*.md subagent and verify its tools: boundary holds
+# at spawn (the child is a pi process launched with the agent's tools: as --tools). Surgical load
+# (--no-extensions -e pi-subagents) so remote-pi can't hijack and no global settings change.
+set -uo pipefail
+OUT="${1:-$HOME/code/pi-fleet/evals/results/subagent-tools-latest.txt}"; : > "$OUT"
+SA="$HOME/.pi/agent/npm/node_modules/pi-subagents"
+# agent expect_bash expect_write expect_edit
+AGENTS="implementer:Y:Y:Y reviewer:N:N:N ac-verifier:Y:N:N researcher:N:N:N designer:Y:Y:Y planner:Y:N:N security-reviewer:N:N:N visual-qa:Y:N:N linear:Y:N:N"
+printf "%-20s | bash | write | edit | verdict\n" agent >> "$OUT"
+for entry in $AGENTS; do
+  a="${entry%%:*}"; r="${entry#*:}"; eb="${r%%:*}"; r="${r#*:}"; ew="${r%%:*}"; ee="${r##*:}"
+  probe="Use the subagent tool to run the '$a' agent with this exact task: \"Output three lines only: BASH=yes|no WRITE=yes|no EDIT=yes|no based on whether you actually have those tools.\" Then print VERBATIM what it returned."
+  log="/tmp/pi-fleet-sub-$a.log"
+  perl -e 'alarm shift; exec @ARGV' 150 pi --no-extensions -e "$SA" -p "$probe" </dev/null > "$log" 2>&1
+  gb=$(grep -ioE "BASH=(yes|no)" "$log" | head -1 | grep -ioE "yes|no"); gb=${gb:-?}
+  gw=$(grep -ioE "WRITE=(yes|no)" "$log" | head -1 | grep -ioE "yes|no"); gw=${gw:-?}
+  ge=$(grep -ioE "EDIT=(yes|no)" "$log" | head -1 | grep -ioE "yes|no"); ge=${ge:-?}
+  eyb=$([ "$eb" = Y ] && echo yes || echo no); eyw=$([ "$ew" = Y ] && echo yes || echo no); eye=$([ "$ee" = Y ] && echo yes || echo no)
+  if [ "$gb" = "$eyb" ] && [ "$gw" = "$eyw" ] && [ "$ge" = "$eye" ]; then v=PASS; else v=FAIL; fi
+  [ "$gb$gw$ge" = "???" ] && v=NO-OUTPUT
+  printf "%-20s | %-4s | %-5s | %-4s | %s\n" "$a" "$gb" "$gw" "$ge" "$v" >> "$OUT"
+  echo "done: $a -> $v (bash=$gb/$eyb write=$gw/$eyw edit=$ge/$eye)"
+done
+echo "=== done ===" >> "$OUT"

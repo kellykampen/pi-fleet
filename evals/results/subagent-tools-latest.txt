@@ -1,0 +1,11 @@
+agent                | bash | write | edit | verdict
+implementer          | yes  | yes   | yes  | PASS
+reviewer             | no   | no    | no   | PASS
+ac-verifier          | yes  | no    | no   | PASS
+researcher           | no   | no    | no   | PASS
+designer             | yes  | yes   | yes  | PASS
+planner              | yes  | no    | no   | PASS
+security-reviewer    | no   | no    | no   | PASS
+visual-qa            | yes  | no    | no   | PASS  (verified w/ model override; default gemini/openrouter failed to auth)
+linear               | yes  | no    | no   | PASS
+=== done ===
