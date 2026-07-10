@@ -7,3 +7,5 @@ controls:
     thinking: low
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/research
+    extensions:
+      - /Users/kellykampen/.pi/agent/npm/node_modules/pi-mcp-extension

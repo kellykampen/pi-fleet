@@ -7,3 +7,5 @@ controls:
     thinking: medium
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/visual-qa
+    extensions:
+      - /Users/kellykampen/.pi/agent/npm/node_modules/pi-mcp-extension

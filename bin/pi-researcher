@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 # Hybrid: outfitter composes skills/extensions/prompt/model; this wrapper hardcodes the
-# --tools allowlist (outfitter's pi adapter can't set it). Enforcement lives here.
+# --tools allowlist,mcp_context7_resolve_library_id,mcp_context7_query_docs (outfitter's pi adapter can't set it). Enforcement lives here.
 set -euo pipefail
 exec outfitter run --profile researcher --agent pi -- --tools read,grep,find,ls "$@"
