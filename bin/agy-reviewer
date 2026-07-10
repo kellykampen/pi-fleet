@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# agy-reviewer — independent review on the Gemini/agy harness (different model family than the
+# pi/claude builder). --mode plan = read-only (no edits); coarse guardrail only.
+set -euo pipefail
+exec agy --mode plan --sandbox --model "Gemini 3.1 Pro (High)" "$@"

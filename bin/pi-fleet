@@ -23,6 +23,12 @@ ${bold}PROFILES${reset}  ${dim}(run the command; cd to your target dir first)${r
   ${cyan}pi-personal-assistant${reset}   GPT-5.6 Terra · full     Personal social/X + comms/notes/tasks
                                              ${dim}(finch·gog·imsg·wacli·obsidian-cli·ntn·linear; draft→approve→execute)${reset}
 
+${bold}EXTERNAL-HARNESS SEATS${reset}  ${dim}(not pi — no pi- prefix; cast into panes, monitored the same way)${reset}
+  ${cyan}claude-reviewer${reset}         Claude Code · read-only   Independent review on a different harness
+  ${cyan}claude-worker${reset}           Claude Code · rw+bash     Generic build worker (harness diversity)
+  ${cyan}agy-researcher${reset}          Gemini 3.1 Pro · plan     Long-context read/analysis (agy, read-only mode)
+  ${cyan}agy-reviewer${reset}            Gemini 3.1 Pro · plan     Different-family review (agy, read-only mode)
+
 ${bold}USAGE${reset}
   cd ~/some/project && pi-<role>              start a seat in that directory
   pi-<role> --provider openrouter --model X   override the model for this run
