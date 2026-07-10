@@ -60,13 +60,14 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 | **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
 | **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
 
-Project leads cast **`pi-doc-updater`** after behavior changes to keep README files, docs, changelogs, and operator notes in sync.
+Project leads cast **`pi-doc-updater`** after behavior changes to keep README files, docs, changelogs, and operator notes in sync. See [`skills/doc-updater/SKILL.md`](./skills/doc-updater/SKILL.md).
 
 ### Remote-pi / relay policy
 
-Only the **conductor** and **personal-assistant** seats load the `remote-pi` extension by default, so only they can be reached as CEO remote-control targets via the mobile relay. The conductor routes across projects; the personal assistant is the CEO's direct agent.
-
-Project leads and workers do **not** load `remote-pi` by default. They remain reachable by the conductor through local cmux/agent-network means and are not exposed to the relay. If a project lead or worker ever needs to be reachable remotely for debugging, create a temporary override profile that adds `npm:remote-pi` to its `cli_specific/pi/settings.json` and run `/remote-pi` in that session.
+Only **conductor** and **personal-assistant** load `npm:remote-pi` by default, so only they are CEO
+remote-control targets via the mobile relay. Project leads and workers do not load it and remain
+reachable locally through cmux / the local agent network. To debug remotely, add `npm:remote-pi` to a
+temporary override profile and run `/remote-pi`.
 
 The `pi-personal-assistant` toolkit (all via `bash`, documented in its skill):
 `finch` (X) · `gog` (Google Workspace) · `imsg` (iMessage) · `wacli` (WhatsApp) ·
@@ -76,6 +77,18 @@ The `pi-personal-assistant` toolkit (all via `bash`, documented in its skill):
 standalone — but the **`pi-project-lead`** picks the model per task using the **model-classifier
 skill** (loaded into it) and overrides via `--provider/--model` on the cast. So routing = "which
 worker profile + which model," decided per task, not baked rigidly into the profile.
+
+### Casting policy
+
+No new Kimi/GLM workers. Project leads prefer:
+
+- **Claude Code** workers for builds and **Claude Code** reviewers for reviews.
+- OpenAI-Codex / Grok as acceptable alternatives.
+- Antigravity (agy) / Gemini eased in where useful.
+
+Grok / xAI remains reserved for existing roles that need it, e.g. `pi-ac-verifier`, `pi-visual-qa`,
+and `pi-security-reviewer`. Routing is decided per task via the `model-classifier` skill.
+See [`skills/model-classifier/SKILL.md`](./skills/model-classifier/SKILL.md).
 
 ---
 
@@ -268,6 +281,14 @@ a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
 Without `E2B_API_KEY`, `e2b_cast` still works in **dry-run** mode (local job record only) so you can
 exercise the project-lead flow offline.
 
+### Template status and FLT-4 gate
+
+- `pi-fleet-node22` is published and `FLEET_E2B_TEMPLATE` is set.
+- FLT-3 smoke test passes.
+- FLT-4 is **on hold** pending root cause / fix of an `e2b_cast` tool-path bug. No E2B spend on FLT-4
+  until fixed. See [`docs/e2b-v0.md`](./docs/e2b-v0.md) for the job contract.
+- The project lead reports the gate status to the conductor.
+
 ### Example (from a project-lead session)
 
 ```
@@ -284,3 +305,10 @@ e2b_cast({
 e2b_status({ jobId })
 e2b_wait({ jobId })   # optional
 ```
+
+---
+
+## Standing rules
+
+- README updates must be included in the same PR as behavior/profile changes whenever the change is user-facing or operator-facing.
+- All conductors must include the CEO local time in messages to the CEO, formatted as `MMM-DD HH:MM AM/PM` (e.g. `Jul-10 08:35 PM`). Do not use UTC.
