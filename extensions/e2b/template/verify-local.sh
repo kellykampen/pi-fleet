@@ -17,9 +17,21 @@ required_patterns=(
 	"@ai-outfitter/outfitter"
 )
 
+prohibited_patterns=(
+	"^SHELL "
+	"bash.*-lc.*sleep infinity"
+)
+
 for pattern in "${required_patterns[@]}"; do
 	if ! grep -Fq "$pattern" "$DOCKERFILE"; then
 		echo "Dockerfile missing required pattern: $pattern" >&2
+		exit 1
+	fi
+done
+
+for pattern in "${prohibited_patterns[@]}"; do
+	if grep -Eq "$pattern" "$DOCKERFILE"; then
+		echo "Dockerfile contains prohibited pattern: $pattern" >&2
 		exit 1
 	fi
 done
