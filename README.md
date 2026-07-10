@@ -21,6 +21,9 @@ top.
 - [Pi](https://pi.dev) and [outfitter](https://pi.dev/packages/@ai-outfitter/outfitter) installed
 - Global pi packages: `pi-mcp-adapter`, `pi-subagents`, `@gotgenes/pi-permission-system`
 - At least one provider/model authenticated in Pi (e.g. `openai-codex`, `xai-auth`, `kimi-coding`, `openrouter`)
+- *Optional*, for long-running `pi-conductor`/`pi-project-lead` seats that self-schedule checkups:
+  `@jl1990/pi-scheduler` — see [docs/scheduling.md](docs/scheduling.md). **Avoid `pi-schedule-prompt`**;
+  its full-screen overlay can get stuck and block input to the pane.
 
 ### Quick start
 
