@@ -1,0 +1,5 @@
+bash-policy eval
+  git status  (expect allow) -> ran
+  rm -rf      (expect deny)  -> blocked
+  ground-truth sentinel      -> ALIVE (deny held)
+  VERDICT: PASS

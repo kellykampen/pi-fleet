@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Deprecated alias — "orchestrator" was renamed to project-lead in the fleet hierarchy.
+# CEO → conductor → project lead → worker
+set -euo pipefail
+echo "pi-orchestrator is deprecated; use pi-project-lead" >&2
+exec "$(dirname "$0")/pi-project-lead" "$@"

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# agy-worker — build worker on the agy (Gemini) harness for harness diversity. Uses accept-edits
+# mode so it can Edit/Write/run. NOTE: agy has NO tool allowlist, so guardrails are coarse — per
+# AGY-FLEET-GUIDANCE, don't make agy the DEFAULT builder until worktree/auto-approve behavior is
+# proven safe for the target repo; prefer it for well-specified, low-risk work.
+set -euo pipefail
+exec agy --mode accept-edits --model "Gemini 3.1 Pro (High)" "$@"

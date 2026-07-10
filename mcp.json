@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "context7": {
+      "transport": "streamable-http",
+      "url": "https://mcp.context7.com/mcp",
+      "lifecycle": "eager"
+    },
+    "playwright": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ],
+      "lifecycle": "lazy"
+    },
+    "convex": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "convex@latest",
+        "mcp",
+        "start"
+      ],
+      "lifecycle": "lazy"
+    }
+  }
+}

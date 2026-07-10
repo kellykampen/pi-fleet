@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# claude-worker — generic build worker on the Claude harness (harness diversity vs pi seats).
+# Bash scoped to git/package-manager; can Edit/Write to implement.
+set -euo pipefail
+DIR="$HOME/code/pi-fleet"
+exec claude \
+  --allowedTools "Read Grep Glob Edit Write Bash(git:*) Bash(pnpm:*) Bash(npm:*) Bash(npx:*) Bash(node:*)" \
+  --disallowedTools "Bash(rm -rf:*) Bash(sudo:*) Bash(curl:*)" \
+  --append-system-prompt "$(cat "$DIR/skills/claude-worker/PROMPT.md")" \
+  "$@"

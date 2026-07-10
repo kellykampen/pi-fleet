@@ -1,0 +1,9 @@
+id: visual-qa
+label: visual-qa
+controls:
+  pi:
+    provider: xai-auth
+    model: grok-4.5
+    thinking: medium
+    skills:
+      - ../skills/visual-qa

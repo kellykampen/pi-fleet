@@ -1,0 +1,11 @@
+id: linear
+label: linear
+controls:
+  pi:
+    provider: kimi-coding
+    model: k2p7
+    thinking: low
+    skills:
+      - ../skills/linear-management
+    extensions:
+      - ../extensions/linear.ts

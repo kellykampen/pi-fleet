@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec outfitter run --profile designer --agent pi -- --tools read,grep,find,ls,write,edit,bash,context7_resolve-library-id,context7_query-docs "$@"

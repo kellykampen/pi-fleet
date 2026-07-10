@@ -1,0 +1,11 @@
+id: security-reviewer
+label: security-reviewer
+controls:
+  pi:
+    provider: xai-auth
+    model: grok-4.5
+    thinking: high
+    skills:
+      - ../skills/security-review
+  append_system_prompt: |
+    You are a READ-ONLY security reviewer on a strong, independent model. Report exploitable vulnerabilities with severity + file:line + impact; never modify files. Prefer real issues over theoretical nits.

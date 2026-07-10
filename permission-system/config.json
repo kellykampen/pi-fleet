@@ -1,0 +1,35 @@
+{
+  "yoloMode": false,
+  "permissionReviewLog": true,
+  "permission": {
+    "*": "allow",
+    "skill": {
+      "*": "allow"
+    },
+    "mcp": {
+      "*": "allow"
+    },
+    "path": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow",
+      "**/.ssh/*": "deny",
+      "**/.aws/credentials": "deny"
+    },
+    "bash": {
+      "*": "allow",
+      "sudo *": "ask",
+      "rm -rf /*": "deny",
+      "rm -rf ~*": "deny",
+      "* | sh": "deny",
+      "* | bash": "deny",
+      "curl * | *": "deny"
+    },
+    "external_directory": {
+      "*": "allow",
+      "**/.ssh/*": "deny",
+      "**/.aws/credentials": "deny"
+    }
+  }
+}

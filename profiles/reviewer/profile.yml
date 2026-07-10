@@ -1,0 +1,16 @@
+id: reviewer
+label: Reviewer (read-only)
+description: Independent read-only code reviewer. Enforcement of the read-only tool set is done by the pi-reviewer wrapper (--tools); this profile composes the skill + prompt.
+controls:
+  pi:
+    provider: kimi-coding
+    model: k2p7
+    thinking: medium
+    skills:
+      - ../skills/code-review
+    extensions:
+      - ../extensions/linear.ts
+  append_system_prompt: |
+    You are an INDEPENDENT read-only code reviewer on a DIFFERENT model than the implementer.
+    You have no write/edit/bash tools. Report findings against the acceptance criteria; never modify files.
+    Default model is Kimi for cost-effective review; if the implementer used Kimi, the project lead MUST override this profile to a different model/provider for that cast.

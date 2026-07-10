@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
+# Conductor coordinates project leads — same tool surface as project-lead (Linear + bash for casting
+# panes/wrappers), but the skill forbids implementing or casting workers directly.
+set -euo pipefail
+exec outfitter run --profile conductor --agent pi -- --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"

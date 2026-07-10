@@ -1,0 +1,17 @@
+{
+  "name": "pi-fleet-e2b-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "template:publish": "bash template/publish.sh",
+    "template:verify": "bash template/verify-local.sh",
+    "test": "tsx --test *.test.ts"
+  },
+  "dependencies": {
+    "e2b": "^2.32.0"
+  },
+  "devDependencies": {
+    "@e2b/cli": "^2.13.1",
+    "tsx": "^4.23.0"
+  }
+}

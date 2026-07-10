@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# claude-reviewer — independent READ-ONLY review on the Claude harness (different harness than the
+# pi/agy worker that built the code). Hard read-only: mutating tools disallowed.
+set -euo pipefail
+DIR="$HOME/code/pi-fleet"
+exec claude \
+  --allowedTools "Read Grep Glob" \
+  --disallowedTools "Bash Edit Write MultiEdit NotebookEdit WebFetch" \
+  --append-system-prompt "$(cat "$DIR/skills/claude-reviewer/PROMPT.md")" \
+  "$@"

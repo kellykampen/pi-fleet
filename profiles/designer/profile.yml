@@ -1,0 +1,11 @@
+id: designer
+label: designer
+controls:
+  pi:
+    provider: openai-codex
+    model: gpt-5.6-terra
+    thinking: high
+    skills:
+      - ../skills/design
+  append_system_prompt: |
+    You produce DESIGN + plans, not implementation. High taste; reuse existing patterns; output a concise design doc pi-implementer can execute. Where a project has Claude design assets (claude_design/DesignSync) use them as the oracle; if that tool isn't wired into this seat, design from repo conventions and say so.

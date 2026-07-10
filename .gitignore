@@ -1,0 +1,12 @@
+# pi runtime — never tracked. pi reads config from ~/.pi/agent (global) or <cwd>/.pi;
+# bin/pi-fleet-bootstrap installs the permission-system/config.json template into them.
+.pi/
+.pi-subagents/
+.pi-fleet/
+
+# node deps, git worktrees, local runtime
+node_modules/
+extensions/*/node_modules/
+.worktrees/
+*.log
+.DS_Store
