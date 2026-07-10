@@ -59,6 +59,17 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 | **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
 | **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
 
+### Usage monitoring
+
+Check model usage before heavy casts if it has not been checked recently. Use the repo-local
+`check-model-usage` skill and report only its dry CodexBar summary. See
+[`skills/check-model-usage/SKILL.md`](./skills/check-model-usage/SKILL.md) for the full contract.
+
+### Conductor startup
+
+The conductor loads the `check-model-usage` skill and `npm:remote-pi`. It is CEO-reachable and does
+not cast workers directly. Restart the seat to pick up profile changes.
+
 The `pi-personal-assistant` toolkit (all via `bash`, documented in its skill):
 `finch` (X) · `gog` (Google Workspace) · `imsg` (iMessage) · `wacli` (WhatsApp) ·
 `obsidian-cli` (Obsidian) · `ntn` (Notion) · `linear-cli` · `gh`/`git`.
