@@ -100,6 +100,30 @@ worker profile + which model," decided per task, not baked rigidly into the prof
 
 ---
 
+## Profile requirements (external CLIs)
+
+Every seat needs the [global setup](#requirements) (pi + outfitter + the three packages). Beyond
+that, individual profiles shell out to external CLIs — install the ones for the seats you use, and
+make sure they're on `PATH`:
+
+| Profile(s) | Needs on `PATH` (beyond global setup) |
+| --- | --- |
+| `pi-reviewer`, `pi-researcher`, `pi-security-reviewer` | *nothing* — read-only seats |
+| `pi-implementer`, `pi-designer`, `pi-ac-verifier` | `git`, `gh`, and the target project's toolchain (`node` + `pnpm`/`npm`) |
+| `pi-planner`, `pi-linear` | [`linear-cli`](https://github.com/schpet/linear-cli) *(+ a `LINEAR_API_KEY`)* |
+| `pi-visual-qa` | `node` + Playwright (`npx playwright install`); a way to run the app under test |
+| `pi-conductor`, `pi-project-lead` | [`cmux`](https://cmux.io) (casts workers into panes), `git`, `gh`, `linear-cli` |
+| `pi-project-lead` **E2B remote casts** | the `e2b` CLI (`npm i` in `extensions/e2b`) + `E2B_API_KEY` + `FLEET_GITHUB_TOKEN` — see [E2B section](#e2b-remote-implementers-v0) |
+| `pi-remotion` | `node`/`npm` + [Remotion](https://www.remotion.dev) (`npx remotion`) |
+| `pi-personal-assistant` | your own CLIs on `PATH`: `finch` (X), `gog` (Google), `imsg` (iMessage), `wacli` (WhatsApp), `obsidian-cli`, `ntn` (Notion), `linear-cli`, `gh`/`git`. **Not bundled** — supply your own; the profile only orchestrates them under a draft→approve→execute gate. |
+| `claude-designer`, `claude-reviewer`, `claude-worker` | [Claude Code](https://claude.com/claude-code) (`claude`), authenticated. `claude-designer` also needs a one-time `/design-login`. |
+| `agy-researcher`, `agy-reviewer`, `agy-worker` | the `agy` CLI (Antigravity/Gemini), authenticated. |
+
+Read-only seats (`pi-reviewer` etc.) deliberately have **no `bash`**, so they need nothing extra.
+A seat whose CLI is missing will simply fail that command — install it and re-run.
+
+---
+
 ## Two ways to run a role: top-level seat vs. spawnable subagent
 
 pi-fleet composes **three upstream packages** — nothing is forked:
