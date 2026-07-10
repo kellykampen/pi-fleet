@@ -2,8 +2,8 @@ id: visual-qa
 label: visual-qa
 controls:
   pi:
-    provider: openrouter
-    model: google/gemini-3.1-pro-preview
+    provider: xai-auth
+    model: grok-4.5
     thinking: medium
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/visual-qa

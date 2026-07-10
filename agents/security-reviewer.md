@@ -1,8 +1,8 @@
 ---
 name: security-reviewer
 description: Security-focused, read-only review of a diff or codebase area. Reports exploitable vulnerabilities with severity + file:line. Cannot mutate anything — no bash, write, or edit.
-model: x-ai/grok-4.5
-fallbackModels: anthropic/claude-fable-5, openai/gpt-5.6-sol
+model: grok-4.5
+fallbackModels: gpt-5.6-sol, gpt-5.5
 thinking: high
 tools: read, grep, find, ls
 systemPromptMode: replace

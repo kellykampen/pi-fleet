@@ -2,8 +2,8 @@ id: ac-verifier
 label: ac-verifier
 controls:
   pi:
-    provider: openrouter
-    model: google/gemini-3.1-pro-preview
+    provider: xai-auth
+    model: grok-4.5
     thinking: high
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/linear-ac-verification

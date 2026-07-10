@@ -2,7 +2,7 @@
 name: planner
 description: Break a feature/request into a Linear project + <=3-point issues with checkbox acceptance criteria and wired blockers. Reads the repo and Linear; does not write production code.
 model: gpt-5.6-terra
-fallbackModels: x-ai/grok-4.5, anthropic/claude-opus-4-8
+fallbackModels: grok-4.5, gpt-5.5
 thinking: high
 tools: read, grep, find, ls, bash
 systemPromptMode: replace

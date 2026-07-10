@@ -1,0 +1,3 @@
+BASH=yes
+WRITE=no
+EDIT=no

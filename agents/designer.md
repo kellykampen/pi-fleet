@@ -2,7 +2,7 @@
 name: designer
 description: Produce design / architecture / API + planning docs (high taste). Reads the repo and writes design docs an implementer can execute; does not ship production code itself.
 model: gpt-5.6-terra
-fallbackModels: x-ai/grok-4.5, anthropic/claude-opus-4-8
+fallbackModels: grok-4.5, gpt-5.5
 thinking: high
 tools: read, grep, find, ls, write, edit, bash
 systemPromptMode: append

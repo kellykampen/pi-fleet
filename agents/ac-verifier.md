@@ -1,8 +1,8 @@
 ---
 name: ac-verifier
 description: Independently RUN the acceptance-criteria verification (tests/build/lint) for a ticket and report per-criterion pass/fail with evidence. Different model than the implementer. Has bash to run commands but does not edit code.
-model: google/gemini-3.1-pro-preview
-fallbackModels: openai/gpt-5.5, x-ai/grok-4.5
+model: grok-4.5
+fallbackModels: gpt-5.5, gpt-5.6-sol
 thinking: high
 tools: read, grep, find, ls, bash
 systemPromptMode: replace

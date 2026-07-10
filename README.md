@@ -47,7 +47,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 |---|---|---|---|
 | **`pi-implementer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls, **write, edit, bash** + linear read | Builds one ticket end-to-end in a worktree (code + tests → PR). Override to Kimi `k2p7` for simple work. |
 | **`pi-reviewer`** | Kimi K2.7 (`kimi-coding`) · medium | read, grep, find, ls + linear read *(no bash)* | Independent **read-only** code review/QC. Must run on a **different model** than the implementer. |
-| **`pi-ac-verifier`** | Gemini 3.1 Pro (`openrouter`) · high | read, grep, find, ls, **bash** + linear | **Runs** the acceptance-criteria verification (tests/build), checks the AC boxes only on real pass. Different model than the build. |
+| **`pi-ac-verifier`** | Grok 4.5 (`xai-auth`) · high | read, grep, find, ls, **bash** + linear | **Runs** the acceptance-criteria verification (tests/build), checks the AC boxes only on real pass. Different model than the build. |
 | **`pi-researcher`** | Kimi K2.7 · low | read, grep, find, ls | Read-only scouting / codebase investigation. |
 | **`pi-designer`** | GPT-5.6 Terra (`openai-codex`) · high | read, grep, find, ls, write, edit, bash | Design / architecture / API + planning docs (taste model). Hands build to `pi-implementer`. For **claude.ai design import/update**, use `claude-designer` instead. |
 | **`claude-designer`** | Claude Code (`--agent claude`) | `mcp__claude_design__*` + Read/Grep/Glob/Edit/Write/Bash(git,pnpm,npm) | Reads/updates **claude.ai design** projects via the `claude_design` MCP and implements them. Runs **Claude Code, not pi** — claude_design's OAuth is gated to Claude Code's blessed client (pi's generic MCP OAuth is turned down). One-time `/design-login` if tools 401. |
@@ -55,7 +55,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 | **`pi-security-reviewer`** | Grok 4.5 (`openrouter`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. |
 | **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Cross-project router — assigns **project leads**, watches portfolio health, escalates to the CEO. Does not cast workers. |
 | **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Owns one project — routes each task to the right worker + model (via **model-classifier**), casts seats, holds QC gates. |
-| **`pi-visual-qa`** | Gemini 3.1 Pro (`openrouter`) · high | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. |
+| **`pi-visual-qa`** | Grok 4.5 (`xai-auth`) · high | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. |
 | **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
 | **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
 

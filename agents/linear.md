@@ -2,7 +2,7 @@
 name: linear
 description: Full Linear issue/project management (create, label, relate, move, status) via the linear CLI. Has bash scoped to linear + git-read; does not edit repo code.
 model: k2p7
-fallbackModels: z-ai/glm-4.6, openai/gpt-5.5
+fallbackModels: grok-4.5, gpt-5.5
 thinking: low
 tools: read, grep, find, ls, bash
 systemPromptMode: replace
