@@ -5,7 +5,10 @@
 # One-time auth: run `/design-login` (or `/mcp`) inside a claude session if the design tools 401.
 set -euo pipefail
 DIR="$HOME/code/pi-fleet"
-exec claude \
+# YOLO: autonomous fleets set FLEET_YOLO=1 to auto-approve (no permission prompts).
+# Default (unset) is safe/interactive. Read-only seats stay read-only either way.
+YOLO=""; [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--dangerously-skip-permissions"
+exec claude $YOLO \
   --mcp-config "$DIR/claude-design-mcp.json" \
   --append-system-prompt "$(cat "$DIR/skills/claude-design/PROMPT.md")" \
   --allowedTools "mcp__claude_design__* Read Grep Glob Edit Write Bash(git status) Bash(git diff:*) Bash(pnpm:*) Bash(npm:*)" \
