@@ -1,22 +1,8 @@
 {
   "mcpServers": {
-    "claude_design": {
-      "transport": "streamable-http",
-      "url": "https://api.anthropic.com/v1/design/mcp"
-    },
-    "context7": {
-      "transport": "streamable-http",
-      "url": "https://mcp.context7.com/mcp"
-    },
-    "playwright": {
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["@playwright/mcp@latest"]
-    },
-    "convex": {
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "convex@latest", "mcp", "start"]
-    }
+    "claude_design": { "transport": "streamable-http", "url": "https://api.anthropic.com/v1/design/mcp", "lifecycle": "eager" },
+    "context7":      { "transport": "streamable-http", "url": "https://mcp.context7.com/mcp", "lifecycle": "eager" },
+    "playwright":    { "transport": "stdio", "command": "npx", "args": ["@playwright/mcp@latest"], "lifecycle": "eager" },
+    "convex":        { "transport": "stdio", "command": "npx", "args": ["-y", "convex@latest", "mcp", "start"], "lifecycle": "eager" }
   }
 }
