@@ -163,7 +163,7 @@ pi-fleet/
 ├── agents/<role>.md              # pi-subagents roster (spawnable children)
 ├── extensions/linear.ts          # narrow linear_* tools
 ├── extensions/e2b/               # E2B remote cast tools (project-lead only)
-├── docs/e2b-v0.md                # E2B design + job contract
+├── docs/e2b-v0.md                # E2B pointer to Linear
 └── bin/pi-<role>                 # wrapper: hardcodes --tools, launches Pi via outfitter
 ```
 
@@ -224,7 +224,7 @@ After pulling: `bin/pi-fleet-bootstrap`, then restart seats.
 ## E2B remote implementers (v0)
 
 The **project lead** can cast an **implementer** into an [E2B](https://e2b.dev) sandbox instead of
-a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
+a local worktree. Planning and design live in Linear: [E2B remote workers v0 project](https://linear.app/dojoco/project/e2b-remote-workers-v0-5c19a9233ff1) · [E2B v0 design doc](https://linear.app/dojoco/document/e2b-v0-design-bf86cf762b0f).
 
 **Who:** only `pi-project-lead` (tools on its `--tools` allowlist).  
 **What:** async `e2b_cast` → `jobId`; `e2b_status` / `e2b_wait` / `e2b_cancel` / `e2b_logs`.  

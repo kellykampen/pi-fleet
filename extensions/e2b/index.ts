@@ -1,6 +1,6 @@
 /**
  * pi-fleet E2B extension — project-lead tools for remote implementer casts.
- * Design: docs/e2b-v0.md
+ * Design: https://linear.app/dojoco/document/e2b-v0-design-bf86cf762b0f
  */
 import { defineTool, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
