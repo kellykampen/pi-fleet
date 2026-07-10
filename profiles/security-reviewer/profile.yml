@@ -2,8 +2,8 @@ id: security-reviewer
 label: security-reviewer
 controls:
   pi:
-    provider: openrouter
-    model: x-ai/grok-4.5
+    provider: xai-auth
+    model: grok-4.5
     thinking: high
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/security-review
