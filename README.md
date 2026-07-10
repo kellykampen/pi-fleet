@@ -47,6 +47,39 @@ worker profile + which model," decided per task, not baked rigidly into the prof
 
 ---
 
+## Two ways to run a role: top-level seat vs. spawnable subagent
+
+pi-fleet composes **three upstream packages** — nothing is forked:
+
+| Layer | Package | Role |
+|---|---|---|
+| Loadout + CLI launch | **outfitter** | Composes model/skills/extensions/system-prompt into a profile; the `bin/pi-<role>` wrapper launches it and hardcodes the `--tools` allowlist. |
+| Spawnable subagents | **pi-subagents** | Lets a running seat *delegate* to a child agent (chains, parallel, background). Roster lives in `agents/*.md`. |
+| Runtime policy | **@gotgenes/pi-permission-system** | `allow`/`ask`/`deny` per tool **and per bash command** (e.g. `git *: allow`, `rm -rf *: deny`). Global baseline in `permission-system/config.json`; per-agent `permission:` frontmatter tightens it. |
+
+So each role exists in two forms:
+- **Top-level seat** — `bin/pi-<role>` (outfitter + `--tools`). Start it yourself from a terminal.
+- **Spawnable subagent** — `agents/<role>.md`, discovered globally at `~/.pi/agent/agents/`. Any seat
+  (typically `pi-orchestrator`) delegates to it via the `subagent` tool. Its `tools:` frontmatter is
+  the visibility allowlist; `permission:` is the bash/CLI policy. Read-only roles
+  (`reviewer`, `researcher`, `security-reviewer`) carry no `bash`/`write`/`edit` **by construction**.
+
+### Machine setup + durability
+
+```bash
+bin/pi-fleet-bootstrap   # symlink mcp.json, agents/, permission config into ~/.pi; re-apply patches
+bin/pi-fleet-repair      # idempotently re-apply the outfitter + pi-tui patches (run after any update)
+bin/pi-fleet-eval        # prove each seat's --tools allowlist really enforces read/write/bash
+```
+
+Two patches (auto-reverted by `outfitter update` / `pi update`, so `pi-fleet-repair` re-applies them):
+1. **outfitter** — persist `pi-mcp-adapter`'s OAuth/onboarding state (else it's wiped each launch).
+2. **pi-tui** — truncate overflowing lines instead of crashing pi (narrow panes overflow the banner).
+
+Required global pi packages: `pi-mcp-adapter`, `pi-subagents`, `@gotgenes/pi-permission-system`.
+
+---
+
 ## How to start a profile
 
 The wrappers live in `bin/` and are on your `$PATH` (see setup below). From any terminal:
