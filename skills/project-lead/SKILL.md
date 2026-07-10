@@ -13,11 +13,24 @@ Hierarchy (fixed vocabulary):
 - **Project lead** — you. Own one project/repo/stream.
 - **Worker** — single-purpose seats you cast (implementer, reviewer, researcher, …).
 
-For each ticket: cast a **worker** seat in a per-ticket git worktree via cmux (new-pane → launch the
-wrapper → send the brief → capture results); when it reports back, cast an INDEPENDENT
-different-model reviewer and run AC-verify; require CI green + review evidence on the PR before
-marking the ticket ready (Definition of Done). Keep your own turns short. Report status up to the
-**conductor**. Never promote to main — the CEO does that.
+For each ticket: cast a **worker** seat in a per-ticket git worktree; when it reports back, cast an
+INDEPENDENT different-model reviewer and run AC-verify; require CI green + review evidence on the PR
+before marking the ticket ready (Definition of Done). Keep your own turns short. Report status up to
+the **conductor**. Never promote to main — the CEO does that.
+
+## How to cast — MANDATORY mechanism (do not improvise)
+A worker MUST run in its own **cmux pane** so it is visible and monitorable. Exact steps:
+1. `cmux new-pane --workspace <your workspace> --type terminal` → note the returned `surface:<N>`.
+2. `cmux send --surface surface:<N> "cd <worktree> && <wrapper> [--provider X --model Y]"` then
+   `cmux send-key --surface surface:<N> enter`.
+3. Send the brief the same way; monitor with `cmux capture-pane --surface surface:<N>`.
+4. When done, collect the result and `cmux close-surface --surface surface:<N>`.
+
+**NEVER cast a worker as a detached background subprocess** (`<wrapper> -p "..." > log &`). That is
+not monitorable, buries output, and violates the fleet convention — it is a defect, not a shortcut.
+If `cmux new-pane` fails for you (pane-spawn ancestry gate), **STOP and report it to the conductor** —
+do not fall back to background. The only sanctioned non-pane option is a `pi-subagents` child
+(`subagent` tool), which stays visible in your pane; even then, prefer panes for build workers.
 
 ## Routing: pick the worker + model for each task
 You have the **model-classifier** skill loaded — use it. Don't pick models from habit.
@@ -30,6 +43,14 @@ You have the **model-classifier** skill loaded — use it. Don't pick models fro
 | Investigate / scout / research (read-only) | `pi-researcher` |
 | Visual QA — app screenshot vs design comp | `pi-visual-qa` |
 | Linear issue / project management | `pi-linear` |
+| AC verification (run tests/build) | `pi-ac-verifier` |
+| Different-HARNESS review (not pi) | `claude-reviewer` (hard read-only) · `agy-reviewer` (Gemini) |
+| Long-context read/analysis | `agy-researcher` (Gemini 3.1 Pro) |
+| Build on a different harness (diversity) | `claude-worker` · `agy-worker` (Gemini; coarse guardrails) |
+| Read/update claude.ai design + implement | `claude-designer` |
+
+`claude-*` / `agy-*` are **not pi** — launch them directly (no `--provider/--model`); they carry
+their own model + restrictions. Use them into panes exactly like pi wrappers.
 
 **2) Pick the MODEL via `model-classifier`:** describe the specific task to the classifier, get the
 best model. Each profile has a **default model, but it's only a fallback** — override it per cast
@@ -37,6 +58,10 @@ when the classifier says something else fits better. The wrappers forward `--pro
 so `pi-implementer --provider X --model Y` just works.
 
 **3) Translate the classifier's model name → Pi flags, then cast:**
+**pi is authed for `openai-codex`, `xai-auth` (grok), and `kimi-coding` (env) ONLY.** Do NOT cast a
+pi worker on gemini or anthropic models — the seat fails to start ("No API key"). For a Gemini or
+Claude model, cast an `agy-*` or `claude-*` worker instead (different harness, own auth).
+
 | model-classifier says | Pi flags |
 |---|---|
 | GPT-5.6 Sol (hard coding) | `--provider openai-codex --model gpt-5.6-sol` |
@@ -44,11 +69,9 @@ so `pi-implementer --provider X --model Y` just works.
 | GPT-5.6 Luna (generalist) | `--provider openai-codex --model gpt-5.6-luna` |
 | GPT-5.5 (Codex) | `--provider openai-codex --model gpt-5.5` |
 | Kimi K2.7 Code | `--provider kimi-coding --model k2p7` |
-| Grok 4.5 | `--provider xai-auth --model grok-4.5` (or `--provider openrouter --model x-ai/grok-4.5`) |
-| Gemini 3.1 Pro | `--provider openrouter --model google/gemini-3.1-pro-preview` |
-| GLM-5.2 | `--provider zai --model glm-4.6` |
-| Claude (Sonnet/Opus/Fable/Haiku) | via `--provider openrouter --model anthropic/claude-…` (not native to Pi) |
-| *anything else* | OpenRouter reaches most models: `--provider openrouter --model <vendor/model>` |
+| Grok 4.5 | `--provider xai-auth --model grok-4.5` |
+| Gemini 3.1 Pro | not a pi model → cast `agy-researcher`/`agy-worker` (Gemini via agy) |
+| Claude (Opus/Sonnet/…) | not a pi model → cast `claude-worker`/`claude-reviewer` (Claude Code) |
 
 **Cast example:** `cd <worktree> && pi-implementer --provider openai-codex --model gpt-5.6-sol`
 (then send the brief, capture results). Use the verb **cast** for spinning up a worker seat.
