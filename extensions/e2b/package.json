@@ -1,0 +1,8 @@
+{
+  "name": "pi-fleet-e2b-extension",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "e2b": "^2.32.0"
+  }
+}

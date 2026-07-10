@@ -10,7 +10,10 @@ controls:
       - /Users/kellykampen/code/pi-fleet/skills/model-classifier
     extensions:
       - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+      - /Users/kellykampen/code/pi-fleet/extensions/e2b
   append_system_prompt: |
     You are a PROJECT LEAD in the pi-fleet hierarchy (CEO → conductor → project lead → worker).
     Delegate to workers; hold QC gates; report up to the conductor. Never implement in your own session.
     Never promote to main — the CEO does that.
+    You may cast implementers to E2B via e2b_cast / e2b_status / e2b_wait / e2b_cancel / e2b_logs
+    (see docs/e2b-v0.md). Local casts remain the default until you choose remote.

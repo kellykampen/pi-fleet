@@ -50,6 +50,20 @@ so `pi-implementer --provider X --model Y` just works.
 **Cast example:** `cd <worktree> && pi-implementer --provider openai-codex --model gpt-5.6-sol`
 (then send the brief, capture results). Use the verb **cast** for spinning up a worker seat.
 
+## Remote casts (E2B) — optional per job
+You may run an implementer **in E2B** instead of a local worktree when offload/isolation helps.
+Only **you** (project lead) have the E2B tools; do not expect workers or the conductor to spawn sandboxes.
+
+| Tool | Use |
+|---|---|
+| `e2b_cast` | Async remote implementer; returns `jobId` |
+| `e2b_status` / `e2b_logs` | Poll progress |
+| `e2b_wait` | Optional block until terminal |
+| `e2b_cancel` | Kill sandbox + mark cancelled |
+
+Rules: no local worktree for E2B casts; structured job JSON is authoritative; implementer still opens a PR.
+Stuck remote worker → `needs_input` then re-cast. Default hard timeout 90m. Design: `docs/e2b-v0.md`.
+
 ## Gates (non-negotiable)
 - Independent review by a **DIFFERENT model** than the implementer — if the build ran on model M,
   the reviewer must NOT be M (re-classify for a different capable model if needed).

@@ -159,7 +159,9 @@ pi-fleet/
 │   skills/project-lead/          # per-project lead (casts workers)
 │   skills/implementation/ …      # worker skills
 ├── agents/<role>.md              # pi-subagents roster (spawnable children)
-├── extensions/linear.ts          # Pi extension exposing narrow linear_* tools (no bash needed)
+├── extensions/linear.ts          # narrow linear_* tools
+├── extensions/e2b/               # E2B remote cast tools (project-lead only)
+├── docs/e2b-v0.md                # E2B design + job contract
 └── bin/pi-<role>                 # wrapper: hardcodes --tools, launches Pi via outfitter
 ```
 
@@ -196,3 +198,66 @@ pi-fleet/
 
 The security boundary is the wrapper's `--tools` line — a read-only seat simply omits
 `write`/`edit`/`bash`. Skills and prompts are instructions, not a boundary.
+
+---
+
+## E2B remote implementers (v0)
+
+The **project lead** can cast an **implementer** into an [E2B](https://e2b.dev) sandbox instead of
+a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
+
+**Who:** only `pi-project-lead` (tools on its `--tools` allowlist).  
+**What:** async `e2b_cast` → `jobId`; `e2b_status` / `e2b_wait` / `e2b_cancel` / `e2b_logs`.  
+**Jobs:** `~/.pi/fleet/jobs/<jobId>.json` (local store; Convex later).
+
+### One-time setup
+
+1. **E2B account + API key**
+   ```bash
+   export E2B_API_KEY=e2b_...
+   ```
+2. **Install extension deps** (once per clone):
+   ```bash
+   (cd extensions/e2b && npm install)
+   ```
+3. **GitHub token for the sandbox** (short-lived / fine-grained PAT for v0):
+   ```bash
+   export FLEET_GITHUB_TOKEN=github_pat_...   # preferred
+   # or: export GH_TOKEN=...
+   ```
+   Minimum scopes for private repos + PR open/push (fine-grained):
+   - Repository access: the target repo(s) only
+   - Permissions: **Contents** read/write, **Pull requests** read/write, **Metadata** read
+   - Short expiration; rotate often. Do **not** use your unlimited classic PAT long-term.
+   - Next evolution: GitHub App installation tokens per job (see design doc).
+4. **Fleet-worker model keys** (separate from your personal CEO laptop keys when possible):
+   ```bash
+   export OPENAI_API_KEY=...          # or whichever providers the implementer will use
+   export OPENROUTER_API_KEY=...
+   # etc. — injected into the sandbox env; never logged by the extension
+   ```
+5. **Optional template** (hybrid bootstrap — preinstall pi, gh, git, Node 22):
+   ```bash
+   export FLEET_E2B_TEMPLATE=your-template-id
+   export FLEET_REPO_URL=https://github.com/kellykampen/pi-fleet.git  # pin source
+   ```
+
+Without `E2B_API_KEY`, `e2b_cast` still works in **dry-run** mode (local job record only) so you can
+exercise the project-lead flow offline.
+
+### Example (from a project-lead session)
+
+```
+e2b_cast({
+  profile: "implementer",
+  codeAccess: "clone",
+  repo: "owner/app",
+  baseBranch: "main",
+  ticketId: "ENG-123",
+  brief: "Implement ENG-123 … AC: … open a draft PR …",
+  timeoutMinutes: 90
+})
+# → jobId
+e2b_status({ jobId })
+e2b_wait({ jobId })   # optional
+```
