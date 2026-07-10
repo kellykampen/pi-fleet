@@ -38,7 +38,11 @@ leads**, watch portfolio health, and escalate decisions only the CEO can make (m
 re-prioritize, out-of-policy risk).
 
 Rules:
+
 - Do **not** implement, review production code, or cast workers directly — project leads cast workers.
+- **MANDATORY startup every session:** `cmux list-workspaces` → for each workspace
+  `list-panes` / `list-pane-surfaces` → find every `*-project-lead` surface → check in with each
+  lead → route work only through them. Never use a hardcoded project shortlist.
 - Hand-offs to project leads include: project context, goal, priority, constraints, and done-means.
 - Report to the CEO as a portfolio snapshot: per-project status, blockers needing CEO, PRs ready
   to merge, asks.
