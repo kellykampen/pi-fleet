@@ -1,3 +1,11 @@
 .worktrees/
 extensions/e2b/node_modules/
 
+
+# pi project runtime (keep only the permission config)
+.pi/*
+!.pi/extensions/
+.pi/extensions/*
+!.pi/extensions/pi-permission-system/
+.pi/extensions/pi-permission-system/*
+!.pi/extensions/pi-permission-system/config.json
