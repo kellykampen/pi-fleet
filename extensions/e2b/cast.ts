@@ -15,6 +15,9 @@ import {
 export const MISSING_GITHUB_TOKEN_ERROR =
 	"FLEET_GITHUB_TOKEN (or GH_TOKEN) is required for non-dry-run implementer casts";
 
+export const MISSING_TEMPLATE_ERROR =
+	"FLEET_E2B_TEMPLATE is required for non-dry-run implementer casts (e.g. FLEET_E2B_TEMPLATE=pi-fleet-node22)";
+
 interface SandboxLike {
 	files: {
 		read(path: string): Promise<string>;
@@ -82,20 +85,30 @@ export async function tryCreateSandbox(
 		throw new Error("E2B_API_KEY is not set");
 	}
 
+	const template = process.env.FLEET_E2B_TEMPLATE?.trim();
+	if (!template) {
+		// Sandbox.create() without a template relies on an org default template
+		// that this fleet does not configure; calling it crashes deep inside the
+		// SDK's envd handshake instead of failing clearly. Fail fast here.
+		throw new Error(MISSING_TEMPLATE_ERROR);
+	}
+
 	const { Sandbox } = await import("e2b");
-	const template = process.env.FLEET_E2B_TEMPLATE?.trim() || undefined;
 	const timeoutMs = job.timeoutMinutes * 60 * 1000;
 
-	// SDK: Sandbox.create(templateId | opts)
-	const sandbox = template
-		? await Sandbox.create(template, { timeoutMs, apiKey })
-		: await Sandbox.create({ timeoutMs, apiKey });
+	const sandbox = await Sandbox.create(template, { timeoutMs, apiKey });
 
 	const runner = buildRunnerScript(job);
 	await sandbox.files.write("/work/run-job.sh", runner);
-	await sandbox.commands.run("chmod +x /work/run-job.sh && mkdir -p /work", {
-		timeoutMs: 60_000,
-	});
+
+	// /work is created by the template's build (root) but the sandbox runs
+	// commands as its non-root default user; re-assert ownership/perms as
+	// root so the backgrounded runner below can create job.log/job.pid even
+	// if the template image predates this fix.
+	await sandbox.commands.run(
+		"mkdir -p /work && chmod -R a+rwX /work && chmod +x /work/run-job.sh",
+		{ timeoutMs: 60_000, user: "root" },
+	);
 
 	await sandbox.commands.run(
 		"bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",

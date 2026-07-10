@@ -15,6 +15,8 @@ required_patterns=(
 	"cli.github.com"
 	"@earendil-works/pi-coding-agent"
 	"@ai-outfitter/outfitter"
+	"chown -R user:user /work"
+	"USER user"
 )
 
 prohibited_patterns=(

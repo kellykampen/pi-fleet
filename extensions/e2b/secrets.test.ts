@@ -10,7 +10,7 @@ import {
 	FLEET_WORKER_MODEL_KEYS,
 	sanitizeSecrets,
 } from "./secrets.ts";
-import { castJob, refreshFromSandbox } from "./cast.ts";
+import { castJob, MISSING_TEMPLATE_ERROR, refreshFromSandbox } from "./cast.ts";
 import { readJob, writeJob } from "./jobs.ts";
 import type { FleetJob } from "./types.ts";
 
@@ -118,6 +118,39 @@ test("non-dry-run cast fails clearly before sandbox creation when GitHub token i
 		const persisted = await readJob(job.jobId);
 		assert.equal(persisted.status, "failed");
 		assert.match(persisted.error ?? "", /FLEET_GITHUB_TOKEN.*GH_TOKEN/);
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+test("non-dry-run cast fails clearly before sandboxId when FLEET_E2B_TEMPLATE is missing", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+	delete process.env.FLEET_E2B_TEMPLATE;
+
+	try {
+		// No `createSandbox` override: this exercises the real tryCreateSandbox,
+		// whose missing-template check must throw before it ever imports the e2b
+		// SDK or makes a network call — regression test for the "Cannot read
+		// properties of undefined (reading 'version')" crash seen when
+		// FLEET_E2B_TEMPLATE was unset.
+		const job = await castJob({
+			profile: "implementer",
+			brief: "implement FLT-3",
+			codeAccess: "clone",
+			repo: "owner/repo",
+		});
+
+		assert.equal(job.dryRun, false);
+		assert.equal(job.status, "failed");
+		assert.equal(job.sandboxId, undefined);
+		assert.equal(job.error, MISSING_TEMPLATE_ERROR);
+
+		const persisted = await readJob(job.jobId);
+		assert.equal(persisted.status, "failed");
+		assert.equal(persisted.error, MISSING_TEMPLATE_ERROR);
 	} finally {
 		await rm(jobsDir, { recursive: true, force: true });
 	}
