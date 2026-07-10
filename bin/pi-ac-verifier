@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
 set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$DIR/lib/peek-env.sh"
 exec outfitter run --profile ac-verifier --agent pi -- --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"

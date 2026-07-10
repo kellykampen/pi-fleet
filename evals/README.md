@@ -82,6 +82,25 @@ so `remote-pi` can't hijack while the policy layer stays active. Expect `git sta
 
 Last verified: [`results/bash-policy-latest.txt`](./results/bash-policy-latest.txt).
 
+## PEEK_* launcher-env eval
+
+Every worker wrapper sources `bin/lib/peek-env.sh` before exec'ing its agent CLI, so casts register
+correctly in `peek`'s fleet tree: `PEEK_ID` (fresh per process), `PEEK_ROLE=worker` (unless already
+set), `PEEK_PARENT` (the caster's id, preserved *before* the worker's own `PEEK_ID` overwrites it),
+and `PEEK_WORKSPACE` (falls back to `CMUX_WORKSPACE_ID`).
+
+```bash
+bin/pi-fleet-eval-peekenv               # writes evals/results/peek-env-latest.txt
+```
+
+Pure env/sourcing checks in throwaway subshells — no agent, no `outfitter`/`pi`/`claude`/`agy`
+dependency, so it's safe and fast to re-run anywhere. Covers: clean-env defaulting, inherited
+`PEEK_ID`/`PEEK_ORCH_ID` promoted to `PEEK_PARENT`, explicit `PEEK_PARENT` (the cast-forwarding
+case) trusted as-is, pre-set `PEEK_ID`/`PEEK_ROLE`/`PEEK_WORKSPACE` left untouched, and sibling
+workers minting distinct ids.
+
+Last verified run: [`results/peek-env-latest.txt`](./results/peek-env-latest.txt) — **9/9 PASS**.
+
 ## Gotchas
 
 - **Model auth ≠ tool boundary.** A subagent whose default/fallback models aren't authed in pi

@@ -4,6 +4,8 @@
 # AGY-FLEET-GUIDANCE, don't make agy the DEFAULT builder until worktree/auto-approve behavior is
 # proven safe for the target repo; prefer it for well-specified, low-risk work.
 set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$DIR/lib/peek-env.sh"
 # YOLO: autonomous fleets set FLEET_YOLO=1 to auto-approve (no permission prompts).
 # Default (unset) is safe/interactive. Read-only seats stay read-only either way.
 YOLO=""; [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--dangerously-skip-permissions"

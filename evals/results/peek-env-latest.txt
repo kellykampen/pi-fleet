@@ -1,0 +1,12 @@
+peek-env eval (bin/lib/peek-env.sh)
+PASS: clean env mints a worker identity with no parent/workspace (got: ID=worker-beaee503-ae14-47cf-9c9b-d91852e30b1a ROLE=worker PARENT= WS=)
+PASS: inherited PEEK_ID preserved as PEEK_PARENT, own PEEK_ID freshly minted (got: ID=worker-c380e4f6-a74d-47ba-ae23-312c6012f82a ROLE=worker PARENT=lead-abc123 WS=)
+PASS: PEEK_ORCH_ID used as parent fallback (got: ID=worker-773fcd99-a993-4071-9417-05b8cb127c3d ROLE=worker PARENT=orch-xyz WS=)
+PASS: explicit PEEK_PARENT (cast forwarding) trusted, PEEK_ID minted (got: ID=worker-64341a71-6761-4a4c-8e3b-3ff88590a00a ROLE=worker PARENT=lead-999 WS=)
+PASS: pre-set PEEK_ID + PEEK_PARENT (re-attach) left untouched (got: ID=worker-fixed-1 ROLE=worker PARENT=lead-999 WS=)
+PASS: pre-set PEEK_ROLE is not overridden (got: ID=worker-91c132a1-32bc-4cc3-b8c5-698bc8588d2f ROLE=orchestrator PARENT= WS=)
+PASS: PEEK_WORKSPACE falls back to CMUX_WORKSPACE_ID (got: ID=worker-856c2cec-9420-40fd-bf6d-31a79e0884b1 ROLE=worker PARENT= WS=ws-42)
+PASS: explicit PEEK_WORKSPACE wins over CMUX_WORKSPACE_ID (got: ID=worker-79f146f3-239c-4948-aa7b-230265eb2ee0 ROLE=worker PARENT= WS=ws-explicit)
+PASS: sibling workers cast from the same parent mint distinct PEEK_IDs (got: worker-db78fe4f-7acd-40ca-a9df-00d76829e725 vs worker-721249cf-0c3c-4a30-94dc-e34b19bb0590)
+  pass=9 fail=0
+  VERDICT: PASS

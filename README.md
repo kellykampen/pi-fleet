@@ -287,6 +287,39 @@ The security boundary is the wrapper's `--tools` line — a read-only seat simpl
 
 ---
 
+## Fleet legibility (`peek`)
+
+Every worker wrapper sources `bin/lib/peek-env.sh` before it execs `outfitter`/`claude`/`agy`, so a
+cast worker registers correctly with `peek` — the tiny serverless CLI that makes the fleet's
+hierarchy visible (`peek`, `peek watch`) without capturing panes. The helper exports four vars into
+the worker's own process env:
+
+| Var | Value |
+| --- | --- |
+| `PEEK_ID` | Fresh per worker process (defaults to a `worker-<uuid>` id) |
+| `PEEK_ROLE` | `worker`, unless already set |
+| `PEEK_PARENT` | The caster's id — see below |
+| `PEEK_WORKSPACE` | `CMUX_WORKSPACE_ID`, unless `PEEK_WORKSPACE` is already set |
+
+**Parent linkage is the subtle part.** A cast worker runs in a brand-new cmux pane/shell, which does
+**not** inherit the casting project lead's process env. So the project lead's cast command must
+forward its own id explicitly:
+
+```bash
+cmux send --workspace "${CMUX_WORKSPACE_ID}" --surface surface:<N> \
+  "cd <worktree> && PEEK_PARENT=\"$PEEK_ID\" pi-implementer"
+```
+
+`peek-env.sh` then does the rest: if `PEEK_PARENT` isn't already set, it treats whatever `PEEK_ID`
+(or `PEEK_ORCH_ID`) it inherited as the caster's id, promotes that to `PEEK_PARENT`, and *only then*
+mints the worker's own fresh `PEEK_ID` — so the parent link is never lost to a premature overwrite.
+`skills/project-lead/SKILL.md`'s "How to cast" steps have this `PEEK_PARENT` forwarding built in.
+Conductor/project-lead wrappers do **not** source this helper — orchestrator/lead role semantics
+are untouched. Verify the contract with `bin/pi-fleet-eval-peekenv` (see
+[evals/README.md](evals/README.md)).
+
+---
+
 ## Permissions (no click-ops on fleet seats)
 
 Fleet seats should not stop for “Permission Required” dialogs. Policy lives in:

@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# pi-fleet-eval-peekenv — deterministic smoke test for bin/lib/peek-env.sh (PEK-64). Proves parent
+# preservation and PEEK_* defaulting purely via env/sourcing checks in throwaway subshells — no
+# agent launch, no outfitter/pi/claude/agy dependency, so it's fast and safe to re-run anywhere.
+set -uo pipefail
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SELF_DIR/.." && pwd)"
+LIB="$REPO/bin/lib/peek-env.sh"
+OUT="${1:-$REPO/evals/results/peek-env-latest.txt}"
+exec > >(tee "$OUT") 2>&1
+
+pass=0; fail=0
+check() {
+  local desc="$1" got="$2" want_desc="$3" ok="$4"
+  if [ "$ok" = 1 ]; then pass=$((pass + 1)); echo "PASS: $desc (got: $got)"
+  else fail=$((fail + 1)); echo "FAIL: $desc (got: $got; want: $want_desc)"; fi
+}
+peek_env() {
+  # Runs peek-env.sh in a fully clean subshell env, only the given PEEK_*/CMUX_* vars set.
+  env -i HOME="$HOME" PATH="$PATH" "$@" bash -c ". '$LIB'; echo \"ID=\$PEEK_ID ROLE=\$PEEK_ROLE PARENT=\$PEEK_PARENT WS=\$PEEK_WORKSPACE\""
+}
+field() { echo "$1" | grep -oE "$2=[^ ]*" | cut -d= -f2-; }
+
+echo "peek-env eval (bin/lib/peek-env.sh)"
+
+# 1. Clean env: no PEEK_*, no CMUX_WORKSPACE_ID -> fresh worker identity, empty parent/workspace.
+out=$(peek_env)
+id=$(field "$out" ID); role=$(field "$out" ROLE); parent=$(field "$out" PARENT); ws=$(field "$out" WS)
+[ -n "$id" ] && [ "$role" = worker ] && [ -z "$parent" ] && [ -z "$ws" ] && ok=1 || ok=0
+check "clean env mints a worker identity with no parent/workspace" "$out" "ID=<nonempty> ROLE=worker PARENT= WS=" "$ok"
+
+# 2. Inherited PEEK_ID (no PEEK_PARENT set) is captured as PEEK_PARENT BEFORE a fresh PEEK_ID is minted.
+out=$(peek_env PEEK_ID=lead-abc123)
+id=$(field "$out" ID); parent=$(field "$out" PARENT)
+[ "$parent" = lead-abc123 ] && [ -n "$id" ] && [ "$id" != lead-abc123 ] && ok=1 || ok=0
+check "inherited PEEK_ID preserved as PEEK_PARENT, own PEEK_ID freshly minted" "$out" "PARENT=lead-abc123 ID=<new, != lead-abc123>" "$ok"
+
+# 3. PEEK_ORCH_ID is the fallback parent source when neither PEEK_ID nor PEEK_PARENT is set.
+out=$(peek_env PEEK_ORCH_ID=orch-xyz)
+parent=$(field "$out" PARENT)
+[ "$parent" = orch-xyz ] && ok=1 || ok=0
+check "PEEK_ORCH_ID used as parent fallback" "$out" "PARENT=orch-xyz" "$ok"
+
+# 4. Explicit PEEK_PARENT (the cast-forwarding case: PEEK_PARENT="$PEEK_ID" on the cmux send
+#    command) is trusted as-is; PEEK_ID is still freshly minted for the new worker.
+out=$(peek_env PEEK_PARENT=lead-999)
+id=$(field "$out" ID); parent=$(field "$out" PARENT)
+[ "$parent" = lead-999 ] && [ -n "$id" ] && ok=1 || ok=0
+check "explicit PEEK_PARENT (cast forwarding) trusted, PEEK_ID minted" "$out" "PARENT=lead-999 ID=<nonempty>" "$ok"
+
+# 5. Both PEEK_ID and PEEK_PARENT pre-set (re-attach / manual override) -> both left untouched.
+out=$(peek_env PEEK_ID=worker-fixed-1 PEEK_PARENT=lead-999)
+[ "$out" = "ID=worker-fixed-1 ROLE=worker PARENT=lead-999 WS=" ] && ok=1 || ok=0
+check "pre-set PEEK_ID + PEEK_PARENT (re-attach) left untouched" "$out" "ID=worker-fixed-1 PARENT=lead-999" "$ok"
+
+# 6. Pre-set PEEK_ROLE is not clobbered with 'worker' (e.g. an orchestrator sourcing by mistake).
+out=$(peek_env PEEK_ROLE=orchestrator)
+role=$(field "$out" ROLE)
+[ "$role" = orchestrator ] && ok=1 || ok=0
+check "pre-set PEEK_ROLE is not overridden" "$out" "ROLE=orchestrator" "$ok"
+
+# 7. PEEK_WORKSPACE falls back to CMUX_WORKSPACE_ID when unset.
+out=$(peek_env CMUX_WORKSPACE_ID=ws-42)
+ws=$(field "$out" WS)
+[ "$ws" = ws-42 ] && ok=1 || ok=0
+check "PEEK_WORKSPACE falls back to CMUX_WORKSPACE_ID" "$out" "WS=ws-42" "$ok"
+
+# 8. Explicit PEEK_WORKSPACE wins over CMUX_WORKSPACE_ID.
+out=$(peek_env PEEK_WORKSPACE=ws-explicit CMUX_WORKSPACE_ID=ws-42)
+ws=$(field "$out" WS)
+[ "$ws" = ws-explicit ] && ok=1 || ok=0
+check "explicit PEEK_WORKSPACE wins over CMUX_WORKSPACE_ID" "$out" "WS=ws-explicit" "$ok"
+
+# 9. Two sibling workers cast from the same parent mint distinct PEEK_IDs (no collisions).
+idA=$(field "$(peek_env PEEK_ID=lead-shared)" ID)
+idB=$(field "$(peek_env PEEK_ID=lead-shared)" ID)
+[ -n "$idA" ] && [ -n "$idB" ] && [ "$idA" != "$idB" ] && ok=1 || ok=0
+check "sibling workers cast from the same parent mint distinct PEEK_IDs" "$idA vs $idB" "distinct nonempty ids" "$ok"
+
+echo "  pass=$pass fail=$fail"
+if [ "$fail" -eq 0 ]; then echo "  VERDICT: PASS"; else echo "  VERDICT: FAIL"; fi
+[ "$fail" -eq 0 ]

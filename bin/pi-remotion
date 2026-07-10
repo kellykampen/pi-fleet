@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$DIR/lib/peek-env.sh"
 exec outfitter run --profile remotion --agent pi -- --tools read,grep,find,ls,write,edit,bash "$@"
