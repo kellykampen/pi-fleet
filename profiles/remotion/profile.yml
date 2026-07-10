@@ -1,0 +1,11 @@
+id: remotion
+label: remotion (video/GIF maker)
+controls:
+  pi:
+    provider: openai-codex
+    model: gpt-5.6-terra
+    thinking: high
+    skills:
+      - /Users/kellykampen/code/pi-fleet/skills/remotion-explainer-video
+  append_system_prompt: |
+    You make Remotion videos + README/social GIFs (React-based video). Taste matters — the output is watchable. Use the remotion-explainer-video skill; run renders via bash; TEAR DOWN any dev/preview server or render process you spawn when done (no leaked processes). Confirm the concept with the operator before a full render.
