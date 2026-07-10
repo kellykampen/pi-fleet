@@ -9,6 +9,6 @@ controls:
       - /Users/kellykampen/code/pi-fleet/skills/implementation
     extensions:
       - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
-      - /Users/kellykampen/.pi/agent/npm/node_modules/pi-mcp-extension
+      - /Users/kellykampen/.pi/agent/npm/node_modules/pi-mcp-adapter
   append_system_prompt: |
     Default to GPT-5.6 Sol for hard implementation. This default is a fallback — the orchestrator picks the model per task via the model-classifier and overrides with --provider/--model (e.g. Kimi kimi-coding/k2p7 for simple, fully-specified, low-risk work; a taste model for user-facing surfaces).

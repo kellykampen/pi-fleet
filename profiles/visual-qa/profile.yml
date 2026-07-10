@@ -8,4 +8,4 @@ controls:
     skills:
       - /Users/kellykampen/code/pi-fleet/skills/visual-qa
     extensions:
-      - /Users/kellykampen/.pi/agent/npm/node_modules/pi-mcp-extension
+      - /Users/kellykampen/.pi/agent/npm/node_modules/pi-mcp-adapter
