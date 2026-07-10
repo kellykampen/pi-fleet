@@ -49,6 +49,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 | **`pi-reviewer`** | Kimi K2.7 (`kimi-coding`) · medium | read, grep, find, ls + linear read *(no bash)* | Independent **read-only** code review/QC. Must run on a **different model** than the implementer. |
 | **`pi-ac-verifier`** | Grok 4.5 (`xai-auth`) · high | read, grep, find, ls, **bash** + linear | **Runs** the acceptance-criteria verification (tests/build), checks the AC boxes only on real pass. Different model than the build. |
 | **`pi-researcher`** | Kimi K2.7 · low | read, grep, find, ls | Read-only scouting / codebase investigation. |
+| **`pi-doc-updater`** | Kimi K2.7 (`kimi-coding`) · low | read, grep, find, ls, **write, edit, bash** | Documentation-only hygiene for README/docs/changelog/operator notes after behavior changes. |
 | **`pi-designer`** | GPT-5.6 Terra (`openai-codex`) · high | read, grep, find, ls, write, edit, bash | Design / architecture / API + planning docs (taste model). Hands build to `pi-implementer`. For **claude.ai design import/update**, use `claude-designer` instead. |
 | **`claude-designer`** | Claude Code (`--agent claude`) | `mcp__claude_design__*` + Read/Grep/Glob/Edit/Write/Bash(git,pnpm,npm) | Reads/updates **claude.ai design** projects via the `claude_design` MCP and implements them. Runs **Claude Code, not pi** — claude_design's OAuth is gated to Claude Code's blessed client (pi's generic MCP OAuth is turned down). One-time `/design-login` if tools 401. |
 | **`pi-planner`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Breaks a feature into a Linear project + ≤3-pt issues with checkbox AC + blockers. |
@@ -58,6 +59,14 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 | **`pi-visual-qa`** | Grok 4.5 (`xai-auth`) · high | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. |
 | **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
 | **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
+
+Project leads cast **`pi-doc-updater`** after behavior changes to keep README files, docs, changelogs, and operator notes in sync.
+
+### Remote-pi / relay policy
+
+Only the **conductor** and **personal-assistant** seats load the `remote-pi` extension by default, so only they can be reached as CEO remote-control targets via the mobile relay. The conductor routes across projects; the personal assistant is the CEO's direct agent.
+
+Project leads and workers do **not** load `remote-pi` by default. They remain reachable by the conductor through local cmux/agent-network means and are not exposed to the relay. If a project lead or worker ever needs to be reachable remotely for debugging, create a temporary override profile that adds `npm:remote-pi` to its `cli_specific/pi/settings.json` and run `/remote-pi` in that session.
 
 The `pi-personal-assistant` toolkit (all via `bash`, documented in its skill):
 `finch` (X) · `gog` (Google Workspace) · `imsg` (iMessage) · `wacli` (WhatsApp) ·

@@ -1,0 +1,11 @@
+id: doc-updater
+label: doc-updater
+controls:
+  pi:
+    provider: kimi-coding
+    model: k2p7
+    thinking: low
+    skills:
+      - skills/doc-updater
+  append_system_prompt: |
+    You are a documentation-only worker. Read context and update docs, README files, changelogs, and operator notes. Do not implement production behavior or merge to main.

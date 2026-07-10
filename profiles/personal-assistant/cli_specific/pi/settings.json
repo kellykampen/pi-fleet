@@ -1,0 +1,14 @@
+{
+	"packages": [
+		"npm:remote-pi",
+		"npm:pi-schedule-prompt",
+		"npm:pi-xai-oauth",
+		"npm:pi-web-access",
+		"npm:pi-subagents",
+		"npm:cc-safety-net",
+		"npm:pi-mcp-adapter",
+		"npm:@gotgenes/pi-permission-system",
+		"npm:pi-extension-toolkit",
+		"npm:pi-foldable-tools"
+	]
+}
