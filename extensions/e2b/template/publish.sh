@@ -7,10 +7,17 @@ if [[ -z "${E2B_API_KEY:-}" ]]; then
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PACKAGE_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+E2B_CLI="$PACKAGE_DIR/node_modules/.bin/e2b"
 TEMPLATE_NAME="${1:-${FLEET_E2B_TEMPLATE_NAME:-pi-fleet-node22}}"
 READY_CMD='node --version && git --version && gh --version && pi --version && outfitter --version'
 
-e2b template create "$TEMPLATE_NAME" \
+if [[ ! -x "$E2B_CLI" ]]; then
+	echo "E2B CLI not found at $E2B_CLI. Run 'npm install' in $PACKAGE_DIR first." >&2
+	exit 1
+fi
+
+"$E2B_CLI" template create "$TEMPLATE_NAME" \
 	--path "$SCRIPT_DIR" \
 	--dockerfile e2b.Dockerfile \
 	--ready-cmd "$READY_CMD"

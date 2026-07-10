@@ -230,7 +230,7 @@ a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
    ```bash
    export E2B_API_KEY=e2b_...
    ```
-2. **Install extension deps** (once per clone):
+2. **Install extension deps** (once per clone; includes the package-local E2B CLI):
    ```bash
    (cd extensions/e2b && npm install)
    ```
@@ -271,14 +271,16 @@ a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
    if (!template || !apiKey) throw new Error('Set FLEET_E2B_TEMPLATE and E2B_API_KEY');
 
    const sbx = await Sandbox.create(template, { apiKey, timeoutMs: 300_000 });
+   let exitCode = 0;
    try {
      const result = await sbx.commands.run('bash -lc "pi --version && gh --version"', { timeoutMs: 120_000 });
      if (result.stdout) process.stdout.write(result.stdout);
      if (result.stderr) process.stderr.write(result.stderr);
-     if (typeof result.exitCode === 'number' && result.exitCode !== 0) process.exit(result.exitCode);
+     if (typeof result.exitCode === 'number') exitCode = result.exitCode;
    } finally {
      await sbx.kill();
    }
+   process.exitCode = exitCode;
    EOF
    ```
    Record the published `FLEET_E2B_TEMPLATE` value as a comment on Linear issue FLT-1.
