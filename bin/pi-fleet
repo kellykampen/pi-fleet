@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# pi-fleet — quick reference for the Pi agent-seat profiles.
+set -euo pipefail
+
+bold=$'\033[1m'; dim=$'\033[2m'; cyan=$'\033[36m'; reset=$'\033[0m'
+
+cat <<EOF
+${bold}pi-fleet${reset} ${dim}— reusable Pi agent seats (outfitter profile + tool-enforcing wrapper)${reset}
+
+${bold}PROFILES${reset}  ${dim}(run the command; cd to your target dir first)${reset}
+  ${cyan}pi-implementer${reset}          GPT-5.5 · rw+bash    Build a ticket in a worktree (code+tests→PR)
+  ${cyan}pi-reviewer${reset}             Kimi K2.7 · read-only  Independent review/QC (different model than build)
+  ${cyan}pi-researcher${reset}           Kimi K2.7 · read-only  Read-only scouting / investigation
+  ${cyan}pi-orchestrator${reset}         GPT-5.5 · rw+bash    Project orchestrator (delegates + holds gates)
+  ${cyan}pi-visual-qa${reset}            Gemini 3.1 Pro · read  Compare app screenshot to the design comp
+  ${cyan}pi-linear${reset}               Kimi K2.7 · linear   Linear issue/project management
+  ${cyan}pi-personal-assistant${reset}   GPT-5.6 Terra · full  Personal social/X + comms/notes/tasks
+                                             ${dim}(finch·gog·imsg·wacli·obsidian-cli·ntn·linear; draft→approve→execute)${reset}
+
+${bold}USAGE${reset}
+  cd ~/some/project && pi-<role>              start a seat in that directory
+  pi-<role> --provider openrouter --model X   override the model for this run
+  pi-<role> -p "do this thing"                one-shot, non-interactive
+  outfitter profile list                      list profiles from outfitter directly
+
+${bold}INSTALLED WRAPPERS${reset}
+$(for f in "$(dirname "$0")"/pi-*; do [ -x "$f" ] && printf '  %s\n' "$(basename "$f")"; done)
+
+${dim}Docs: ~/code/pi-fleet/README.md · repo: github.com/kellykampen/pi-fleet${reset}
+EOF
