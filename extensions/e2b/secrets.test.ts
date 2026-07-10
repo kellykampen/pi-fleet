@@ -51,7 +51,8 @@ test("collectWorkerEnv forwards GitHub and fleet worker keys under canonical nam
 });
 
 test("buildRunnerScript never embeds token values", () => {
-	process.env.FLEET_GITHUB_TOKEN = "github_pat_thisSecretMustNotAppearInTheRunnerScript123456";
+	process.env.FLEET_GITHUB_TOKEN =
+		"github_pat_thisSecretMustNotAppearInTheRunnerScript123456";
 	process.env.OPENAI_API_KEY = "sk-worker-secret";
 	const script = buildRunnerScript({
 		jobId: "job-12345678",
@@ -72,7 +73,8 @@ test("buildRunnerScript never embeds token values", () => {
 });
 
 test("sanitizeSecrets redacts exact env values and common GitHub token shapes", () => {
-	process.env.FLEET_GITHUB_TOKEN = "github_pat_exactTokenValue_abcdefghijklmnopqrstuvwxyz123456";
+	process.env.FLEET_GITHUB_TOKEN =
+		"github_pat_exactTokenValue_abcdefghijklmnopqrstuvwxyz123456";
 	process.env.OPENROUTER_API_KEY = "sk-or-worker-secret";
 
 	const sanitized = sanitizeSecrets(
@@ -125,7 +127,8 @@ test("refreshFromSandbox sanitizes remote result fields and log tails before per
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
 	process.env.FLEET_JOBS_DIR = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
-	process.env.FLEET_GITHUB_TOKEN = "github_pat_remoteSecretValue_abcdefghijklmnopqrstuvwxyz123456";
+	process.env.FLEET_GITHUB_TOKEN =
+		"github_pat_remoteSecretValue_abcdefghijklmnopqrstuvwxyz123456";
 	process.env.OPENAI_API_KEY = "sk-worker-remote-secret";
 
 	const now = new Date().toISOString();
@@ -165,12 +168,24 @@ test("refreshFromSandbox sanitizes remote result fields and log tails before per
 		});
 
 		assert.equal(refreshed.status, "failed");
-		assert.equal(refreshed.error?.includes(process.env.FLEET_GITHUB_TOKEN), false);
-		assert.equal(refreshed.logTail?.includes(process.env.FLEET_GITHUB_TOKEN), false);
-		assert.equal(refreshed.blockers?.join(" ").includes(process.env.OPENAI_API_KEY), false);
+		assert.equal(
+			refreshed.error?.includes(process.env.FLEET_GITHUB_TOKEN),
+			false,
+		);
+		assert.equal(
+			refreshed.logTail?.includes(process.env.FLEET_GITHUB_TOKEN),
+			false,
+		);
+		assert.equal(
+			refreshed.blockers?.join(" ").includes(process.env.OPENAI_API_KEY),
+			false,
+		);
 		assert.match(refreshed.error ?? "", /\*\*\*/);
 
-		const persistedRaw = await readFile(join(jobsDir, "job-sanitize.json"), "utf8");
+		const persistedRaw = await readFile(
+			join(jobsDir, "job-sanitize.json"),
+			"utf8",
+		);
 		assert.equal(persistedRaw.includes(process.env.FLEET_GITHUB_TOKEN), false);
 		assert.equal(persistedRaw.includes(process.env.OPENAI_API_KEY), false);
 	} finally {

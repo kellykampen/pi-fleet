@@ -32,29 +32,51 @@ export default function (pi: ExtensionAPI) {
 					description: 'Worker profile. v0 only supports "implementer".',
 				}),
 				brief: Type.String({
-					description: "Full brief for the worker (ticket AC, constraints, done-means).",
+					description:
+						"Full brief for the worker (ticket AC, constraints, done-means).",
 				}),
 				codeAccess: Type.Union(
 					[Type.Literal("clone"), Type.Literal("pr"), Type.Literal("branch")],
 					{ description: "How the sandbox gets code." },
 				),
 				repo: Type.String({ description: "GitHub repo owner/name or URL." }),
-				baseBranch: Type.Optional(Type.String({ description: "Base branch for clone (default main)." })),
-				prNumber: Type.Optional(Type.Number({ description: "PR number when codeAccess=pr." })),
+				baseBranch: Type.Optional(
+					Type.String({ description: "Base branch for clone (default main)." }),
+				),
+				prNumber: Type.Optional(
+					Type.Number({ description: "PR number when codeAccess=pr." }),
+				),
 				branch: Type.Optional(
 					Type.String({
-						description: "Branch name when codeAccess=branch (or new branch name for clone).",
+						description:
+							"Branch name when codeAccess=branch (or new branch name for clone).",
 					}),
 				),
-				ticketId: Type.Optional(Type.String({ description: "Linear ticket id, e.g. ENG-123." })),
-				provider: Type.Optional(Type.String({ description: "Model provider override for the worker." })),
-				model: Type.Optional(Type.String({ description: "Model id override for the worker." })),
-				timeoutMinutes: Type.Optional(
-					Type.Number({ description: `Hard timeout minutes (default ${DEFAULT_TIMEOUT_MINUTES}).` }),
+				ticketId: Type.Optional(
+					Type.String({ description: "Linear ticket id, e.g. ENG-123." }),
 				),
-				fleetRef: Type.Optional(Type.String({ description: "pi-fleet git ref to pin in the sandbox." })),
+				provider: Type.Optional(
+					Type.String({
+						description: "Model provider override for the worker.",
+					}),
+				),
+				model: Type.Optional(
+					Type.String({ description: "Model id override for the worker." }),
+				),
+				timeoutMinutes: Type.Optional(
+					Type.Number({
+						description: `Hard timeout minutes (default ${DEFAULT_TIMEOUT_MINUTES}).`,
+					}),
+				),
+				fleetRef: Type.Optional(
+					Type.String({
+						description: "pi-fleet git ref to pin in the sandbox.",
+					}),
+				),
 				dryRun: Type.Optional(
-					Type.Boolean({ description: "If true, only write local job record (no sandbox)." }),
+					Type.Boolean({
+						description: "If true, only write local job record (no sandbox).",
+					}),
 				),
 			}),
 			async execute(_id, params) {
@@ -68,7 +90,8 @@ export default function (pi: ExtensionAPI) {
 		defineTool({
 			name: "e2b_status",
 			label: "E2B: job status",
-			description: "Read a fleet E2B job by id; probes the sandbox for result.json when running.",
+			description:
+				"Read a fleet E2B job by id; probes the sandbox for result.json when running.",
 			promptSnippet: "e2b_status: fetch remote job status JSON",
 			parameters: Type.Object({
 				jobId: Type.String({ description: "Job id returned by e2b_cast." }),
@@ -91,15 +114,21 @@ export default function (pi: ExtensionAPI) {
 			parameters: Type.Object({
 				jobId: Type.String({ description: "Job id returned by e2b_cast." }),
 				timeoutMinutes: Type.Optional(
-					Type.Number({ description: "Max minutes to wait here (default: job timeoutMinutes)." }),
+					Type.Number({
+						description:
+							"Max minutes to wait here (default: job timeoutMinutes).",
+					}),
 				),
-				pollSeconds: Type.Optional(Type.Number({ description: "Poll interval seconds (default 15)." })),
+				pollSeconds: Type.Optional(
+					Type.Number({ description: "Poll interval seconds (default 15)." }),
+				),
 			}),
 			async execute(_id, params, signal) {
 				const started = Date.now();
 				const pollMs = Math.max(3, Math.floor(params.pollSeconds ?? 15)) * 1000;
 				let job = await readJob(params.jobId);
-				const waitLimitMs = (params.timeoutMinutes ?? job.timeoutMinutes) * 60 * 1000;
+				const waitLimitMs =
+					(params.timeoutMinutes ?? job.timeoutMinutes) * 60 * 1000;
 
 				while (!isTerminal(job.status)) {
 					if (signal?.aborted) {
@@ -107,12 +136,16 @@ export default function (pi: ExtensionAPI) {
 					}
 					if (Date.now() - started > waitLimitMs) {
 						job = await updateJob(job.jobId, {
-							error: job.error || "e2b_wait timed out while job still non-terminal",
+							error:
+								job.error || "e2b_wait timed out while job still non-terminal",
 						});
-						return textResult(JSON.stringify({ waitTimedOut: true, job }, null, 2), {
-							waitTimedOut: true,
-							job,
-						});
+						return textResult(
+							JSON.stringify({ waitTimedOut: true, job }, null, 2),
+							{
+								waitTimedOut: true,
+								job,
+							},
+						);
 					}
 					job = await refreshFromSandbox(job);
 					if (isTerminal(job.status)) break;
@@ -147,7 +180,10 @@ export default function (pi: ExtensionAPI) {
 			async execute(_id, params) {
 				const job = await readJob(params.jobId);
 				if (isTerminal(job.status)) {
-					return textResult(JSON.stringify(job, null, 2), { job, alreadyTerminal: true });
+					return textResult(JSON.stringify(job, null, 2), {
+						job,
+						alreadyTerminal: true,
+					});
 				}
 				const killError = await cancelSandbox(job);
 				const updated = await updateJob(job.jobId, {
@@ -167,7 +203,8 @@ export default function (pi: ExtensionAPI) {
 		defineTool({
 			name: "e2b_logs",
 			label: "E2B: job logs",
-			description: "Return the latest log tail for a job (from local record and/or sandbox).",
+			description:
+				"Return the latest log tail for a job (from local record and/or sandbox).",
 			promptSnippet: "e2b_logs: tail remote job logs",
 			parameters: Type.Object({
 				jobId: Type.String({ description: "Job id returned by e2b_cast." }),

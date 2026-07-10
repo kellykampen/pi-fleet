@@ -7,7 +7,10 @@ import type { FleetJob, JobStatus } from "./types.js";
 import { isTerminal } from "./types.js";
 
 export function jobsDir(): string {
-	return process.env.FLEET_JOBS_DIR?.trim() || join(homedir(), ".pi", "fleet", "jobs");
+	return (
+		process.env.FLEET_JOBS_DIR?.trim() ||
+		join(homedir(), ".pi", "fleet", "jobs")
+	);
 }
 
 function jobPath(jobId: string): string {
@@ -24,10 +27,14 @@ export function newJobId(): string {
 
 function sanitizeForPersistence(value: unknown): unknown {
 	if (typeof value === "string") return sanitizeSecrets(value);
-	if (Array.isArray(value)) return value.map((item) => sanitizeForPersistence(item));
+	if (Array.isArray(value))
+		return value.map((item) => sanitizeForPersistence(item));
 	if (value && typeof value === "object") {
 		return Object.fromEntries(
-			Object.entries(value).map(([key, item]) => [key, sanitizeForPersistence(item)]),
+			Object.entries(value).map(([key, item]) => [
+				key,
+				sanitizeForPersistence(item),
+			]),
 		);
 	}
 	return value;
@@ -35,8 +42,15 @@ function sanitizeForPersistence(value: unknown): unknown {
 
 export async function writeJob(job: FleetJob): Promise<FleetJob> {
 	await ensureJobsDir();
-	const next = sanitizeForPersistence({ ...job, updatedAt: new Date().toISOString() }) as FleetJob;
-	await writeFile(jobPath(job.jobId), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+	const next = sanitizeForPersistence({
+		...job,
+		updatedAt: new Date().toISOString(),
+	}) as FleetJob;
+	await writeFile(
+		jobPath(job.jobId),
+		`${JSON.stringify(next, null, 2)}\n`,
+		"utf8",
+	);
 	return next;
 }
 
@@ -57,7 +71,7 @@ export async function updateJob(
 	const finishedAt =
 		patch.status && isTerminal(patch.status) && !current.finishedAt
 			? new Date().toISOString()
-			: patch.finishedAt ?? current.finishedAt;
+			: (patch.finishedAt ?? current.finishedAt);
 	return writeJob({
 		...current,
 		...patch,

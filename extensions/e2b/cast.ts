@@ -42,10 +42,14 @@ export interface RefreshDependencies {
 
 export function requireImplementerCast(params: CastParams): void {
 	if (params.profile !== "implementer") {
-		throw new Error(`v0 only supports profile "implementer" (got ${params.profile})`);
+		throw new Error(
+			`v0 only supports profile "implementer" (got ${params.profile})`,
+		);
 	}
 	if (params.codeAccess === "none") {
-		throw new Error('implementer cast requires codeAccess "clone" | "pr" | "branch"');
+		throw new Error(
+			'implementer cast requires codeAccess "clone" | "pr" | "branch"',
+		);
 	}
 	if (!params.repo?.trim()) {
 		throw new Error("repo is required for implementer casts");
@@ -70,7 +74,9 @@ async function connectSandboxDefault(sandboxId: string): Promise<SandboxLike> {
 	return Sandbox.connect(sandboxId, { apiKey }) as Promise<SandboxLike>;
 }
 
-export async function tryCreateSandbox(job: FleetJob): Promise<SandboxStartResult> {
+export async function tryCreateSandbox(
+	job: FleetJob,
+): Promise<SandboxStartResult> {
 	const apiKey = process.env.E2B_API_KEY?.trim();
 	if (!apiKey) {
 		throw new Error("E2B_API_KEY is not set");
@@ -87,7 +93,9 @@ export async function tryCreateSandbox(job: FleetJob): Promise<SandboxStartResul
 
 	const runner = buildRunnerScript(job);
 	await sandbox.files.write("/work/run-job.sh", runner);
-	await sandbox.commands.run("chmod +x /work/run-job.sh && mkdir -p /work", { timeoutMs: 60_000 });
+	await sandbox.commands.run("chmod +x /work/run-job.sh && mkdir -p /work", {
+		timeoutMs: 60_000,
+	});
 
 	await sandbox.commands.run(
 		"bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",
@@ -97,7 +105,10 @@ export async function tryCreateSandbox(job: FleetJob): Promise<SandboxStartResul
 		},
 	);
 
-	return { sandboxId: sandbox.sandboxId, logTail: "sandbox started; runner backgrounded" };
+	return {
+		sandboxId: sandbox.sandboxId,
+		logTail: "sandbox started; runner backgrounded",
+	};
 }
 
 function sanitizeJobPatch<T extends Partial<FleetJob>>(patch: T): T {
@@ -108,7 +119,10 @@ function sanitizeObject(value: unknown): unknown {
 	if (typeof value === "string") return sanitizeSecrets(value);
 	if (Array.isArray(value)) return value.map((item) => sanitizeObject(item));
 	if (value && typeof value === "object") {
-		const entries = Object.entries(value).map(([key, item]) => [key, sanitizeObject(item)]);
+		const entries = Object.entries(value).map(([key, item]) => [
+			key,
+			sanitizeObject(item),
+		]);
 		return Object.fromEntries(entries);
 	}
 	return value;
@@ -180,11 +194,16 @@ export async function refreshFromSandbox(
 		}
 
 		if (job.status === "queued") {
-			return updateJob(job.jobId, sanitizeJobPatch({ status: "running", logTail }));
+			return updateJob(
+				job.jobId,
+				sanitizeJobPatch({ status: "running", logTail }),
+			);
 		}
 		return updateJob(job.jobId, sanitizeJobPatch({ logTail }));
 	} catch (err) {
-		const message = sanitizeSecrets(err instanceof Error ? err.message : String(err));
+		const message = sanitizeSecrets(
+			err instanceof Error ? err.message : String(err),
+		);
 		return updateJob(
 			job.jobId,
 			sanitizeJobPatch({
@@ -246,18 +265,27 @@ export async function castJob(
 	}
 
 	try {
-		const { sandboxId, logTail } = await (deps.createSandbox ?? tryCreateSandbox)(job);
+		const { sandboxId, logTail } = await (
+			deps.createSandbox ?? tryCreateSandbox
+		)(job);
 		return updateJob(
 			job.jobId,
 			sanitizeJobPatch({ status: "running", sandboxId, logTail }),
 		);
 	} catch (err) {
-		const message = sanitizeSecrets(err instanceof Error ? err.message : String(err));
-		return updateJob(job.jobId, sanitizeJobPatch({ status: "failed", error: message }));
+		const message = sanitizeSecrets(
+			err instanceof Error ? err.message : String(err),
+		);
+		return updateJob(
+			job.jobId,
+			sanitizeJobPatch({ status: "failed", error: message }),
+		);
 	}
 }
 
-export async function cancelSandbox(job: FleetJob): Promise<string | undefined> {
+export async function cancelSandbox(
+	job: FleetJob,
+): Promise<string | undefined> {
 	if (!job.sandboxId || !process.env.E2B_API_KEY?.trim()) return undefined;
 	try {
 		const sandbox = await connectSandboxDefault(job.sandboxId);
