@@ -23,16 +23,6 @@
         "start"
       ],
       "lifecycle": "lazy"
-    },
-    "claude_design": {
-      "transport": "streamable-http",
-      "url": "https://api.anthropic.com/v1/design/mcp",
-      "lifecycle": "lazy",
-      "auth": "oauth",
-      "oauth": {
-        "grantType": "authorization_code",
-        "scope": "user:design:read user:design:write"
-      }
     }
   }
 }

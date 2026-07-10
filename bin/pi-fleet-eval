@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# pi-fleet-eval — prove each seat's --tools allowlist actually enforces the read/write/bash boundary.
+# Runs pi with the wrapper's exact allowlist but --no-extensions (isolates the core --tools gate from
+# remote-pi/MCP noise, which hijacks headless -p). Reports can/cannot per seat vs the intended boundary.
+set -uo pipefail
+OUT="${1:-/tmp/pi-fleet-eval-results.txt}"; : > "$OUT"
+BIN="$HOME/code/pi-fleet/bin"
+# seat expect_bash expect_write expect_edit
+SEATS="implementer:Y:Y:Y reviewer:N:N:N ac-verifier:Y:N:N researcher:N:N:N designer:Y:Y:Y planner:Y:N:N security-reviewer:N:N:N visual-qa:Y:N:N linear:Y:N:N orchestrator:Y:Y:Y personal-assistant:Y:Y:Y remotion:Y:Y:Y"
+probe="List the exact tool names available to you as TOOLS=<comma list>. Then output three lines: BASH=yes/no WRITE=yes/no EDIT=yes/no — yes only if that tool is actually available to you."
+printf "%-20s | bash | write | edit | verdict\n" seat >> "$OUT"
+for entry in $SEATS; do
+  seat="${entry%%:*}"; rest="${entry#*:}"; eb="${rest%%:*}"; rest="${rest#*:}"; ew="${rest%%:*}"; ee="${rest##*:}"
+  tools=$(grep "exec outfitter" "$BIN/pi-$seat" | grep -oE "\-\-tools [^\"]+ " | sed 's/--tools //;s/ *$//')
+  log="/tmp/pi-fleet-eval-$seat.log"
+  perl -e 'alarm shift; exec @ARGV' 90 pi --tools "$tools" --no-extensions -p "$probe" </dev/null > "$log" 2>&1
+  gb=$(grep -ioE "BASH=(yes|no)" "$log" | head -1 | grep -ioE "yes|no"); gb=${gb:-?}
+  gw=$(grep -ioE "WRITE=(yes|no)" "$log" | head -1 | grep -ioE "yes|no"); gw=${gw:-?}
+  ge=$(grep -ioE "EDIT=(yes|no)" "$log" | head -1 | grep -ioE "yes|no"); ge=${ge:-?}
+  eyb=$([ "$eb" = Y ] && echo yes || echo no); eyw=$([ "$ew" = Y ] && echo yes || echo no); eye=$([ "$ee" = Y ] && echo yes || echo no)
+  if [ "$gb" = "$eyb" ] && [ "$gw" = "$eyw" ] && [ "$ge" = "$eye" ]; then v=PASS; else v=FAIL; fi
+  [ "$gb$gw$ge" = "???" ] && v=NO-OUTPUT
+  printf "%-20s | %-4s | %-5s | %-4s | %s\n" "$seat" "$gb" "$gw" "$ge" "$v" >> "$OUT"
+  echo "done: $seat -> $v (bash=$gb/$eyb write=$gw/$eyw edit=$ge/$eye)"
+done
+echo "=== done ===" >> "$OUT"
