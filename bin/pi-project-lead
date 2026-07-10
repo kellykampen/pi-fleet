@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
 set -euo pipefail
-exec outfitter run --profile project-lead --agent pi -- --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update,e2b_cast,e2b_status,e2b_wait,e2b_cancel,e2b_logs "$@"
+# Fleet secrets (E2B_API_KEY, FLEET_GITHUB_TOKEN) — only the project lead casts E2B, so load them
+# into the env here (600 file, not the repo, not the laptop shell history). e2b_cast reads process.env.
+if [ -f "$HOME/.pi/fleet/secrets.env" ]; then set -a; . "$HOME/.pi/fleet/secrets.env"; set +a; fi
+exec outfitter run --profile project-lead --agent pi -- --no-lens --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update,e2b_cast,e2b_status,e2b_wait,e2b_cancel,e2b_logs "$@"
