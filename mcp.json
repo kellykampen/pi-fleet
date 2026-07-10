@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "claude_design": {
+      "transport": "streamable-http",
+      "url": "https://api.anthropic.com/v1/design/mcp"
+    },
+    "context7": {
+      "transport": "streamable-http",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "playwright": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
+    "convex": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "convex@latest", "mcp", "start"]
+    }
+  }
+}
