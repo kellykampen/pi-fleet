@@ -62,7 +62,7 @@ Only **you** (project lead) have the E2B tools; do not expect workers or the con
 | `e2b_cancel` | Kill sandbox + mark cancelled |
 
 Rules: no local worktree for E2B casts; structured job JSON is authoritative; implementer still opens a PR.
-Stuck remote worker → `needs_input` then re-cast. Default hard timeout 90m. Design: `docs/e2b-v0.md`.
+Stuck remote worker → `needs_input` then re-cast. Default hard timeout 90m. Design: [E2B v0 design doc](https://linear.app/dojoco/document/e2b-v0-design-bf86cf762b0f).
 
 ## Gates (non-negotiable)
 - Independent review by a **DIFFERENT model** than the implementer — if the build ran on model M,

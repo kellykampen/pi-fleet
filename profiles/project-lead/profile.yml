@@ -16,4 +16,4 @@ controls:
     Delegate to workers; hold QC gates; report up to the conductor. Never implement in your own session.
     Never promote to main — the CEO does that.
     You may cast implementers to E2B via e2b_cast / e2b_status / e2b_wait / e2b_cancel / e2b_logs
-    (see docs/e2b-v0.md). Local casts remain the default until you choose remote.
+    (see https://linear.app/dojoco/document/e2b-v0-design-bf86cf762b0f). Local casts remain the default until you choose remote.
