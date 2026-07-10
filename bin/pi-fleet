@@ -13,6 +13,7 @@ ${bold}PROFILES${reset}  ${dim}(run the command; cd to your target dir first)${r
   ${cyan}pi-ac-verifier${reset}          Gemini 3.1 Pro · bash    RUN the AC verification (tests/build); check boxes on pass
   ${cyan}pi-researcher${reset}           Kimi K2.7 · read-only    Read-only scouting / investigation
   ${cyan}pi-designer${reset}             GPT-5.6 Terra · rw+bash  Design / architecture / API + planning docs
+  ${cyan}claude-designer${reset}         Claude Code · design MCP Read/update claude.ai designs + implement (claude_design)
   ${cyan}pi-planner${reset}              GPT-5.6 Terra · bash     Feature → Linear project + issues breakdown
   ${cyan}pi-security-reviewer${reset}    Grok 4.5 · read-only     Security-focused review (severity + file:line)
   ${cyan}pi-conductor${reset}            GPT-5.5 · rw+bash        Cross-project router → assigns project leads

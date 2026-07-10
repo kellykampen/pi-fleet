@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# claude-designer — Claude Code seat with the claude_design MCP (reads/updates Claude design
+# projects + implements them). claude_design's OAuth is gated to Claude Code's blessed client, so
+# this seat runs `claude`, NOT pi (pi's generic MCP OAuth is turned down for that endpoint).
+# One-time auth: run `/design-login` (or `/mcp`) inside a claude session if the design tools 401.
+set -euo pipefail
+DIR="$HOME/code/pi-fleet"
+exec claude \
+  --mcp-config "$DIR/claude-design-mcp.json" \
+  --append-system-prompt "$(cat "$DIR/skills/claude-design/PROMPT.md")" \
+  --allowedTools "mcp__claude_design__* Read Grep Glob Edit Write Bash(git status) Bash(git diff:*) Bash(pnpm:*) Bash(npm:*)" \
+  "$@"
