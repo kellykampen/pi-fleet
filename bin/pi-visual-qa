@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
-# Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
 set -euo pipefail
-exec outfitter run --profile visual-qa --agent pi -- --tools read,grep,find,ls,bash,mcp_playwright_browser_navigate,mcp_playwright_browser_take_screenshot,mcp_playwright_browser_snapshot,mcp_playwright_browser_resize,mcp_playwright_browser_wait_for,mcp_playwright_browser_click,mcp_playwright_browser_tabs,mcp_playwright_browser_console_messages "$@"
+exec outfitter run --profile visual-qa --agent pi -- --tools read,grep,find,ls,bash,playwright_browser_navigate,playwright_browser_take_screenshot,playwright_browser_snapshot,playwright_browser_resize,playwright_browser_wait_for,playwright_browser_click,playwright_browser_tabs,playwright_browser_console_messages "$@"
