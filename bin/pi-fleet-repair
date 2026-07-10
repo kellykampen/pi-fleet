@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# pi-fleet-repair — re-apply the outfitter patch that lets pi-mcp-adapter's OAuth/onboarding
+# state survive outfitter's composite profile. `outfitter update` reverts node_modules, so run
+# this after updating outfitter (it's idempotent — safe to run anytime).
+#
+# Root cause it fixes: outfitter force-sets PI_CODING_AGENT_DIR to an ephemeral composite dir and
+# only symlink-persists a hardcoded allowlist of files back to ~/.pi/agent. mcp.json is on the
+# list; the adapter's runtime state (mcp-onboarding.json, mcp-oauth/, mcp-cache.json) is NOT, so
+# it's discarded every launch → onboarding panel re-renders (crashes narrow panes) and OAuth
+# tokens never persist. This adds those files to the allowlist as symlink-persisted state.
+set -euo pipefail
+
+AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+ADAPTER_JS="$HOME/.local/lib/node_modules/@ai-outfitter/outfitter/dist/agents/pi/PiAdapter.js"
+
+# 1. Ensure the persistent source files/dirs exist so the symlinks aren't dangling.
+mkdir -p "$AGENT_DIR/mcp-oauth"
+[ -f "$AGENT_DIR/mcp-onboarding.json" ] || printf '{\n  "version": 1,\n  "sharedConfigHintShown": true,\n  "setupCompleted": true\n}\n' > "$AGENT_DIR/mcp-onboarding.json"
+
+# 2. Patch PiAdapter.js if the marker is absent.
+if [ ! -f "$ADAPTER_JS" ]; then
+  echo "pi-fleet-repair: PiAdapter.js not found at $ADAPTER_JS — is outfitter installed?" >&2
+  exit 1
+fi
+if grep -q 'pi-fleet-patch' "$ADAPTER_JS"; then
+  echo "pi-fleet-repair: patch already present ✓"
+  exit 0
+fi
+
+node - "$ADAPTER_JS" <<'NODE'
+const fs = require('node:fs');
+const file = process.argv[2];
+let src = fs.readFileSync(file, 'utf8');
+const anchor = "    'mcp.json': { defaultStrategy: 'symlink', allowedStrategies: ['symlink', 'warn', 'error', 'prompt'] },\n";
+if (!src.includes(anchor)) {
+  console.error('pi-fleet-repair: mcp.json anchor not found — outfitter internals changed; patch manually.');
+  process.exit(1);
+}
+const block = anchor +
+  "    /* pi-fleet-patch: persist pi-mcp-adapter runtime state so OAuth/onboarding survive the composite profile */\n" +
+  "    'mcp-onboarding.json': { defaultStrategy: 'symlink', allowedStrategies: ['symlink', 'discard', 'warn', 'error', 'prompt'] },\n" +
+  "    'mcp-cache.json': { defaultStrategy: 'symlink', allowedStrategies: ['symlink', 'discard', 'warn', 'error'] },\n" +
+  "    'mcp-npx-cache.json': { defaultStrategy: 'symlink', allowedStrategies: ['symlink', 'discard', 'warn', 'error'] },\n" +
+  "    'mcp-oauth/': { defaultStrategy: 'symlink', allowedStrategies: ['symlink', 'discard', 'warn', 'error'] },\n" +
+  "    /* end pi-fleet-patch */\n";
+fs.writeFileSync(file, src.replace(anchor, block));
+console.log('pi-fleet-repair: patch applied ✓');
+NODE
