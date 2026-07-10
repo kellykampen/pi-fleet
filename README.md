@@ -250,11 +250,38 @@ a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
    export OPENROUTER_API_KEY=...
    # etc. — injected into the sandbox env; never logged by the extension
    ```
-5. **Optional template** (hybrid bootstrap — preinstall pi, gh, git, Node 22):
+5. **E2B template** (recommended hybrid bootstrap — preinstalls Node 22, git, gh, pi, outfitter):
    ```bash
-   export FLEET_E2B_TEMPLATE=your-template-id
+   (cd extensions/e2b && npm run template:verify)        # local/static validation
+
+   export E2B_API_KEY=e2b_...
+   (cd extensions/e2b && npm run template:publish -- pi-fleet-node22)
+
+   export FLEET_E2B_TEMPLATE=pi-fleet-node22             # template id/name from publish
    export FLEET_REPO_URL=https://github.com/kellykampen/pi-fleet.git  # pin source
    ```
+   Smoke a published template:
+   ```bash
+   cd extensions/e2b
+   node --input-type=module <<'EOF'
+   import { Sandbox } from 'e2b';
+
+   const template = process.env.FLEET_E2B_TEMPLATE;
+   const apiKey = process.env.E2B_API_KEY;
+   if (!template || !apiKey) throw new Error('Set FLEET_E2B_TEMPLATE and E2B_API_KEY');
+
+   const sbx = await Sandbox.create(template, { apiKey, timeoutMs: 300_000 });
+   try {
+     const result = await sbx.commands.run('bash -lc "pi --version && gh --version"', { timeoutMs: 120_000 });
+     if (result.stdout) process.stdout.write(result.stdout);
+     if (result.stderr) process.stderr.write(result.stderr);
+     if (typeof result.exitCode === 'number' && result.exitCode !== 0) process.exit(result.exitCode);
+   } finally {
+     await sbx.kill();
+   }
+   EOF
+   ```
+   Record the published `FLEET_E2B_TEMPLATE` value as a comment on Linear issue FLT-1.
 
 Without `E2B_API_KEY`, `e2b_cast` still works in **dry-run** mode (local job record only) so you can
 exercise the project-lead flow offline.
