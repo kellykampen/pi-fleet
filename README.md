@@ -14,7 +14,7 @@ CEO  →  conductor  →  project lead  →  worker
 ```
 
 | Seat | Command | Owns |
-|---|---|---|
+| --- | --- | --- |
 | **CEO** | (human) | Goals, priorities, merge-to-main, risk/money |
 | **Conductor** | `pi-conductor` | Cross-project routing; assigns project leads; escalates to CEO |
 | **Project lead** | `pi-project-lead` | One project/stream; casts workers; holds QC gates; reports to conductor |
@@ -44,7 +44,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 ## The profiles
 
 | Command | Model (default) | Tools | What it does |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **`pi-implementer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls, **write, edit, bash** + linear read | Builds one ticket end-to-end in a worktree (code + tests → PR). Override to Kimi `k2p7` for simple work. |
 | **`pi-reviewer`** | Kimi K2.7 (`kimi-coding`) · medium | read, grep, find, ls + linear read *(no bash)* | Independent **read-only** code review/QC. Must run on a **different model** than the implementer. |
 | **`pi-ac-verifier`** | Grok 4.5 (`xai-auth`) · high | read, grep, find, ls, **bash** + linear | **Runs** the acceptance-criteria verification (tests/build), checks the AC boxes only on real pass. Different model than the build. |
@@ -75,12 +75,13 @@ worker profile + which model," decided per task, not baked rigidly into the prof
 pi-fleet composes **three upstream packages** — nothing is forked:
 
 | Layer | Package | Role |
-|---|---|---|
+| --- | --- | --- |
 | Loadout + CLI launch | **outfitter** | Composes model/skills/extensions/system-prompt into a profile; the `bin/pi-<role>` wrapper launches it and hardcodes the `--tools` allowlist. |
 | Spawnable subagents | **pi-subagents** | Lets a running seat *delegate* to a child agent (chains, parallel, background). Roster lives in `agents/*.md`. |
 | Runtime policy | **@gotgenes/pi-permission-system** | `allow`/`ask`/`deny` per tool **and per bash command** (e.g. `git *: allow`, `rm -rf *: deny`). Global baseline in `permission-system/config.json`; per-agent `permission:` frontmatter tightens it. |
 
 So each role exists in two forms:
+
 - **Top-level seat** — `bin/pi-<role>` (outfitter + `--tools`). Start it yourself from a terminal.
 - **Spawnable subagent** — `agents/<role>.md`, discovered globally at `~/.pi/agent/agents/`. Any seat
   (typically `pi-project-lead`) delegates to it via the `subagent` tool. Its `tools:` frontmatter is
@@ -96,6 +97,7 @@ bin/pi-fleet-eval        # prove each seat's --tools allowlist really enforces r
 ```
 
 Two patches (auto-reverted by `outfitter update` / `pi update`, so `pi-fleet-repair` re-applies them):
+
 1. **outfitter** — persist `pi-mcp-adapter`'s OAuth/onboarding state (else it's wiped each launch).
 2. **pi-tui** — truncate overflowing lines instead of crashing pi (narrow panes overflow the banner).
 
@@ -161,7 +163,7 @@ pi-fleet/
 ├── agents/<role>.md              # pi-subagents roster (spawnable children)
 ├── extensions/linear.ts          # narrow linear_* tools
 ├── extensions/e2b/               # E2B remote cast tools (project-lead only)
-├── docs/e2b-v0.md                # E2B design + job contract
+├── docs/e2b-v0.md                # E2B pointer to Linear
 └── bin/pi-<role>                 # wrapper: hardcodes --tools, launches Pi via outfitter
 ```
 
@@ -171,6 +173,7 @@ pi-fleet/
 
 1. **Skill** — `skills/<role>/SKILL.md` (front-matter `name`/`description` + the role's instructions).
 2. **Profile** — `profiles/<role>/profile.yml`:
+
    ```yaml
    id: <role>
    label: <Role label>
@@ -186,12 +189,15 @@ pi-fleet/
      append_system_prompt: |          # optional extra rules
        ...
    ```
+
 3. **Wrapper** — `bin/pi-<role>` (copy an existing one, set the `--tools` allowlist):
+
    ```bash
    #!/usr/bin/env bash
    set -euo pipefail
    exec outfitter run --profile <role> --agent pi -- --tools read,grep,find,ls,... "$@"
    ```
+
    then `chmod +x bin/pi-<role>`.
 4. **Verify + commit** — `outfitter profile list` should show it; `pi-<role> -p "..."` should run.
    `git add -A && git commit -m "add pi-<role>" && git push`.
@@ -218,7 +224,7 @@ After pulling: `bin/pi-fleet-bootstrap`, then restart seats.
 ## E2B remote implementers (v0)
 
 The **project lead** can cast an **implementer** into an [E2B](https://e2b.dev) sandbox instead of
-a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
+a local worktree. Planning and design live in Linear: [E2B remote workers v0 project](https://linear.app/dojoco/project/e2b-remote-workers-v0-5c19a9233ff1) · [E2B v0 design doc](https://linear.app/dojoco/document/e2b-v0-design-bf86cf762b0f).
 
 **Who:** only `pi-project-lead` (tools on its `--tools` allowlist).  
 **What:** async `e2b_cast` → `jobId`; `e2b_status` / `e2b_wait` / `e2b_cancel` / `e2b_logs`.  
@@ -226,31 +232,46 @@ a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
 
 ### One-time setup
 
+Required environment variables for non-dry-run casts:
+
+- `E2B_API_KEY` — creates/connects the sandbox.
+- `FLEET_GITHUB_TOKEN` (preferred) or `GH_TOKEN` — injected into the sandbox for clone/push/PR operations.
+- One or more fleet-worker model keys for the selected provider, for example `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `KIMI_API_KEY`, or `MOONSHOT_API_KEY`.
+
 1. **E2B account + API key**
+
    ```bash
    export E2B_API_KEY=e2b_...
    ```
+
 2. **Install extension deps** (once per clone; includes the package-local E2B CLI):
+
    ```bash
    (cd extensions/e2b && npm install)
    ```
+
 3. **GitHub token for the sandbox** (short-lived / fine-grained PAT for v0):
+
    ```bash
    export FLEET_GITHUB_TOKEN=github_pat_...   # preferred
    # or: export GH_TOKEN=...
    ```
+
    Minimum scopes for private repos + PR open/push (fine-grained):
    - Repository access: the target repo(s) only
    - Permissions: **Contents** read/write, **Pull requests** read/write, **Metadata** read
-   - Short expiration; rotate often. Do **not** use your unlimited classic PAT long-term.
+   - Short expiration; rotate/revoke after each cast or work batch when possible. Do **not** use your unlimited classic PAT long-term.
    - Next evolution: GitHub App installation tokens per job (see design doc).
 4. **Fleet-worker model keys** (separate from your personal CEO laptop keys when possible):
+
    ```bash
    export OPENAI_API_KEY=...          # or whichever providers the implementer will use
    export OPENROUTER_API_KEY=...
    # etc. — injected into the sandbox env; never logged by the extension
    ```
+
 5. **E2B template** (recommended hybrid bootstrap — preinstalls Node 22, git, gh, pi, outfitter):
+
    ```bash
    (cd extensions/e2b && npm run template:verify)        # local/static validation
 
@@ -260,7 +281,9 @@ a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
    export FLEET_E2B_TEMPLATE=pi-fleet-node22             # template id/name from publish
    export FLEET_REPO_URL=https://github.com/kellykampen/pi-fleet.git  # pin source
    ```
+
    Smoke a published template:
+
    ```bash
    cd extensions/e2b
    node --input-type=module <<'EOF'
@@ -283,6 +306,7 @@ a local worktree. Full design: [`docs/e2b-v0.md`](./docs/e2b-v0.md).
    process.exitCode = exitCode;
    EOF
    ```
+
    Record the published `FLEET_E2B_TEMPLATE` value as a comment on Linear issue FLT-1.
 
 Without `E2B_API_KEY`, `e2b_cast` still works in **dry-run** mode (local job record only) so you can
