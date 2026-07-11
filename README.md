@@ -92,6 +92,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 | **`pi-visual-qa`** | Grok 4.5 (`xai-auth`) · high | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. |
 | **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
 | **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
+| **`pi-docs`** | GPT-5.5 (`openai-codex`) · medium | read, grep, find, ls, **write, edit, bash** + linear | **Final Docs-as-DoD gate** — runs after review + AC-verify + CI are green, before merge/Done. Reads the PR diff, updates README/docs to match, or states an explicit no-docs-needed rationale. Does not re-review code or AC. |
 
 The `pi-personal-assistant` toolkit (all via `bash`, documented in its skill):
 `finch` (X) · `gog` (Google Workspace) · `imsg` (iMessage) · `wacli` (WhatsApp) ·
@@ -120,6 +121,7 @@ make sure they're on `PATH`:
 | `pi-project-lead` **E2B remote casts** | the `e2b` CLI (`npm i` in `extensions/e2b`) + `E2B_API_KEY` + `FLEET_GITHUB_TOKEN` — see [E2B section](#e2b-remote-implementers-v0) |
 | `pi-remotion` | `node`/`npm` + [Remotion](https://www.remotion.dev) (`npx remotion`) |
 | `pi-personal-assistant` | your own CLIs on `PATH`: `finch` (X), `gog` (Google), `imsg` (iMessage), `wacli` (WhatsApp), `obsidian-cli`, `ntn` (Notion), `linear-cli`, `gh`/`git`. **Not bundled** — supply your own; the profile only orchestrates them under a draft→approve→execute gate. |
+| `pi-docs` | `git`, `gh` (to read the PR diff) |
 | `claude-designer`, `claude-reviewer`, `claude-worker`, `claude-conductor` | [Claude Code](https://claude.com/claude-code) (`claude`), authenticated. `claude-designer` also needs a one-time `/design-login`. |
 | `agy-researcher`, `agy-reviewer`, `agy-worker` | the `agy` CLI (Antigravity/Gemini), authenticated. |
 
@@ -182,6 +184,18 @@ Supporting commands:
 outfitter profile list                                  # list all profiles
 outfitter run --profile personal-assistant --agent pi   # raw launch (SKIPS --tools enforcement — prefer the wrapper)
 ```
+
+### Running the Docs pass on a PR
+
+A project lead invokes `pi-docs` as the **last** gate, once review + AC-verify + CI are already
+green, right before merge/Done:
+
+```bash
+cd <worktree-or-repo> && pi-docs -p "Docs pass for PR #<N> — read the diff, update README/docs to match, or state why none are needed."
+```
+
+It reports either the exact docs files it changed, or an explicit no-docs-needed rationale —
+post that as the PR's Docs-pass evidence before merging.
 
 ---
 

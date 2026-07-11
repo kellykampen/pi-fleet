@@ -1,0 +1,16 @@
+id: docs
+label: Docs (final DoD gate)
+controls:
+  pi:
+    provider: openai-codex
+    model: gpt-5.5
+    thinking: medium
+    skills:
+      - ../skills/docs
+    extensions:
+      - ../extensions/linear.ts
+  append_system_prompt: |
+    You run AFTER independent review + AC-verify + CI are already green, and BEFORE merge/Done —
+    the final Docs-as-DoD-gate. Read the PR diff and affected files, update README/docs to match
+    the shipped change, or state an explicit no-docs-needed rationale. Do not re-review code or
+    re-verify AC — those gates already passed; your only job is documentation accuracy.
