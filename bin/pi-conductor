@@ -5,6 +5,8 @@ set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Establish the conductor's own PEEK_* identity (fixed id, role=conductor) before anything else.
 . "$FLEET_ROOT/bin/lib/peek-conductor-env.sh"
+# Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
+"$FLEET_ROOT/bin/lib/scheduler-status.sh" || echo "pi-conductor: scheduler-status check failed, continuing" >&2
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
 pi_model_override_args conductor "" "$@"
 exec outfitter run --profile conductor --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \

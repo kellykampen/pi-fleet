@@ -1,40 +1,89 @@
 #!/usr/bin/env bash
-# Idempotently ensure the personal-assistant's global prompt schedules (profiles/personal-assistant/
-# schedules.json) exist as launchd LaunchAgents, updating in place rather than duplicating.
-# Called automatically by bin/pi-personal-assistant on every start/restart (FLT-24).
+# Install the personal-assistant's launchd schedules without touching pi's machine-global scheduler.
+# Called by bin/pi-personal-assistant on every start/restart; safe to run manually for repair.
 #
-# Env overrides (for testing / isolation):
-#   PI_SCHEDULE_SYNC_AGENTS_DIR    - LaunchAgents dir to write into (default: ~/Library/LaunchAgents)
-#   PI_SCHEDULE_SYNC_LOG_DIR       - log dir for job stdout/stderr (default: ~/Library/Logs/pi-fleet)
-#   PI_SCHEDULE_SYNC_DRY_RUN=1     - write/diff plists but skip launchctl bootstrap/bootout calls
-#   PI_SCHEDULE_SYNC_SCHEDULES_JSON - schedules.json to read (default: repo's own)
+# Env overrides:
+#   PI_SCHEDULE_SYNC_ENABLED=0      - unload and remove personal LaunchAgents
+#   PI_FLEET_PROFILE                - when set, must be "personal-assistant"
+#   PI_SCHEDULE_SYNC_AGENTS_DIR     - LaunchAgents dir (default: ~/Library/LaunchAgents)
+#   PI_SCHEDULE_SYNC_LOG_DIR        - stdout/stderr dir (default: ~/Library/Logs/pi-fleet)
+#   PI_SCHEDULE_SYNC_DRY_RUN=1      - write/diff plists but do not call launchctl
+#   PI_SCHEDULE_SYNC_SCHEDULES_JSON - schedules source (default: this repo)
+#   PI_SCHEDULE_SYNC_RUNNER         - stable executable runner path
 set -euo pipefail
 
-FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCHEDULES_JSON="${PI_SCHEDULE_SYNC_SCHEDULES_JSON:-$FLEET_ROOT/profiles/personal-assistant/schedules.json}"
-RUNNER="$FLEET_ROOT/bin/pi-personal-schedule-run"
+SELF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROFILE="${PI_FLEET_PROFILE:-}"
+ENABLED="${PI_SCHEDULE_SYNC_ENABLED:-1}"
 AGENTS_DIR="${PI_SCHEDULE_SYNC_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
 LOG_DIR="${PI_SCHEDULE_SYNC_LOG_DIR:-$HOME/Library/Logs/pi-fleet}"
 DRY_RUN="${PI_SCHEDULE_SYNC_DRY_RUN:-0}"
 LABEL_PREFIX="dev.pi-fleet.personal"
 
-if [[ ! -f "$SCHEDULES_JSON" ]]; then
-  echo "pi-personal-schedule-sync: no schedules.json at $SCHEDULES_JSON, nothing to sync" >&2
+if [[ -n "$PROFILE" && "$PROFILE" != "personal-assistant" ]]; then
+  echo "pi-personal-schedule-sync: profile '$PROFILE' is not personal-assistant; skipping" >&2
   exit 0
 fi
 
+# A LaunchAgent must not capture a disposable feature-worktree path. Prefer the conventional,
+# stable checkout used by pi-fleet-bootstrap; fall back to this checkout for other installations.
+DEFAULT_ROOT="${PI_FLEET_HOME:-$HOME/code/pi-fleet}"
+if [[ ! -x "$DEFAULT_ROOT/bin/pi-personal-schedule-run" ]]; then
+  DEFAULT_ROOT="$SELF_ROOT"
+fi
+SCHEDULES_JSON="${PI_SCHEDULE_SYNC_SCHEDULES_JSON:-$DEFAULT_ROOT/profiles/personal-assistant/schedules.json}"
+RUNNER="${PI_SCHEDULE_SYNC_RUNNER:-$DEFAULT_ROOT/bin/pi-personal-schedule-run}"
+
 mkdir -p "$AGENTS_DIR" "$LOG_DIR"
 
-python3 - "$SCHEDULES_JSON" "$AGENTS_DIR" "$LOG_DIR" "$RUNNER" "$LABEL_PREFIX" "$DRY_RUN" <<'PYEOF'
+# Runtime enforcement: personal launchd schedules must never bleed into pi's global scheduler
+# store. Other pi runtimes (e.g. remote-pi/dev.remotepi.supervisord) can still write to it from
+# outside this repo, so every sync purges whatever is found there.
+"$SELF_ROOT/bin/lib/scheduler-status.sh" || echo "pi-personal-schedule-sync: scheduler-status check failed, continuing" >&2
+
+if [[ "$ENABLED" == "0" ]]; then
+  shopt -s nullglob
+  plists=("$AGENTS_DIR/$LABEL_PREFIX".*.plist)
+  shopt -u nullglob
+  # "${plists[@]}" on a zero-element array raises "unbound variable" under set -u on bash < 4.4
+  # (stock /bin/bash on macOS is 3.2.57) - guard the count before expanding.
+  if (( ${#plists[@]} > 0 )); then
+    for plist_path in "${plists[@]}"; do
+      label="$(basename "$plist_path" .plist)"
+      echo "pi-personal-schedule-sync: disabling $label"
+      if [[ "$DRY_RUN" != "1" ]]; then
+        launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1 || true
+      fi
+      rm -f "$plist_path"
+    done
+  fi
+  exit 0
+fi
+
+if [[ ! -f "$SCHEDULES_JSON" ]]; then
+  echo "pi-personal-schedule-sync: no schedules.json at $SCHEDULES_JSON" >&2
+  exit 1
+fi
+if [[ ! -x "$RUNNER" ]]; then
+  echo "pi-personal-schedule-sync: runner is missing or not executable: $RUNNER" >&2
+  exit 1
+fi
+if ! command -v outfitter >/dev/null 2>&1; then
+  echo "pi-personal-schedule-sync: outfitter is not available in PATH; refusing broken LaunchAgents" >&2
+  exit 1
+fi
+
+python3 - "$SCHEDULES_JSON" "$AGENTS_DIR" "$LOG_DIR" "$RUNNER" "$LABEL_PREFIX" "$DRY_RUN" "$PATH" <<'PYEOF'
 import json, os, plistlib, subprocess, sys
 
-schedules_path, agents_dir, log_dir, runner, label_prefix, dry_run = sys.argv[1:7]
+schedules_path, agents_dir, log_dir, runner, label_prefix, dry_run, launch_path = sys.argv[1:8]
 dry_run = dry_run == "1"
 
 with open(schedules_path) as f:
     data = json.load(f)
 
 uid = os.getuid()
+domain = f"gui/{uid}"
 
 for sched in data.get("schedules", []):
     if not sched.get("enabled", True):
@@ -46,12 +95,9 @@ for sched in data.get("schedules", []):
         sys.exit(1)
     _sec, minute, hour, dom, month, dow = cron_fields
     if dom != "*" or month != "*" or dow != "*":
-        print(f"pi-personal-schedule-sync: {name}: only '* * *' (dom/month/dow) schedules are supported today", file=sys.stderr)
+        print(f"pi-personal-schedule-sync: {name}: only '* * *' (dom/month/dow) schedules are supported", file=sys.stderr)
         sys.exit(1)
 
-    # launchd has no "every hour" wildcard value - a concrete Hour key means "only that hour."
-    # Omitting the key entirely is how StartCalendarInterval expresses "every hour," which is
-    # what cron's "*" in the hour field means. Minute is always concrete for these schedules.
     calendar_interval = {"Minute": int(minute)}
     if hour != "*":
         calendar_interval["Hour"] = int(hour)
@@ -61,48 +107,46 @@ for sched in data.get("schedules", []):
     desired = {
         "Label": label,
         "ProgramArguments": [runner, name],
+        # launchd does not inherit the interactive shell PATH. The runner ultimately execs
+        # outfitter, so preserve the validated PATH from sync time.
+        "EnvironmentVariables": {"PATH": launch_path},
         "StartCalendarInterval": calendar_interval,
         "StandardOutPath": os.path.join(log_dir, f"{name}.log"),
         "StandardErrorPath": os.path.join(log_dir, f"{name}.error.log"),
         "RunAtLoad": False,
-        # Metadata only (launchd ignores unknown keys) - keeps the source-of-truth cron string
-        # (as given, 6-field incl. seconds) visible on the installed job for audit/verification.
         "PiFleetCronOriginal": sched["cron"],
         "PiFleetTaskId": sched.get("taskId", ""),
     }
     desired_bytes = plistlib.dumps(desired, sort_keys=True)
 
-    existing_bytes = None
+    existing_normalized = None
     if os.path.exists(plist_path):
-        with open(plist_path, "rb") as f:
-            existing_bytes = f.read()
         try:
-            existing = plistlib.loads(existing_bytes)
-            existing_normalized = plistlib.dumps(existing, sort_keys=True)
+            with open(plist_path, "rb") as f:
+                existing_normalized = plistlib.dumps(plistlib.load(f), sort_keys=True)
         except Exception:
-            existing_normalized = None
-    else:
-        existing_normalized = None
+            pass
 
     if existing_normalized == desired_bytes:
         print(f"pi-personal-schedule-sync: {name}: already up to date ({plist_path})")
-        continue
-
-    action = "updating" if existing_bytes is not None else "creating"
-    print(f"pi-personal-schedule-sync: {name}: {action} {plist_path}")
-    with open(plist_path, "wb") as f:
-        f.write(desired_bytes)
+    else:
+        action = "updating" if os.path.exists(plist_path) else "creating"
+        print(f"pi-personal-schedule-sync: {name}: {action} {plist_path}")
+        tmp_path = f"{plist_path}.tmp.{os.getpid()}"
+        with open(tmp_path, "wb") as f:
+            f.write(desired_bytes)
+        os.replace(tmp_path, plist_path)
 
     if dry_run:
-        print(f"pi-personal-schedule-sync: {name}: DRY_RUN=1, skipping launchctl bootstrap/bootout")
+        print(f"pi-personal-schedule-sync: {name}: DRY_RUN=1, skipping launchctl reload")
         continue
 
-    domain = f"gui/{uid}"
-    # bootout is expected to fail (nonzero) the first time a job is created - that's fine.
+    # Always reload, even when bytes are unchanged: the installed job may be unloaded or may have
+    # failed with status 127 under an earlier environment.
     subprocess.run(["launchctl", "bootout", f"{domain}/{label}"], capture_output=True)
     result = subprocess.run(["launchctl", "bootstrap", domain, plist_path], capture_output=True, text=True)
     if result.returncode != 0:
         print(f"pi-personal-schedule-sync: {name}: launchctl bootstrap failed: {result.stderr.strip()}", file=sys.stderr)
         sys.exit(1)
-    print(f"pi-personal-schedule-sync: {name}: launchd job (re)loaded")
+    print(f"pi-personal-schedule-sync: {name}: launchd job loaded")
 PYEOF
