@@ -57,20 +57,22 @@ Run the interview with the **interview-linear** mechanism. Quality bar for quest
 - **Each question carries a recommendation** — your proposed answer + the reasoning, so the CEO can
   reply "yes" or redirect in seconds instead of designing from scratch.
 - **Enough context to answer fast** — inline the relevant spike/context so the CEO never has to go
-  hunting. Optimize for a phone reply.
+  hunting. Optimize for a quick reply.
 - **Grouped by the four buckets** so the CEO can see the whole decision surface at once.
 
-### Interview channel — do this exactly
+### Interview channel — do this exactly (pi-fleet-native)
 
-- **PRIMARY: peek needs-input inbox.** Post the interview to the peek **needs-input** inbox so the
-  CEO can answer from the phone via the web reply path (PEK-54 / PEK-68 / PEK-69 / PEK-70). This is
-  the preferred channel whenever peek is available and that reply path is ready.
-- **FALLBACK: claude-conductor relay.** If peek is unavailable or the needs-input/web-reply path is
-  not yet ready, relay the interview through the **claude-conductor** (the one session the CEO talks
-  to) and collect answers back through it.
+- **PRIMARY: claude-conductor relay → AskUserQuestion.** Surface the interview-linear questions to
+  the **claude-conductor** (the one session the CEO talks to). The claude-conductor relays them to
+  the CEO via **AskUserQuestion** and returns the answers to you. This is the default channel and
+  needs no external needs-input inbox or web-reply path.
+- **FALLBACK: direct AskUserQuestion, or structured Linear comments.** If the claude-conductor relay
+  isn't available, either (a) ask the CEO directly via an interactive **AskUserQuestion**, or
+  (b) post the questions as **structured Linear comments** on the spike (one clear question block per
+  decision, each with your recommendation) and collect the answers asynchronously from the replies.
 
-Pick PRIMARY when it's ready; fall back only when it isn't. Record which channel you used in the
-project so the trail is auditable.
+The channel is deliberately pi-fleet-native — it relies only on the conductor relay, AskUserQuestion,
+and Linear comments. Record which channel you used in the project so the trail is auditable.
 
 ## Step 4 — Break the spike down (issue-breakdown rules)
 

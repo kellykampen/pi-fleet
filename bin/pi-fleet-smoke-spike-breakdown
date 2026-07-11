@@ -48,13 +48,15 @@ has "$AGENT" 'name: spike-breakdown' && ok "agent front-matter name" || no "agen
 
 # 4. The behavioral contract the AC cares about is documented somewhere in the seat's text.
 CONTRACT="$PROFILE $SKILL $AGENT"
-grep -qiE 'Spike'            $CONTRACT && ok "spike label filtering documented"     || no "spike label filtering documented"
-grep -qi  'interview'        $CONTRACT && ok "interview mechanism documented"       || no "interview mechanism documented"
-grep -qi  'peek'             $CONTRACT && ok "peek primary channel documented"      || no "peek primary channel documented"
-grep -qi  'claude-conductor' $CONTRACT && ok "conductor fallback channel documented"|| no "conductor fallback channel documented"
-grep -qE  '3 ?pt|<=3|≤3'     $CONTRACT && ok "<=3-point rule documented"            || no "<=3-point rule documented"
-grep -q   -- '- \[ \]'       $CONTRACT && ok "checkbox AC documented"               || no "checkbox AC documented"
-grep -qi  'blocker'          $CONTRACT && ok "blockers/dependencies documented"     || no "blockers/dependencies documented"
+grep -qiE 'Spike'            $CONTRACT && ok "spike label filtering documented"        || no "spike label filtering documented"
+grep -qi  'interview'        $CONTRACT && ok "interview mechanism documented"          || no "interview mechanism documented"
+grep -qi  'claude-conductor' $CONTRACT && ok "claude-conductor relay channel documented" || no "claude-conductor relay channel documented"
+grep -qi  'AskUserQuestion'  $CONTRACT && ok "AskUserQuestion channel documented"      || no "AskUserQuestion channel documented"
+# Correction (CEO): pi-fleet-native channel only — the peek/PEK needs-input dependency must be gone.
+grep -qiE 'peek|PEK-'        $CONTRACT && no "peek/PEK dependency must be removed"      || ok "no peek/PEK dependency"
+grep -qE  '3 ?pt|<=3|≤3'     $CONTRACT && ok "<=3-point rule documented"               || no "<=3-point rule documented"
+grep -q   -- '- \[ \]'       $CONTRACT && ok "checkbox AC documented"                  || no "checkbox AC documented"
+grep -qi  'blocker'          $CONTRACT && ok "blockers/dependencies documented"        || no "blockers/dependencies documented"
 
 # 5. If outfitter is on PATH, confirm it can load the profile (best-effort; skipped otherwise).
 if command -v outfitter >/dev/null 2>&1; then
