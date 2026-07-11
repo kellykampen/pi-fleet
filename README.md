@@ -304,6 +304,20 @@ above ~28, resume serialized once drained). See `skills/conductor/SKILL.md` and
 `skills/project-lead/SKILL.md`, section "Model usage, roster overrides, and the machine-load
 guard" in each.
 
+## Standing fleet directives (delegation, DoD, roster lock, hygiene)
+
+`skills/conductor/SKILL.md` and `skills/project-lead/SKILL.md` also codify: the conductor's
+"does no work" delegation-only rule + routing table; the two-conductor model
+(`claude-conductor` = CEO-facing relay, `pi-conductor` = drives project leads); the
+**Docs-as-final-DoD-gate** canonical pipeline (review → AC-verify → CI → Docs pass → merge/Done,
+see the [`pi-docs`](#the-profiles) profile); the hard roster lock (allowed:
+`claude-worker`/`claude-reviewer` Sonnet 5/Opus 4.8, `pi` `gpt-5.5`/`gpt-5.6`; banned: Grok/xAI,
+Kimi/`claudekimi`, GLM/`claudeglm`, Gemini/`agy`); pane/seat hygiene (no mass-close, project
+leads own their own workspace's seats); the Linear-first rule (ticket + checkbox AC before work
+starts); project separation (no project carries another project's profile/skill-specific
+wiring); and the meta-rule that every *new* standing rule gets codified here too, not left in a
+conductor's private memory. See each skill file's matching sections for the full statements.
+
 ---
 
 ## Personal Pi global prompt schedules

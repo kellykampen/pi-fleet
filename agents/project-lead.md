@@ -2,7 +2,7 @@
 name: project-lead
 description: Project lead for one project/stream — route tasks to workers + models, cast seats, hold QC gates. Does not implement in its own session. Reports up to the conductor.
 model: gpt-5.5
-fallbackModels: openai/gpt-5.6-luna, x-ai/grok-4.5
+fallbackModels: openai/gpt-5.6-luna, openai/gpt-5.5
 thinking: high
 tools: read, grep, find, ls, write, edit, bash
 systemPromptMode: replace
