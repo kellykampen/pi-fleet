@@ -40,6 +40,28 @@ export const SENSITIVE_ENV_KEYS = [
  */
 const NEEDS_INPUT_BRIEF_PREAMBLE = `Sandbox note: if this task is genuinely ambiguous and you cannot proceed safely without a human decision, do not guess and do not fail the job. Instead write /work/needs-input.json as {"questions": ["...", "..."]} listing exactly what you need answered, then exit 0.`;
 
+/**
+ * Reduce any of the repo shapes this fleet is fed (owner/repo,
+ * owner/repo.git, github.com/owner/repo[.git], with or without an
+ * https:// scheme) to the bare `owner/repo` slug `gh` unambiguously
+ * resolves. Without this, `gh repo clone github.com/owner/repo.git`
+ * strips the host but keeps the literal `.git` suffix as part of the repo
+ * name, and GitHub can't resolve it (see FLT-4).
+ */
+export function normalizeRepoSlug(repo: string): string {
+	let slug = repo.trim();
+	slug = slug.replace(/^git@github\.com:/, "");
+	slug = slug.replace(/^https?:\/\//, "");
+	slug = slug.replace(/^github\.com\//, "");
+	slug = slug.replace(/\.git$/, "");
+	slug = slug.replace(/\/$/, "");
+
+	if (!/^[^/]+\/[^/]+$/.test(slug)) {
+		throw new Error(`Invalid repo slug: expected "owner/repo", got ${JSON.stringify(repo)}`);
+	}
+	return slug;
+}
+
 export function shellQuote(value: string): string {
 	return `'${value.replace(/'/g, `'\\''`)}'`;
 }
@@ -202,7 +224,7 @@ export function buildRunnerScript(job: FleetJob): string {
 					: "";
 
 	let checkout: string;
-	const repo = job.repo || "";
+	const repo = normalizeRepoSlug(job.repo || "");
 	if (job.codeAccess === "pr") {
 		checkout = [
 			`gh repo clone ${shellQuote(repo)} /work/repo -- --depth 1`,
