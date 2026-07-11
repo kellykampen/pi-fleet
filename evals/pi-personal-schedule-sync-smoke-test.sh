@@ -109,6 +109,18 @@ HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assis
 check_eq "$(plist_count)" "0" "disabled sync removes both personal LaunchAgents"
 check_eq "$(cat "$GLOBAL_TASKS")" "$TASKS_BEFORE" "disabled sync does not populate global scheduler store"
 
+echo "5) PI_SCHEDULE_SYNC_ENABLED=0 with zero installed plists does not crash (bash 3.2 unbound-array regression)"
+DISABLE_AGAIN_STATUS=0
+/bin/bash -c '
+HOME="$1" PATH="$2:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
+	PI_SCHEDULE_SYNC_ENABLED=0 \
+	PI_SCHEDULE_SYNC_AGENTS_DIR="$3" \
+	PI_TEST_LAUNCHCTL_LOG="$4" \
+	"$5/bin/pi-personal-schedule-sync"
+' _ "$FAKE_HOME" "$FAKE_BIN" "$FAKE_AGENTS_DIR" "$LAUNCHCTL_LOG" "$FLEET_ROOT" >/dev/null 2>&1 || DISABLE_AGAIN_STATUS=$?
+check_eq "$DISABLE_AGAIN_STATUS" "0" "disabling an already-empty schedule set exits 0 on stock /bin/bash instead of crashing on unbound \${plists[@]}"
+check_eq "$(plist_count)" "0" "still zero plists after disabling an already-empty set"
+
 echo ""
 echo "pass=$pass fail=$fail"
 [[ "$fail" -eq 0 ]]

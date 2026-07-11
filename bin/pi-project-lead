@@ -8,7 +8,7 @@ FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # commands have a real $PEEK_ID to forward as PEEK_PARENT to workers (see skills/project-lead).
 . "$FLEET_ROOT/bin/lib/peek-lead-env.sh"
 # Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
-"$FLEET_ROOT/bin/lib/scheduler-status.sh"
+"$FLEET_ROOT/bin/lib/scheduler-status.sh" || echo "pi-project-lead: scheduler-status check failed, continuing" >&2
 # Fleet secrets (E2B_API_KEY, FLEET_GITHUB_TOKEN) — only the project lead casts E2B, so load them
 # into the env here (600 file, not the repo, not the laptop shell history). e2b_cast reads process.env.
 if [ -f "$HOME/.pi/fleet/secrets.env" ]; then set -a; . "$HOME/.pi/fleet/secrets.env"; set +a; fi
