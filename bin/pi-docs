@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Hybrid: outfitter composes skill/extension/model/prompt; this wrapper hardcodes --tools (the
+# boundary). write/edit for updating docs; bash for git/gh (reading the PR diff) - not a general
+# implementation seat, the docs skill itself constrains scope to documentation.
+set -euo pipefail
+exec outfitter run --profile docs --agent pi -- --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment "$@"
