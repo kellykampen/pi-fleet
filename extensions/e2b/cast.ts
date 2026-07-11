@@ -18,6 +18,36 @@ export const MISSING_GITHUB_TOKEN_ERROR =
 export const MISSING_TEMPLATE_ERROR =
 	"FLEET_E2B_TEMPLATE is required for non-dry-run implementer casts (e.g. FLEET_E2B_TEMPLATE=pi-fleet-node22)";
 
+export const SANDBOX_VERSION_ERROR_HINT =
+	"E2B sandbox creation crashed inside the SDK while reading an envd 'version'. " +
+	"This usually means FLEET_E2B_TEMPLATE points to a template that is not " +
+	"published to the E2B account behind E2B_API_KEY, or was built with a " +
+	"mismatched @e2b/cli version. Confirm `e2b template list` shows the template " +
+	"for this key and republish it with the matching CLI, then retry.";
+
+/**
+ * The e2b SDK can fail deep in its envd handshake with an opaque
+ * "Cannot read properties of undefined (reading 'version')" (Node) or the
+ * equivalent JSC/WebKit phrasing. On its own that message tells the project
+ * lead nothing actionable, so we detect it and rewrap it with a hint.
+ */
+export function isOpaqueVersionError(err: unknown): boolean {
+	const message = err instanceof Error ? err.message : String(err);
+	// Node/V8: Cannot read properties of undefined (reading 'version')
+	if (/reading '?version'?/.test(message)) return true;
+	// JSC/WebKit: undefined is not an object (evaluating 'x.version')
+	if (/is not an object.*\.version/.test(message)) return true;
+	return false;
+}
+
+export function describeSandboxError(err: unknown): string {
+	const message = err instanceof Error ? err.message : String(err);
+	if (isOpaqueVersionError(err)) {
+		return `${SANDBOX_VERSION_ERROR_HINT} (original SDK error: ${message})`;
+	}
+	return message;
+}
+
 interface SandboxLike {
 	files: {
 		read(path: string): Promise<string>;
@@ -96,27 +126,50 @@ export async function tryCreateSandbox(
 	const { Sandbox } = await import("e2b");
 	const timeoutMs = job.timeoutMinutes * 60 * 1000;
 
+	// Raw SDK errors (including the opaque envd "reading 'version'" crash) are
+	// translated once at the castJob funnel via describeSandboxError, so every
+	// createSandbox implementation benefits — not just this default one.
 	const sandbox = await Sandbox.create(template, { timeoutMs, apiKey });
 
-	const runner = buildRunnerScript(job);
-	await sandbox.files.write("/work/run-job.sh", runner);
+	if (!sandbox?.sandboxId) {
+		throw new Error(
+			`E2B Sandbox.create returned no sandboxId for template "${template}"`,
+		);
+	}
 
-	// /work is created by the template's build (root) but the sandbox runs
-	// commands as its non-root default user; re-assert ownership/perms as
-	// root so the backgrounded runner below can create job.log/job.pid even
-	// if the template image predates this fix.
-	await sandbox.commands.run(
-		"mkdir -p /work && chmod -R a+rwX /work && chmod +x /work/run-job.sh",
-		{ timeoutMs: 60_000, user: "root" },
-	);
+	// Once the sandbox exists, any later failure must kill it so we don't leak a
+	// billed sandbox for a job that will be marked failed.
+	try {
+		const runner = buildRunnerScript(job);
+		await sandbox.files.write("/work/run-job.sh", runner);
 
-	await sandbox.commands.run(
-		"bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",
-		{
-			timeoutMs: 60_000,
-			envs: collectWorkerEnv(),
-		},
-	);
+		// /work is created by the template's build (root) but the sandbox runs
+		// commands as its non-root default user; re-assert ownership/perms as
+		// root so the backgrounded runner below can create job.log/job.pid even
+		// if the template image predates this fix.
+		await sandbox.commands.run(
+			"mkdir -p /work && chmod -R a+rwX /work && chmod +x /work/run-job.sh",
+			{ timeoutMs: 60_000, user: "root" },
+		);
+
+		await sandbox.commands.run(
+			"bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",
+			{
+				timeoutMs: 60_000,
+				envs: collectWorkerEnv(),
+			},
+		);
+	} catch (err) {
+		try {
+			await sandbox.kill();
+		} catch {
+			// best-effort cleanup; surface the original failure below
+		}
+		const message = err instanceof Error ? err.message : String(err);
+		throw new Error(
+			`sandbox ${sandbox.sandboxId} started but runner setup failed: ${message}`,
+		);
+	}
 
 	return {
 		sandboxId: sandbox.sandboxId,
@@ -286,9 +339,7 @@ export async function castJob(
 			sanitizeJobPatch({ status: "running", sandboxId, logTail }),
 		);
 	} catch (err) {
-		const message = sanitizeSecrets(
-			err instanceof Error ? err.message : String(err),
-		);
+		const message = sanitizeSecrets(describeSandboxError(err));
 		return updateJob(
 			job.jobId,
 			sanitizeJobPatch({ status: "failed", error: message }),
