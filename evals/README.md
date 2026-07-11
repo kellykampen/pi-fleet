@@ -82,6 +82,35 @@ so `remote-pi` can't hijack while the policy layer stays active. Expect `git sta
 
 Last verified: [`results/bash-policy-latest.txt`](./results/bash-policy-latest.txt).
 
+## PEEK_* launcher-env eval
+
+Every worker wrapper sources `bin/lib/peek-env.sh`, `pi-project-lead` sources
+`bin/lib/peek-lead-env.sh`, and `pi-conductor` sources `bin/lib/peek-conductor-env.sh` before
+exec'ing its agent CLI — all three built on the shared registration core in
+`bin/lib/peek-common.sh`. This is what makes casts register correctly in `peek`'s fleet tree:
+`PEEK_ID` (fresh per process; `worker-<uuid>` / `lead-<uuid>` / fixed `conductor`), `PEEK_ROLE`
+(`worker` / `orchestrator` / `conductor`, unless already set), `PEEK_PARENT` (the caster's id,
+preserved *before* the process's own `PEEK_ID` overwrites it), and `PEEK_WORKSPACE` (falls back to
+`CMUX_WORKSPACE_ID`).
+
+```bash
+bin/pi-fleet-eval-peekenv               # writes evals/results/peek-env-latest.txt
+```
+
+Pure env/sourcing checks in throwaway subshells — no agent, no `outfitter`/`pi`/`claude`/`agy`
+dependency, so it's safe and fast to re-run anywhere. Covers: clean-env defaulting for worker, lead,
+and conductor; the `worker-`/`lead-` id prefixes; inherited `PEEK_ID`/`PEEK_ORCH_ID` promoted to
+`PEEK_PARENT`; explicit `PEEK_PARENT` (the cast-forwarding case) trusted as-is; pre-set
+`PEEK_ID`/`PEEK_ROLE`/`PEEK_WORKSPACE` left untouched; sibling workers minting distinct ids; **the
+full cast chain** (lead mints a real id → forwards it as `PEEK_PARENT` into a fresh subshell → the
+worker registers under that exact id — the regression test for a QC finding against PR #12, where
+`pi-project-lead`/`pi-conductor` never established their own identity so the forwarded
+`PEEK_PARENT="$PEEK_ID"` was silently empty); and the **empty-parent degradation** case (an empty
+forwarded `PEEK_PARENT` must not crash the worker — it degrades to a parentless-but-valid
+registration).
+
+Last verified run: [`results/peek-env-latest.txt`](./results/peek-env-latest.txt) — **16/16 PASS**.
+
 ## Gotchas
 
 - **Model auth ≠ tool boundary.** A subagent whose default/fallback models aren't authed in pi
