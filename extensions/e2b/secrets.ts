@@ -83,6 +83,84 @@ export function sanitizeSecrets(text: string): string {
 	return sanitized;
 }
 
+/**
+ * Emit the bash that turns the remote worker's exit state into
+ * `$WORK/result.json`.
+ *
+ * A pi-implementer that finished cleanly or failed hard is decided by its exit
+ * code. But some briefs are ambiguous and the implementer needs a human to
+ * disambiguate before it can proceed — for that it drops a well-known marker
+ * file, `$WORK/needs-input.json`, shaped `{ "questions": ["..."] }`. (No such
+ * convention exists in the fleet/outfitter today, so this defines it.) When the
+ * marker is present we emit `status="needs_input"` with the questions instead
+ * of masquerading as a success/failure, so the project lead can answer and
+ * re-cast.
+ *
+ * Precedence: a result.json written by pi-implementer itself is authoritative
+ * and left untouched; otherwise the needs-input marker wins over the exit code;
+ * otherwise the exit code decides succeeded/failed. Kept as a standalone,
+ * `$WORK`-relative snippet (no git/gh dependencies) so it is unit-testable in
+ * isolation.
+ */
+export function buildResultFinalizer(): string {
+	return `WORK="\${WORK:-/work}"
+RESULT="$WORK/result.json"
+NEEDS_INPUT_FILE="$WORK/needs-input.json"
+if [ -f "$NEEDS_INPUT_FILE" ]; then
+  STATUS=needs_input
+elif [ "\${EXIT:-1}" -eq 0 ]; then
+  STATUS=succeeded
+else
+  STATUS=failed
+fi
+export STATUS RESULT NEEDS_INPUT_FILE
+if [ ! -f "$RESULT" ]; then
+  python3 - <<'PY'
+import datetime, json, os
+
+status = os.environ.get("STATUS", "failed")
+exit_code = os.environ.get("EXIT", "1")
+marker = os.environ.get("NEEDS_INPUT_FILE", "")
+
+questions = []
+if status == "needs_input" and marker and os.path.exists(marker):
+    try:
+        with open(marker, encoding="utf-8") as fh:
+            data = json.load(fh)
+        raw = data.get("questions") if isinstance(data, dict) else None
+        if isinstance(raw, list):
+            questions = [str(q).strip() for q in raw if str(q).strip()]
+    except Exception:
+        questions = []
+    if not questions:
+        # Marker present but empty/unparseable: still surface needs_input so the
+        # job never masquerades as succeeded, and nudge the lead for detail.
+        questions = ["pi-implementer requested input but provided no questions"]
+
+error = None
+if status == "failed":
+    error = f"pi-implementer exited {exit_code}"
+
+result = {
+    "jobId": os.environ.get("JOB_ID"),
+    "profile": "implementer",
+    "status": status,
+    "commitSha": os.environ.get("SHA") or None,
+    "prUrl": os.environ.get("PR_URL") or None,
+    "branch": os.environ.get("BRANCH") or None,
+    "questions": questions or None,
+    "error": error,
+    "finishedAt": datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.%fZ"
+    ),
+}
+with open(os.environ["RESULT"], "w", encoding="utf-8") as fh:
+    json.dump(result, fh, indent=2)
+    fh.write("\\n")
+PY
+fi`;
+}
+
 /** Build the remote runner script (secrets only via env — never embedded). */
 export function buildRunnerScript(job: FleetJob): string {
 	const fleetRepo = FLEET_REPO_DEFAULT;
@@ -124,8 +202,9 @@ export function buildRunnerScript(job: FleetJob): string {
 	return `#!/usr/bin/env bash
 set -euo pipefail
 export JOB_ID=${shellQuote(job.jobId)}
-RESULT=/work/result.json
-LOG=/work/job.log
+WORK=/work
+RESULT="$WORK/result.json"
+LOG="$WORK/job.log"
 mkdir -p /work
 exec > >(tee -a "$LOG") 2>&1
 echo "fleet e2b job $JOB_ID starting"
@@ -162,28 +241,8 @@ export BRANCH=$(git -C /work/repo rev-parse --abbrev-ref HEAD 2>/dev/null || tru
 export SHA=$(git -C /work/repo rev-parse HEAD 2>/dev/null || true)
 export PR_URL=$(gh pr view --json url -q .url 2>/dev/null || true)
 export EXIT
-if [ "$EXIT" -eq 0 ]; then export STATUS=succeeded; else export STATUS=failed; fi
 
-if [ ! -f "$RESULT" ]; then
-  python3 - <<'PY'
-import json, os, datetime
-status = os.environ.get("STATUS", "failed")
-exit_code = os.environ.get("EXIT", "1")
-result = {
-  "jobId": os.environ.get("JOB_ID"),
-  "profile": "implementer",
-  "status": status,
-  "commitSha": os.environ.get("SHA") or None,
-  "prUrl": os.environ.get("PR_URL") or None,
-  "branch": os.environ.get("BRANCH") or None,
-  "error": None if status == "succeeded" else f"pi-implementer exited {exit_code}",
-  "finishedAt": datetime.datetime.utcnow().isoformat() + "Z",
-}
-with open("/work/result.json", "w", encoding="utf-8") as f:
-  json.dump(result, f, indent=2)
-  f.write("\\n")
-PY
-fi
+${buildResultFinalizer()}
 
 echo "fleet e2b job $JOB_ID finished status=$STATUS"
 exit "$EXIT"
