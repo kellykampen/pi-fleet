@@ -1,0 +1,64 @@
+{
+  "schedules": [
+    {
+      "name": "social-x-checkup",
+      "cron": "0 0 * * * *",
+      "cronNote": "6-field (sec min hour dom month dow) - top of every hour",
+      "purpose": "X/Twitter social checkup for Kelly Kampen / kellyk.dev",
+      "source": "read-only Finch CLI",
+      "commandsFirst": [
+        "finch auth status --json",
+        "finch search \"@kellykampen OR kellykampen OR \\\"kellyk.dev\\\" OR \\\"kellyk-dev\\\"\" -n 20 --json",
+        "finch timeline -n 20 --json",
+        "finch user-posts kellykampen -n 10 --json",
+        "finch user kellykampen --json"
+      ],
+      "fallback": "only if Finch unavailable/auth expired, use non-xai web_search provider for public web/X mirrors",
+      "hardConstraints": [
+        "NO X mutations: no post/reply/like/repost/follow/delete"
+      ],
+      "output": {
+        "maxWords": 200,
+        "sourceLabel": "[X]",
+        "actionLabel": "[ACTION]"
+      },
+      "escalation": "send [ACTION] items to pi-conductor/conductor",
+      "taskId": "task_mrf1w80u_35rnjv",
+      "roster": {
+        "prefer": "openai-codex/gpt-5.5",
+        "banned": ["kimi", "glm", "gemini", "grok", "xai"]
+      },
+      "enabled": true
+    },
+    {
+      "name": "gmail-reply-checkup",
+      "cron": "0 5 * * * *",
+      "cronNote": "6-field (sec min hour dom month dow) - five minutes after each hour",
+      "purpose": "Gmail reply-needed triage for Kelly Kampen",
+      "source": "read-only GOG Gmail",
+      "commandsFirst": [
+        "gog auth list --check --json --no-input",
+        "gog --readonly --gmail-no-send --account auto gmail search 'in:inbox newer_than:3d' --max 20 --json --wrap-untrusted --no-input",
+        "gog --readonly --gmail-no-send --account auto gmail search 'is:unread newer_than:7d' --max 20 --json --wrap-untrusted --no-input",
+        "gog --readonly --gmail-no-send --account auto gmail thread get <threadId> --sanitize-content --json --wrap-untrusted --no-input"
+      ],
+      "fallback": null,
+      "hardConstraints": [
+        "NO Gmail mutations: no send/reply/draft/archive/mark-read/label/trash/delete",
+        "ignore newsletters/promos/receipts unless clearly action-needed"
+      ],
+      "output": {
+        "maxWords": 200,
+        "sourceLabel": "[Gmail]",
+        "actionLabel": "[ACTION]"
+      },
+      "escalation": "send [ACTION] items to pi-conductor/conductor",
+      "taskId": "task_mrfx9f64_hxq4nu",
+      "roster": {
+        "prefer": "openai-codex/gpt-5.5",
+        "banned": ["kimi", "glm", "gemini", "grok", "xai"]
+      },
+      "enabled": true
+    }
+  ]
+}

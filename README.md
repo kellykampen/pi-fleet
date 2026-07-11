@@ -291,6 +291,16 @@ guard" in each.
 
 ---
 
+## Personal Pi global prompt schedules
+
+`pi-personal-assistant` recreates two global prompt schedules (`social-x-checkup`,
+`gmail-reply-checkup`) on every start/restart via macOS launchd — idempotent, local (needs local
+`finch`/`gog` CLI + auth access, so it can't be a cloud scheduler). Source of truth:
+[`profiles/personal-assistant/schedules.json`](./profiles/personal-assistant/schedules.json).
+Details: [`docs/personal-schedules.md`](./docs/personal-schedules.md).
+
+---
+
 ## E2B remote implementers (v0)
 
 The **project lead** can cast an **implementer** into an [E2B](https://e2b.dev) sandbox instead of

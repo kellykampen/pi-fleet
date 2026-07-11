@@ -63,6 +63,31 @@ export interface CastParams {
 	dryRun?: boolean;
 }
 
+/**
+ * Filter for listing jobs. Mirrors the "status / project / ticketId" views the
+ * fleet UI needs. `repo` is the "project" dimension (owner/name). Omitted fields
+ * match everything; `status` may be a single status or a set.
+ */
+export interface JobFilter {
+	status?: JobStatus | JobStatus[];
+	repo?: string;
+	ticketId?: string;
+}
+
+/**
+ * Low-level persistence for {@link FleetJob} records. Implementations are pure
+ * storage — secret sanitization and timestamp/finishedAt bookkeeping live in the
+ * jobs.ts verbs, so Local and Convex stores can never drift on that logic.
+ */
+export interface JobStore {
+	/** Upsert a job by its jobId. */
+	put(job: FleetJob): Promise<void>;
+	/** Fetch a job by id, or null when it does not exist. */
+	get(jobId: string): Promise<FleetJob | null>;
+	/** List jobs (newest first), optionally filtered by status/repo/ticketId. */
+	list(filter?: JobFilter): Promise<FleetJob[]>;
+}
+
 export const DEFAULT_TIMEOUT_MINUTES = 90;
 export const TERMINAL_STATUSES: JobStatus[] = [
 	"succeeded",
