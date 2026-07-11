@@ -1,10 +1,43 @@
 # Scheduling — recurring prompts for long-running seats
 
 Long-running seats — `pi-conductor`, `pi-project-lead`, and a personal-assistant seat — benefit from
-**recurring self-prompts**: portfolio checkups, CI polling, reminders, autonomous follow-ups. Pi has
-no built-in scheduler; it's an extension. This is optional — worker seats don't need it.
+**recurring self-prompts**: portfolio checkups, CI polling, reminders, autonomous follow-ups.
 
-## Recommended: `@jl1990/pi-scheduler`
+## Personal-assistant schedules (instance-local)
+
+`pi-personal-assistant` manages its own schedules **locally** via macOS `launchd`:
+
+- Source of truth: `profiles/personal-assistant/schedules.json`
+- Sync: `bin/pi-personal-schedule-sync` runs on every `pi-personal-assistant` start
+- Firing: `bin/pi-personal-schedule-run <name>` is invoked by `launchd` and runs the checkup one-shot through `pi-personal-assistant`
+- Logs: `~/Library/Logs/pi-fleet/<name>.log` and `<name>.error.log`
+- Installed plists: `~/Library/LaunchAgents/dev.pi-fleet.personal.*.plist`
+
+This keeps the schedules **bound to the personal-assistant instance**:
+`pi-conductor`, `pi-project-lead`, and other profiles never see or fire them, and the global
+`~/.pi/agent/state/scheduler/tasks.json` remains empty.
+
+Current schedules:
+
+| Schedule | Cron | Meaning |
+|----------|------|---------|
+| `social-x-checkup` | `0 0 * * * *` | top of every hour |
+| `gmail-reply-checkup` | `0 5 * * * *` | five minutes past every hour |
+
+See `docs/personal-schedules.md` for full details.
+
+## ⚠️ Avoid machine-global scheduler extensions
+
+The old machine-global scheduler stored jobs in `~/.pi/agent/state/scheduler/tasks.json` and
+leaked scheduled actions into every pi instance. That store is now kept empty; personal checkups
+are recreated locally from the personal-assistant profile instead.
+
+## Historical: `@jl1990/pi-scheduler` and `pi-schedule-prompt`
+
+These remain documented below only for reference. New schedules should use the personal-assistant
+launchd mechanism above.
+
+### `@jl1990/pi-scheduler`
 
 ```bash
 pi install npm:@jl1990/pi-scheduler
@@ -25,7 +58,7 @@ schedule_task({ type: "cron", schedule: "0 0 * * * *", action: "prompt",
                 name: "portfolio-checkup", prompt: "…", model: "openai-codex/gpt-5.5" })
 ```
 
-## ⚠️ Avoid `pi-schedule-prompt` — its overlay blocks the pane
+### ⚠️ Avoid `pi-schedule-prompt` — its overlay blocks the pane
 
 `pi-schedule-prompt` renders a **full-screen, hotkey-driven Jobs overlay** (`/schedule-prompt`). In a
 cmux / multi-pane fleet it can get **stuck open and swallow all typed input** to that pane: the seat
