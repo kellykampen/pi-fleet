@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+	buildResultFinalizer,
 	buildRunnerScript,
 	collectWorkerEnv,
 	FLEET_WORKER_MODEL_KEYS,
 	MISSING_FLEET_REPO_URL_ERROR,
+	normalizeRepoSlug,
 	PI_AGENT_AUTH_ENV,
 	resolveFleetRepoUrl,
 	sanitizeSecrets,
@@ -170,6 +173,257 @@ test("sanitizeSecrets redacts the pi agent auth blob value", () => {
 
 	assert.equal(sanitized.includes(process.env[PI_AGENT_AUTH_ENV] as string), false);
 	assert.equal(sanitized, "auth=*** done");
+});
+
+test("normalizeRepoSlug reduces every supported input shape to owner/repo", () => {
+	const inputs = [
+		"owner/repo",
+		"owner/repo.git",
+		"github.com/owner/repo",
+		"github.com/owner/repo.git",
+		"https://github.com/owner/repo",
+		"https://github.com/owner/repo.git",
+		"git@github.com:owner/repo.git",
+		"git@github.com:owner/repo",
+		"github.com/owner/repo/",
+	];
+	for (const input of inputs) {
+		assert.equal(normalizeRepoSlug(input), "owner/repo", `input: ${input}`);
+	}
+});
+
+test("normalizeRepoSlug throws a clear error on invalid input", () => {
+	assert.throws(() => normalizeRepoSlug(""), /repo/i);
+	assert.throws(() => normalizeRepoSlug("not-a-valid-repo"), /repo/i);
+	assert.throws(() => normalizeRepoSlug("github.com/owner"), /repo/i);
+	assert.throws(
+		() => normalizeRepoSlug("https://github.com/owner/repo/extra"),
+		/repo/i,
+	);
+});
+
+test("buildRunnerScript normalizes a github.com/.../.git repo before every gh invocation", () => {
+	// buildRunnerScript now requires FLEET_REPO_URL (pi-fleet pin clone); set it
+	// so this repo-slug normalization test exercises the checkout lines.
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const baseJob = {
+		jobId: "job-normalize",
+		profile: "implementer" as const,
+		status: "queued" as const,
+		brief: "do the thing",
+		timeoutMinutes: 90,
+		dryRun: false,
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+	};
+
+	const cloneScript = buildRunnerScript({
+		...baseJob,
+		codeAccess: "clone",
+		repo: "github.com/kellykampen/pi-fleet.git",
+	});
+	assert.match(cloneScript, /gh repo clone 'kellykampen\/pi-fleet'/);
+	assert.equal(cloneScript.includes("github.com/kellykampen/pi-fleet.git"), false);
+
+	const prScript = buildRunnerScript({
+		...baseJob,
+		codeAccess: "pr",
+		repo: "github.com/kellykampen/pi-fleet.git",
+		prNumber: 42,
+	});
+	assert.match(prScript, /gh repo clone 'kellykampen\/pi-fleet'/);
+	assert.equal(prScript.includes("github.com/kellykampen/pi-fleet.git"), false);
+
+	const branchScript = buildRunnerScript({
+		...baseJob,
+		codeAccess: "branch",
+		repo: "github.com/kellykampen/pi-fleet.git",
+		branch: "feature/x",
+	});
+	assert.match(branchScript, /gh repo clone 'kellykampen\/pi-fleet'/);
+	assert.equal(branchScript.includes("github.com/kellykampen/pi-fleet.git"), false);
+});
+
+/**
+ * Run the finalizer bash snippet in isolation against a throwaway $WORK dir,
+ * exercising the real marker-file → result.json translation that the remote
+ * runner performs after pi-implementer exits.
+ */
+function runFinalizer(work: string, env: Record<string, string>): void {
+	const finalizer = buildResultFinalizer();
+	execFileSync("bash", ["-c", `set -euo pipefail\n${finalizer}`], {
+		env: { ...process.env, WORK: work, ...env },
+		stdio: "pipe",
+	});
+}
+
+test("buildResultFinalizer writes needs_input result.json when the needs-input marker is present", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		await writeFile(
+			join(work, "needs-input.json"),
+			JSON.stringify({
+				questions: [
+					"Which auth provider should the login flow use?",
+					"What Node version does the target runtime pin?",
+				],
+			}),
+		);
+
+		// EXIT=0 but the marker is present: needs_input must win over the exit
+		// code so ambiguous work never masquerades as a clean success.
+		runFinalizer(work, {
+			JOB_ID: "job-needs-input",
+			EXIT: "0",
+			SHA: "abc1234",
+			BRANCH: "fleet/needs-input",
+		});
+
+		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.equal(result.status, "needs_input");
+		assert.deepEqual(result.questions, [
+			"Which auth provider should the login flow use?",
+			"What Node version does the target runtime pin?",
+		]);
+		assert.equal(result.jobId, "job-needs-input");
+		assert.equal(result.profile, "implementer");
+		// Partial work that landed before the block is still reported.
+		assert.equal(result.commitSha, "abc1234");
+		assert.equal(result.branch, "fleet/needs-input");
+		assert.equal(result.error, null);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
+test("buildResultFinalizer leaves an existing result.json untouched when a needs-input marker is also present", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		// pi-implementer's own result.json (e.g. it succeeded, then a stray or
+		// stale needs-input.json is also on disk). This is the top-precedence
+		// tier: an implementer-authored result.json must never be clobbered.
+		const ownResult = {
+			jobId: "job-precedence",
+			profile: "implementer",
+			status: "succeeded",
+			commitSha: "deadbeef",
+			prUrl: "https://github.com/owner/repo/pull/1",
+			branch: "fleet/precedence",
+			questions: null,
+			error: null,
+			finishedAt: "2026-01-01T00:00:00.000000Z",
+		};
+		await writeFile(
+			join(work, "result.json"),
+			JSON.stringify(ownResult, null, 2) + "\n",
+		);
+		await writeFile(
+			join(work, "needs-input.json"),
+			JSON.stringify({ questions: ["Should this ever surface?"] }),
+		);
+
+		const finalizer = buildResultFinalizer();
+		const output = execFileSync(
+			"bash",
+			["-c", `set -euo pipefail\n${finalizer}\necho "FINAL_STATUS=$STATUS"`],
+			{
+				env: {
+					...process.env,
+					WORK: work,
+					JOB_ID: "job-precedence",
+					EXIT: "0",
+				},
+				stdio: "pipe",
+			},
+		).toString();
+
+		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.deepEqual(result, ownResult);
+
+		// The log line must reflect the persisted (succeeded) result, not the
+		// needs_input the marker file alone would imply.
+		assert.match(output, /FINAL_STATUS=succeeded/);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
+test("buildResultFinalizer falls through to succeeded/failed by exit code when no marker exists", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		runFinalizer(work, { JOB_ID: "job-ok", EXIT: "0" });
+		const ok = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.equal(ok.status, "succeeded");
+		assert.equal(ok.questions, null);
+		assert.equal(ok.error, null);
+
+		await rm(join(work, "result.json"));
+
+		runFinalizer(work, { JOB_ID: "job-bad", EXIT: "2" });
+		const bad = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.equal(bad.status, "failed");
+		assert.equal(bad.questions, null);
+		assert.match(bad.error ?? "", /exited 2/);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
+test("refreshFromSandbox persists needs_input status and questions from a remote result.json", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+
+	const now = new Date().toISOString();
+	const job: FleetJob = await writeJob({
+		jobId: "job-needs-input-refresh",
+		profile: "implementer",
+		status: "running",
+		brief: "ambiguous brief",
+		codeAccess: "clone",
+		repo: "owner/repo",
+		timeoutMinutes: 90,
+		dryRun: false,
+		sandboxId: "sandbox-needs-input",
+		createdAt: now,
+		updatedAt: now,
+	});
+
+	try {
+		const refreshed = await refreshFromSandbox(job, {
+			connectSandbox: async () => ({
+				files: {
+					async read(path: string) {
+						if (path === "/work/result.json") {
+							return JSON.stringify({
+								status: "needs_input",
+								questions: [
+									"Should this target the v1 or v2 API?",
+									"Is a DB migration in scope?",
+								],
+							});
+						}
+						throw new Error("not ready");
+					},
+				},
+			}),
+		});
+
+		assert.equal(refreshed.status, "needs_input");
+		assert.deepEqual(refreshed.questions, [
+			"Should this target the v1 or v2 API?",
+			"Is a DB migration in scope?",
+		]);
+
+		const persisted = await readJob("job-needs-input-refresh");
+		assert.equal(persisted.status, "needs_input");
+		assert.deepEqual(persisted.questions, [
+			"Should this target the v1 or v2 API?",
+			"Is a DB migration in scope?",
+		]);
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
 });
 
 test("sanitizeSecrets redacts exact env values and common GitHub token shapes", () => {
