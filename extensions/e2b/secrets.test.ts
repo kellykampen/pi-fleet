@@ -121,6 +121,7 @@ test("normalizeRepoSlug throws a clear error on invalid input", () => {
 });
 
 test("buildRunnerScript normalizes a github.com/.../.git repo before every gh invocation", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
 	const baseJob = {
 		jobId: "job-normalize",
 		profile: "implementer" as const,
