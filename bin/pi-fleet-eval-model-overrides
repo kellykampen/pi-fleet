@@ -52,6 +52,17 @@ check_contains "role env beats generic env for ac-verifier model" "$args" "-- --
 args="$(run_wrapper PI_PROVIDER=openai-codex PI_LEAD_MODEL=gpt-5.6-sol "$ROOT/bin/pi-project-lead" -p noop)"
 check_contains "role alias PI_LEAD_MODEL controls project-lead" "$args" "-- --provider openai-codex --model gpt-5.6-sol --no-lens"
 
+# FLT-35 structural fix: --no-extensions must reach outfitter alongside the FLT-34 model-override
+# argv (not swallowed or reordered by it), and the explicit --extension flags must still be present.
+check_contains "project-lead passes --no-extensions alongside model-override argv" "$args" "--no-lens --no-extensions"
+check_contains "project-lead still loads explicit linear/e2b extensions" "$args" \
+  "--extension $ROOT/extensions/linear.ts --extension $ROOT/extensions/e2b"
+
+args="$(run_wrapper PI_PROVIDER=openai-codex PI_MODEL=gpt-5.6-sol "$ROOT/bin/pi-conductor" -p noop)"
+check_contains "generic env controls conductor provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-sol"
+check_contains "conductor passes --no-extensions alongside model-override argv" "$args" "--no-extensions"
+check_contains "conductor still loads explicit linear extension" "$args" "--extension $ROOT/extensions/linear.ts"
+
 args="$(run_wrapper PI_PROVIDER=env-provider PI_MODEL=env-model "$ROOT/bin/pi-implementer" --provider explicit-provider --model explicit-model -p noop)"
 check_not_contains "explicit CLI provider/model suppress env defaults" "$args" "env-provider"
 check_not_contains "explicit CLI model suppresses env model" "$args" "env-model"

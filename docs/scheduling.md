@@ -40,6 +40,12 @@ leaked scheduled actions into every pi instance. That store is now actively kept
 `bin/lib/scheduler-status.sh`; personal checkups are recreated locally from the personal-assistant
 profile instead.
 
+`bin/pi-conductor` and `bin/pi-project-lead` also pass `--no-extensions` (FLT-35), which
+structurally prevents auto-discovered machine-global packages — including `@jl1990/pi-scheduler`
+if installed — from loading into those roles at all, rather than relying solely on
+`scheduler-status.sh` to purge whatever they register after the fact. Explicit `--extension` flags
+(Linear, E2B) are unaffected and still load.
+
 ## Historical: `@jl1990/pi-scheduler` and `pi-schedule-prompt`
 
 These remain documented below only for reference. New schedules should use the personal-assistant

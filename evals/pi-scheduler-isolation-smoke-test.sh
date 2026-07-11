@@ -12,6 +12,16 @@ for wrapper in pi-conductor pi-project-lead; do
 	! grep -q 'pi-personal-schedule-sync' "$ROOT/bin/$wrapper"
 done
 
+# FLT-35 structural fix: --no-extensions blocks machine-global package auto-discovery (e.g.
+# @jl1990/pi-scheduler) so it can never re-enter conductor/project-lead sessions, while explicit
+# --extension flags (still required for Linear/E2B tools) are unaffected and keep loading.
+grep -q -- '--no-extensions' "$ROOT/bin/pi-conductor"
+grep -q -- '--extension "\$FLEET_ROOT/extensions/linear.ts"' "$ROOT/bin/pi-conductor"
+grep -q -- '--no-extensions' "$ROOT/bin/pi-project-lead"
+grep -q -- '--extension "\$FLEET_ROOT/extensions/linear.ts"' "$ROOT/bin/pi-project-lead"
+grep -q -- '--extension "\$FLEET_ROOT/extensions/e2b"' "$ROOT/bin/pi-project-lead"
+printf 'ok - conductor/project-lead pass --no-extensions while explicit --extension flags still load\n'
+
 OUTPUT="$(PI_SCHEDULER_TASKS_FILE="$TASKS" "$ROOT/bin/lib/scheduler-status.sh")"
 [[ "$OUTPUT" == *"0 global scheduled actions"* ]]
 [[ "$(cat "$TASKS")" == '{"version":2,"tasks":[]}' ]]
