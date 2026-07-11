@@ -6,4 +6,6 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/pi-model-env.sh"
 pi_model_override_args docs "" "$@"
-exec outfitter run --profile docs --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment "$@"
+YOLO=""
+[ "${FLEET_YOLO:-}" = "1" ] && YOLO="--approve"
+exec outfitter run --profile docs --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment "$@"

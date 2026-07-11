@@ -18,9 +18,13 @@ done
 grep -q -- '--no-extensions' "$ROOT/bin/pi-conductor"
 grep -q -- '--extension "\$FLEET_ROOT/extensions/linear.ts"' "$ROOT/bin/pi-conductor"
 grep -q -- '--no-extensions' "$ROOT/bin/pi-project-lead"
+if grep -q -- '--no-lens' "$ROOT/bin/pi-project-lead"; then
+	echo 'not ok - pi-project-lead must not pass unsupported --no-lens with --no-extensions' >&2
+	exit 1
+fi
 grep -q -- '--extension "\$FLEET_ROOT/extensions/linear.ts"' "$ROOT/bin/pi-project-lead"
 grep -q -- '--extension "\$FLEET_ROOT/extensions/e2b"' "$ROOT/bin/pi-project-lead"
-printf 'ok - conductor/project-lead pass --no-extensions while explicit --extension flags still load\n'
+printf 'ok - conductor/project-lead pass --no-extensions without --no-lens while explicit --extension flags still load\n'
 
 OUTPUT="$(PI_SCHEDULER_TASKS_FILE="$TASKS" "$ROOT/bin/lib/scheduler-status.sh")"
 [[ "$OUTPUT" == *"0 global scheduled actions"* ]]
