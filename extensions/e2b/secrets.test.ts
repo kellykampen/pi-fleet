@@ -10,6 +10,7 @@ import {
 	buildRunnerScript,
 	collectWorkerEnv,
 	FLEET_WORKER_MODEL_KEYS,
+	normalizeRepoSlug,
 	sanitizeSecrets,
 } from "./secrets.ts";
 import {
@@ -79,6 +80,69 @@ test("buildRunnerScript never embeds token values", () => {
 	assert.equal(script.includes(process.env.FLEET_GITHUB_TOKEN), false);
 	assert.equal(script.includes(process.env.OPENAI_API_KEY), false);
 	assert.match(script, /FLEET_GITHUB_TOKEN/);
+});
+
+test("normalizeRepoSlug reduces every supported input shape to owner/repo", () => {
+	const inputs = [
+		"owner/repo",
+		"owner/repo.git",
+		"github.com/owner/repo",
+		"github.com/owner/repo.git",
+		"https://github.com/owner/repo",
+		"https://github.com/owner/repo.git",
+	];
+	for (const input of inputs) {
+		assert.equal(normalizeRepoSlug(input), "owner/repo", `input: ${input}`);
+	}
+});
+
+test("normalizeRepoSlug throws a clear error on invalid input", () => {
+	assert.throws(() => normalizeRepoSlug(""), /repo/i);
+	assert.throws(() => normalizeRepoSlug("not-a-valid-repo"), /repo/i);
+	assert.throws(() => normalizeRepoSlug("github.com/owner"), /repo/i);
+	assert.throws(
+		() => normalizeRepoSlug("https://github.com/owner/repo/extra"),
+		/repo/i,
+	);
+});
+
+test("buildRunnerScript normalizes a github.com/.../.git repo before every gh invocation", () => {
+	const baseJob = {
+		jobId: "job-normalize",
+		profile: "implementer" as const,
+		status: "queued" as const,
+		brief: "do the thing",
+		timeoutMinutes: 90,
+		dryRun: false,
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+	};
+
+	const cloneScript = buildRunnerScript({
+		...baseJob,
+		codeAccess: "clone",
+		repo: "github.com/kellykampen/pi-fleet.git",
+	});
+	assert.match(cloneScript, /gh repo clone 'kellykampen\/pi-fleet'/);
+	assert.equal(cloneScript.includes("github.com/kellykampen/pi-fleet.git"), false);
+
+	const prScript = buildRunnerScript({
+		...baseJob,
+		codeAccess: "pr",
+		repo: "github.com/kellykampen/pi-fleet.git",
+		prNumber: 42,
+	});
+	assert.match(prScript, /gh repo clone 'kellykampen\/pi-fleet'/);
+	assert.equal(prScript.includes("github.com/kellykampen/pi-fleet.git"), false);
+
+	const branchScript = buildRunnerScript({
+		...baseJob,
+		codeAccess: "branch",
+		repo: "github.com/kellykampen/pi-fleet.git",
+		branch: "feature/x",
+	});
+	assert.match(branchScript, /gh repo clone 'kellykampen\/pi-fleet'/);
+	assert.equal(branchScript.includes("github.com/kellykampen/pi-fleet.git"), false);
 });
 
 /**
