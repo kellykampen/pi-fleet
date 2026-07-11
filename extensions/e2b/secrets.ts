@@ -31,6 +31,15 @@ export const SENSITIVE_ENV_KEYS = [
 	...FLEET_WORKER_MODEL_KEYS,
 ];
 
+/**
+ * agents/implementer.md has no built-in awareness of the E2B needs-input
+ * marker convention — it's sandbox-only, so it's injected here rather than
+ * into the general implementer prompt. Prepended to every job's brief so a
+ * genuinely ambiguous real cast can actually reach `needs_input` instead of
+ * guessing or failing outright.
+ */
+const NEEDS_INPUT_BRIEF_PREAMBLE = `Sandbox note: if this task is genuinely ambiguous and you cannot proceed safely without a human decision, do not guess and do not fail the job. Instead write /work/needs-input.json as {"questions": ["...", "..."]} listing exactly what you need answered, then exit 0.`;
+
 export function shellQuote(value: string): string {
 	return `'${value.replace(/'/g, `'\\''`)}'`;
 }
@@ -98,9 +107,11 @@ export function sanitizeSecrets(text: string): string {
  *
  * Precedence: a result.json written by pi-implementer itself is authoritative
  * and left untouched; otherwise the needs-input marker wins over the exit code;
- * otherwise the exit code decides succeeded/failed. Kept as a standalone,
- * `$WORK`-relative snippet (no git/gh dependencies) so it is unit-testable in
- * isolation.
+ * otherwise the exit code decides succeeded/failed. `$STATUS` is re-derived
+ * from the persisted result.json after this runs, so a caller echoing it (e.g.
+ * the final "job finished status=$STATUS" log line) never contradicts what
+ * was actually written to disk. Kept as a standalone, `$WORK`-relative snippet
+ * (no git/gh dependencies) so it is unit-testable in isolation.
  */
 export function buildResultFinalizer(): string {
 	return `WORK="\${WORK:-/work}"
@@ -158,7 +169,20 @@ with open(os.environ["RESULT"], "w", encoding="utf-8") as fh:
     json.dump(result, fh, indent=2)
     fh.write("\\n")
 PY
-fi`;
+fi
+STATUS=$(python3 - <<'PY'
+import json, os
+
+fallback = os.environ.get("STATUS", "unknown")
+try:
+    with open(os.environ["RESULT"], encoding="utf-8") as fh:
+        data = json.load(fh)
+    print(data.get("status") or fallback)
+except Exception:
+    print(fallback)
+PY
+)
+export STATUS`;
 }
 
 /** Build the remote runner script (secrets only via env — never embedded). */
@@ -210,6 +234,8 @@ exec > >(tee -a "$LOG") 2>&1
 echo "fleet e2b job $JOB_ID starting"
 
 cat > /work/brief.md <<'FLEET_BRIEF_EOF'
+${NEEDS_INPUT_BRIEF_PREAMBLE}
+
 ${job.brief}
 FLEET_BRIEF_EOF
 

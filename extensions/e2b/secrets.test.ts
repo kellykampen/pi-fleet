@@ -133,6 +133,58 @@ test("buildResultFinalizer writes needs_input result.json when the needs-input m
 	}
 });
 
+test("buildResultFinalizer leaves an existing result.json untouched when a needs-input marker is also present", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		// pi-implementer's own result.json (e.g. it succeeded, then a stray or
+		// stale needs-input.json is also on disk). This is the top-precedence
+		// tier: an implementer-authored result.json must never be clobbered.
+		const ownResult = {
+			jobId: "job-precedence",
+			profile: "implementer",
+			status: "succeeded",
+			commitSha: "deadbeef",
+			prUrl: "https://github.com/owner/repo/pull/1",
+			branch: "fleet/precedence",
+			questions: null,
+			error: null,
+			finishedAt: "2026-01-01T00:00:00.000000Z",
+		};
+		await writeFile(
+			join(work, "result.json"),
+			JSON.stringify(ownResult, null, 2) + "\n",
+		);
+		await writeFile(
+			join(work, "needs-input.json"),
+			JSON.stringify({ questions: ["Should this ever surface?"] }),
+		);
+
+		const finalizer = buildResultFinalizer();
+		const output = execFileSync(
+			"bash",
+			["-c", `set -euo pipefail\n${finalizer}\necho "FINAL_STATUS=$STATUS"`],
+			{
+				env: {
+					...process.env,
+					WORK: work,
+					JOB_ID: "job-precedence",
+					EXIT: "0",
+				},
+				stdio: "pipe",
+			},
+		).toString();
+
+		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.deepEqual(result, ownResult);
+
+		// The log line must reflect the persisted (succeeded) result, not the
+		// needs_input the marker file alone would imply.
+		assert.match(output, /FINAL_STATUS=succeeded/);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
 test("buildResultFinalizer falls through to succeeded/failed by exit code when no marker exists", async () => {
 	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
 	try {
