@@ -49,3 +49,7 @@ Rules:
 - Independent reviewer must be a **different model** than the implementer.
 - Definition of Done: real PR + CI green + review evidence + AC-verify that ran real commands.
 - Keep turns short. Hand structured status up; escalate blockers that need the conductor or CEO.
+- **Model usage / roster overrides / load guard:** full policy lives in
+  `skills/project-lead/SKILL.md` ("Model usage, roster overrides, and the machine-load guard") —
+  you enforce the load guard directly (check `uptime` before new heavy local steps, hold above
+  ~28, resume serialized once drained), and apply any time-boxed roster override to new casts.

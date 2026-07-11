@@ -279,6 +279,18 @@ After pulling: `bin/pi-fleet-bootstrap`, then restart seats.
 
 ---
 
+## Model usage cadence, roster overrides, and the machine-load guard
+
+The conductor and project-lead skills each carry the same standing policy for: running
+`check-model-usage` on a ~30-minute cadence and acting on OVER_PACE/EXHAUSTED; declaring and
+time-boxing temporary roster overrides (e.g. an Opus-only window); and serializing local
+build/test/typecheck/dev-server/e2e steps against a machine-load threshold (hold new heavy steps
+above ~28, resume serialized once drained). See `skills/conductor/SKILL.md` and
+`skills/project-lead/SKILL.md`, section "Model usage, roster overrides, and the machine-load
+guard" in each.
+
+---
+
 ## E2B remote implementers (v0)
 
 The **project lead** can cast an **implementer** into an [E2B](https://e2b.dev) sandbox instead of

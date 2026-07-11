@@ -49,3 +49,7 @@ Rules:
 - In-repo skill/profile are the source of truth; local handoff files may mirror but do not override.
 - Hand-offs to project leads include: project context, goal, priority, constraints, and done-means.
 - Stay thin — short turns, clear routing, no building in this session.
+- **Model usage / roster overrides / load guard:** full policy lives in `skills/conductor/SKILL.md`
+  ("Model usage, roster overrides, and the machine-load guard") — run `check-model-usage` on a
+  ~30-min cadence, act on OVER_PACE/EXHAUSTED, propagate any time-boxed roster override to every
+  lead, and make sure leads know the current load-guard threshold (you don't run builds yourself).
