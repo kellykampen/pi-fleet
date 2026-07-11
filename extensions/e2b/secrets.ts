@@ -8,8 +8,20 @@
  */
 import type { FleetJob } from "./types.js";
 
-// Repo the E2B worker clones. No hardcoded default — set FLEET_REPO_URL in your env.
-const FLEET_REPO_DEFAULT = process.env.FLEET_REPO_URL?.trim() || "";
+export const MISSING_FLEET_REPO_URL_ERROR =
+	"FLEET_REPO_URL is required for non-dry-run implementer casts (the pi-fleet repo the sandbox clones for its bin/ wrappers + profiles, e.g. FLEET_REPO_URL=https://github.com/<owner>/pi-fleet.git)";
+
+/**
+ * The pi-fleet repo the sandbox clones to /work/pi-fleet for its bin/ wrappers
+ * and profiles. Read at call time (never at module load, so tests and the cast
+ * see the current env) and fail fast with a clear error rather than emitting a
+ * `git clone ''` that dies with "fatal: repository '' does not exist".
+ */
+export function resolveFleetRepoUrl(): string {
+	const url = process.env.FLEET_REPO_URL?.trim();
+	if (!url) throw new Error(MISSING_FLEET_REPO_URL_ERROR);
+	return url;
+}
 
 export const GITHUB_TOKEN_ENV_KEYS = ["FLEET_GITHUB_TOKEN", "GH_TOKEN"] as const;
 
@@ -24,10 +36,20 @@ export const FLEET_WORKER_MODEL_KEYS = [
 	"MOONSHOT_API_KEY",
 ] as const;
 
+// Base64 of the local pi agent auth blob (`~/.pi/agent/auth.json`). pi uses
+// OAuth (not an API key) for providers like openai-codex, so the sandbox can't
+// authenticate from *_API_KEY env vars alone. When set locally, this is
+// forwarded into the sandbox and materialized to `$HOME/.pi/agent/auth.json`.
+export const PI_AGENT_AUTH_ENV = "PI_AGENT_AUTH_JSON_B64";
+
+/** Path the runner writes the decoded pi auth blob to inside the sandbox. */
+export const PI_AGENT_AUTH_PATH = "$HOME/.pi/agent/auth.json";
+
 /** All env keys that may hold sensitive values; used for log sanitization. */
 export const SENSITIVE_ENV_KEYS = [
 	...GITHUB_TOKEN_ENV_KEYS,
 	"E2B_API_KEY",
+	PI_AGENT_AUTH_ENV,
 	...FLEET_WORKER_MODEL_KEYS,
 ];
 
@@ -87,6 +109,8 @@ export function collectWorkerEnv(): Record<string, string> {
 		const v = process.env[key]?.trim();
 		if (v) envs[key] = v;
 	}
+	const piAuth = process.env[PI_AGENT_AUTH_ENV]?.trim();
+	if (piAuth) envs[PI_AGENT_AUTH_ENV] = piAuth;
 	return envs;
 }
 
@@ -209,7 +233,7 @@ export STATUS`;
 
 /** Build the remote runner script (secrets only via env — never embedded). */
 export function buildRunnerScript(job: FleetJob): string {
-	const fleetRepo = FLEET_REPO_DEFAULT;
+	const fleetRepo = resolveFleetRepoUrl();
 	const fleetRef = job.fleetRef || "develop";
 	const baseBranch = job.baseBranch || "main";
 	const provider = job.provider || "";
@@ -266,10 +290,43 @@ git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /w
   || git clone --depth 1 ${shellQuote(fleetRepo)} /work/pi-fleet
 export PATH="/work/pi-fleet/bin:$PATH"
 
+# Anchor Outfitter profile resolution to the cloned pi-fleet repo. The bin/pi-*
+# wrappers run \`outfitter run --profile <id>\`, which resolves profiles from
+# \$HOME/.outfitter/settings.yml or <cwd>/.outfitter — and the implementer runs
+# with cwd=/work/repo (the target repo), where no such settings exist. Write a
+# user-scope settings file with an absolute profile source so the profile
+# resolves regardless of cwd, without moving the agent off /work/repo.
+mkdir -p "\$HOME/.outfitter"
+cat > "\$HOME/.outfitter/settings.yml" <<'FLEET_OUTFITTER_EOF'
+default_profile: implementer
+profile_sources:
+  - path: /work/pi-fleet/profiles
+FLEET_OUTFITTER_EOF
+
+# Profile.yml declares extensions as \`../extensions/<x>\` (siblings of the
+# profiles dir). Outfitter resolves skills against the profile source dir, but
+# passes extension paths through to pi verbatim, and pi resolves them against
+# its cwd — which is /work/repo (the target repo). So \`../extensions/linear.ts\`
+# resolves to /work/extensions/linear.ts, not /work/pi-fleet/extensions/... .
+# Symlink the pi-fleet extensions (and skills, defensively) to where that
+# cwd-relative resolution lands so the profile loads regardless of cwd.
+ln -sfn /work/pi-fleet/extensions /work/extensions
+ln -sfn /work/pi-fleet/skills /work/skills
+
 # auth for gh/git (token from env — never echo values)
 if [ -n "\${FLEET_GITHUB_TOKEN:-}" ]; then
   export GH_TOKEN="\$FLEET_GITHUB_TOKEN"
   git config --global url."https://x-access-token:\${FLEET_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+fi
+
+# pi agent auth: pi uses OAuth (not an API key) for providers like openai-codex,
+# so forward the local ~/.pi/agent/auth.json as base64 and materialize it here.
+# Decode straight to the file (never to stdout) and lock it down to 600 so the
+# token values are never echoed into the job log.
+if [ -n "\${${PI_AGENT_AUTH_ENV}:-}" ]; then
+  mkdir -p "\$HOME/.pi/agent"
+  printf '%s' "\${${PI_AGENT_AUTH_ENV}}" | base64 -d > "${PI_AGENT_AUTH_PATH}"
+  chmod 600 "${PI_AGENT_AUTH_PATH}"
 fi
 
 ${checkout}

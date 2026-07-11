@@ -3,6 +3,7 @@ import {
 	buildRunnerScript,
 	collectWorkerEnv,
 	githubTokenPresent,
+	resolveFleetRepoUrl,
 	sanitizeSecrets,
 } from "./secrets.js";
 import {
@@ -65,6 +66,25 @@ export interface SandboxStartResult {
 	logTail: string;
 }
 
+/**
+ * The minimal sandbox surface tryCreateSandbox drives after creation. The real
+ * e2b `Sandbox` satisfies this; tests inject a fake to assert the command
+ * sequence (chmod-before-write ordering, kill-on-setup-failure).
+ */
+export interface RunnableSandbox {
+	sandboxId?: string;
+	files: { write(path: string, content: string): Promise<void> };
+	commands: {
+		run(command: string, options?: Record<string, unknown>): Promise<unknown>;
+	};
+	kill(): Promise<void>;
+}
+
+export type RawSandboxFactory = (
+	template: string,
+	opts: { timeoutMs: number; apiKey: string },
+) => Promise<RunnableSandbox>;
+
 export interface CastDependencies {
 	createSandbox?: (job: FleetJob) => Promise<SandboxStartResult>;
 }
@@ -109,6 +129,7 @@ async function connectSandboxDefault(sandboxId: string): Promise<SandboxLike> {
 
 export async function tryCreateSandbox(
 	job: FleetJob,
+	createRawSandbox?: RawSandboxFactory,
 ): Promise<SandboxStartResult> {
 	const apiKey = process.env.E2B_API_KEY?.trim();
 	if (!apiKey) {
@@ -123,23 +144,37 @@ export async function tryCreateSandbox(
 		throw new Error(MISSING_TEMPLATE_ERROR);
 	}
 
-	const { Sandbox } = await import("e2b");
+	// The runner clones FLEET_REPO_URL to /work/pi-fleet for its wrappers; a
+	// missing value would otherwise emit `git clone ''` inside the sandbox and
+	// die with "fatal: repository '' does not exist". Fail fast before we pay to
+	// create a sandbox.
+	resolveFleetRepoUrl();
+
 	const timeoutMs = job.timeoutMinutes * 60 * 1000;
 
 	// Raw SDK errors (including the opaque envd "reading 'version'" crash) are
 	// translated once at the castJob funnel via describeSandboxError, so every
 	// createSandbox implementation benefits — not just this default one.
-	const sandbox = await Sandbox.create(template, { timeoutMs, apiKey });
+	const createRaw: RawSandboxFactory =
+		createRawSandbox ??
+		(async (t, opts) => {
+			const { Sandbox } = await import("e2b");
+			return Sandbox.create(t, opts) as unknown as RunnableSandbox;
+		});
 
-	if (!sandbox?.sandboxId) {
-		throw new Error(
-			`E2B Sandbox.create returned no sandboxId for template "${template}"`,
-		);
-	}
+	const sandbox = await createRaw(template, { timeoutMs, apiKey });
 
-	// Once the sandbox exists, any later failure must kill it so we don't leak a
-	// billed sandbox for a job that will be marked failed.
+	// Everything from here — including the missing-sandboxId guard — runs inside
+	// the cleanup-protected block: once create() resolves we may hold a live,
+	// billed sandbox, so any failure (bad/missing id or a setup command) must
+	// kill it before propagating, or we leak it.
 	try {
+		if (!sandbox?.sandboxId) {
+			throw new Error(
+				`E2B Sandbox.create returned no sandboxId for template "${template}"`,
+			);
+		}
+
 		// /work is created by the template's build (root) but the sandbox runs
 		// commands as its non-root default user; re-assert ownership/perms as
 		// root *before* writing into /work so this succeeds even if the
@@ -167,14 +202,17 @@ export async function tryCreateSandbox(
 		);
 	} catch (err) {
 		try {
-			await sandbox.kill();
+			await sandbox?.kill?.();
 		} catch {
 			// best-effort cleanup; surface the original failure below
 		}
 		const message = err instanceof Error ? err.message : String(err);
-		throw new Error(
-			`sandbox ${sandbox.sandboxId} started but runner setup failed: ${message}`,
-		);
+		// A missing sandboxId means create() never gave us a usable sandbox, so
+		// don't claim it "started"; only prefix when we actually have an id.
+		const prefix = sandbox?.sandboxId
+			? `sandbox ${sandbox.sandboxId} started but runner setup failed: `
+			: "";
+		throw new Error(`${prefix}${message}`);
 	}
 
 	return {

@@ -10,7 +10,10 @@ import {
 	buildRunnerScript,
 	collectWorkerEnv,
 	FLEET_WORKER_MODEL_KEYS,
+	MISSING_FLEET_REPO_URL_ERROR,
 	normalizeRepoSlug,
+	PI_AGENT_AUTH_ENV,
+	resolveFleetRepoUrl,
 	sanitizeSecrets,
 } from "./secrets.ts";
 import {
@@ -19,7 +22,9 @@ import {
 	isOpaqueVersionError,
 	MISSING_TEMPLATE_ERROR,
 	refreshFromSandbox,
+	type RunnableSandbox,
 	SANDBOX_VERSION_ERROR_HINT,
+	tryCreateSandbox,
 } from "./cast.ts";
 import { readJob, writeJob } from "./jobs.ts";
 import type { FleetJob } from "./types.ts";
@@ -30,6 +35,9 @@ function clearSensitiveEnv() {
 	delete process.env.FLEET_GITHUB_TOKEN;
 	delete process.env.GH_TOKEN;
 	delete process.env.E2B_API_KEY;
+	delete process.env.FLEET_REPO_URL;
+	delete process.env.FLEET_E2B_TEMPLATE;
+	delete process.env[PI_AGENT_AUTH_ENV];
 	for (const key of FLEET_WORKER_MODEL_KEYS) delete process.env[key];
 }
 
@@ -60,11 +68,21 @@ test("collectWorkerEnv forwards GitHub and fleet worker keys under canonical nam
 	});
 });
 
-test("buildRunnerScript never embeds token values", () => {
-	process.env.FLEET_GITHUB_TOKEN =
-		"github_pat_thisSecretMustNotAppearInTheRunnerScript123456";
-	process.env.OPENAI_API_KEY = "sk-worker-secret";
-	const script = buildRunnerScript({
+test("collectWorkerEnv forwards the pi agent auth blob when present", () => {
+	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJ0b2tlbi1zZWNyZXQifQ==";
+
+	assert.equal(
+		collectWorkerEnv()[PI_AGENT_AUTH_ENV],
+		"eyJvYXV0aCI6ICJ0b2tlbi1zZWNyZXQifQ==",
+	);
+	// Absent when unset (no empty string leaked into the sandbox env).
+	delete process.env[PI_AGENT_AUTH_ENV];
+	assert.equal(PI_AGENT_AUTH_ENV in collectWorkerEnv(), false);
+});
+
+function implementerJob(overrides: Partial<FleetJob> = {}): FleetJob {
+	const now = new Date().toISOString();
+	return {
 		jobId: "job-12345678",
 		profile: "implementer",
 		status: "queued",
@@ -73,13 +91,88 @@ test("buildRunnerScript never embeds token values", () => {
 		repo: "owner/repo",
 		timeoutMinutes: 90,
 		dryRun: false,
-		createdAt: new Date().toISOString(),
-		updatedAt: new Date().toISOString(),
-	});
+		createdAt: now,
+		updatedAt: now,
+		...overrides,
+	};
+}
+
+test("buildRunnerScript never embeds token values", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	process.env.FLEET_GITHUB_TOKEN =
+		"github_pat_thisSecretMustNotAppearInTheRunnerScript123456";
+	process.env.OPENAI_API_KEY = "sk-worker-secret";
+	const script = buildRunnerScript(implementerJob());
 
 	assert.equal(script.includes(process.env.FLEET_GITHUB_TOKEN), false);
 	assert.equal(script.includes(process.env.OPENAI_API_KEY), false);
 	assert.match(script, /FLEET_GITHUB_TOKEN/);
+});
+
+test("resolveFleetRepoUrl throws a clear error when FLEET_REPO_URL is unset", () => {
+	delete process.env.FLEET_REPO_URL;
+	assert.throws(() => resolveFleetRepoUrl(), /FLEET_REPO_URL is required/);
+	process.env.FLEET_REPO_URL = "  https://github.com/owner/pi-fleet.git  ";
+	assert.equal(resolveFleetRepoUrl(), "https://github.com/owner/pi-fleet.git");
+});
+
+test("buildRunnerScript fails fast instead of emitting `git clone ''` when FLEET_REPO_URL is unset", () => {
+	delete process.env.FLEET_REPO_URL;
+	assert.throws(
+		() => buildRunnerScript(implementerJob()),
+		new RegExp(MISSING_FLEET_REPO_URL_ERROR.slice(0, 24)),
+	);
+});
+
+test("buildRunnerScript anchors Outfitter profile resolution to /work/pi-fleet/profiles", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildRunnerScript(implementerJob());
+
+	// The clone of the pi-fleet pin must use a real URL, never an empty string.
+	assert.equal(script.includes("git clone ''"), false);
+	assert.match(script, /github\.com\/owner\/pi-fleet\.git/);
+
+	// Profiles are resolved via a user-scope settings file with an absolute path,
+	// so `pi-implementer` resolves the profile even when run from /work/repo.
+	assert.match(script, /\$HOME\/\.outfitter\/settings\.yml/);
+	assert.match(script, /profile_sources:/);
+	assert.match(script, /- path: \/work\/pi-fleet\/profiles/);
+
+	// profile.yml extensions (`../extensions/<x>`) are resolved by pi against its
+	// cwd (/work/repo) → /work/extensions/..., so the pi-fleet extensions/skills
+	// must be symlinked there or the profile fails to load its extension.
+	assert.match(script, /ln -sfn \/work\/pi-fleet\/extensions \/work\/extensions/);
+	assert.match(script, /ln -sfn \/work\/pi-fleet\/skills \/work\/skills/);
+});
+
+test("buildRunnerScript materializes ~/.pi/agent/auth.json from the env var without embedding the token", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	// A stand-in for the base64 auth blob; the literal must never appear in the
+	// generated script — only the env-var reference does.
+	process.env[PI_AGENT_AUTH_ENV] = "TOKEN_LITERAL_MUST_NOT_APPEAR_zzz999";
+	const script = buildRunnerScript(implementerJob());
+
+	assert.equal(script.includes(process.env[PI_AGENT_AUTH_ENV] as string), false);
+	// Decodes straight to a 600-locked file, never to stdout.
+	assert.match(script, /mkdir -p "\$HOME\/\.pi\/agent"/);
+	assert.match(
+		script,
+		/printf '%s' "\$\{PI_AGENT_AUTH_JSON_B64\}" \| base64 -d > "\$HOME\/\.pi\/agent\/auth\.json"/,
+	);
+	assert.match(script, /chmod 600 "\$HOME\/\.pi\/agent\/auth\.json"/);
+	// Guarded so an unset blob doesn't clobber auth.json with an empty file.
+	assert.match(script, /if \[ -n "\$\{PI_AGENT_AUTH_JSON_B64:-\}" \]/);
+});
+
+test("sanitizeSecrets redacts the pi agent auth blob value", () => {
+	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJzdXBlci1zZWNyZXQtdG9rZW4ifQ==";
+
+	const sanitized = sanitizeSecrets(
+		`auth=${process.env[PI_AGENT_AUTH_ENV]} done`,
+	);
+
+	assert.equal(sanitized.includes(process.env[PI_AGENT_AUTH_ENV] as string), false);
+	assert.equal(sanitized, "auth=*** done");
 });
 
 test("normalizeRepoSlug reduces every supported input shape to owner/repo", () => {
@@ -110,6 +203,9 @@ test("normalizeRepoSlug throws a clear error on invalid input", () => {
 });
 
 test("buildRunnerScript normalizes a github.com/.../.git repo before every gh invocation", () => {
+	// buildRunnerScript now requires FLEET_REPO_URL (pi-fleet pin clone); set it
+	// so this repo-slug normalization test exercises the checkout lines.
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
 	const baseJob = {
 		jobId: "job-normalize",
 		profile: "implementer" as const,
@@ -412,6 +508,123 @@ test("non-dry-run cast fails clearly before sandboxId when FLEET_E2B_TEMPLATE is
 	} finally {
 		await rm(jobsDir, { recursive: true, force: true });
 	}
+});
+
+test("non-dry-run cast fails fast before sandbox creation when FLEET_REPO_URL is missing", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+	process.env.FLEET_E2B_TEMPLATE = "pi-fleet-node22";
+	delete process.env.FLEET_REPO_URL;
+
+	try {
+		// Real tryCreateSandbox: the FLEET_REPO_URL check must throw before the e2b
+		// SDK is imported or any sandbox is created — otherwise the runner would
+		// emit `git clone ''` inside a billed sandbox (FLT-4 blocker #1).
+		const job = await castJob({
+			profile: "implementer",
+			brief: "implement FLT-4",
+			codeAccess: "clone",
+			repo: "owner/repo",
+		});
+
+		assert.equal(job.status, "failed");
+		assert.equal(job.sandboxId, undefined);
+		assert.equal(job.error, MISSING_FLEET_REPO_URL_ERROR);
+
+		const persisted = await readJob(job.jobId);
+		assert.equal(persisted.status, "failed");
+		assert.equal(persisted.error, MISSING_FLEET_REPO_URL_ERROR);
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+interface RecordingSandbox extends RunnableSandbox {
+	readonly calls: string[];
+	killed: number;
+}
+
+function recordingSandbox(opts: {
+	sandboxId?: string;
+	failOn?: RegExp;
+} = {}): RecordingSandbox {
+	const calls: string[] = [];
+	const sandbox: RecordingSandbox = {
+		sandboxId: "sandboxId" in opts ? opts.sandboxId : "sbx-mock",
+		calls,
+		killed: 0,
+		files: {
+			async write(path: string) {
+				calls.push(`write:${path}`);
+			},
+		},
+		commands: {
+			async run(command: string) {
+				calls.push(`run:${command}`);
+				if (opts.failOn?.test(command)) {
+					throw new Error(`command failed: ${command}`);
+				}
+				return {};
+			},
+		},
+		async kill() {
+			sandbox.killed += 1;
+		},
+	};
+	return sandbox;
+}
+
+function tryCreateSandboxEnv() {
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_E2B_TEMPLATE = "pi-fleet-node22";
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+}
+
+test("tryCreateSandbox chmods /work as root BEFORE writing the runner, then backgrounds it", async () => {
+	tryCreateSandboxEnv();
+	const sandbox = recordingSandbox();
+
+	const result = await tryCreateSandbox(implementerJob(), async () => sandbox);
+
+	assert.equal(result.sandboxId, "sbx-mock");
+	// Exact ordering: root chmod of /work must precede the runner write, and the
+	// executable bit + backgrounded runner follow it.
+	assert.deepEqual(sandbox.calls, [
+		"run:mkdir -p /work && chmod -R a+rwX /work",
+		"write:/work/run-job.sh",
+		"run:chmod +x /work/run-job.sh",
+		"run:bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",
+	]);
+	assert.equal(sandbox.killed, 0);
+});
+
+test("tryCreateSandbox kills the sandbox when a setup command fails", async () => {
+	tryCreateSandboxEnv();
+	const sandbox = recordingSandbox({ failOn: /nohup/ });
+
+	await assert.rejects(
+		() => tryCreateSandbox(implementerJob(), async () => sandbox),
+		/sbx-mock started but runner setup failed: command failed/,
+	);
+	assert.equal(sandbox.killed, 1);
+});
+
+test("tryCreateSandbox kills and fails clearly when create() yields no sandboxId", async () => {
+	tryCreateSandboxEnv();
+	const sandbox = recordingSandbox({ sandboxId: undefined });
+
+	await assert.rejects(
+		() => tryCreateSandbox(implementerJob(), async () => sandbox),
+		(err: Error) =>
+			/returned no sandboxId/.test(err.message) &&
+			!/started but/.test(err.message),
+	);
+	// No id to run setup against, so we never issued setup commands…
+	assert.deepEqual(sandbox.calls, []);
+	// …but we still best-effort killed whatever create() handed back.
+	assert.equal(sandbox.killed, 1);
 });
 
 test("isOpaqueVersionError detects the SDK envd version crash across phrasings", () => {
