@@ -5,6 +5,8 @@ set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Establish the conductor's own PEEK_* identity (fixed id, role=conductor) before anything else.
 . "$FLEET_ROOT/bin/lib/peek-conductor-env.sh"
+# Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
+"$FLEET_ROOT/bin/lib/scheduler-status.sh"
 exec outfitter run --profile conductor --agent pi -- \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
   --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"

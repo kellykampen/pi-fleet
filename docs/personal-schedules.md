@@ -1,7 +1,8 @@
 # Personal Pi global prompt schedules (FLT-24)
 
-`pi-personal-assistant` recreates two global prompt schedules on every start/restart, idempotently
-(updates existing jobs in place rather than duplicating them).
+`pi-personal-assistant` recreates two personal launchd prompt schedules on every start/restart,
+idempotently (updates existing jobs in place rather than duplicating them). They are never written
+to pi's machine-global scheduler store.
 
 ## Why launchd, not a cloud scheduler
 
@@ -37,11 +38,18 @@ Run automatically by `bin/pi-personal-assistant` on every invocation (non-fatal 
 broken sync must not block getting into a session). For each enabled schedule:
 
 1. Compute the desired `~/Library/LaunchAgents/dev.pi-fleet.personal.<name>.plist` content.
-2. If a plist already exists with identical (parsed) content, do nothing.
-3. Otherwise write the plist and `launchctl bootout` + `launchctl bootstrap` it (create or update
-   — never duplicate).
+2. Use the stable `~/code/pi-fleet` runner when available rather than capturing a disposable
+   feature-worktree path.
+3. Preserve the validated sync-time `PATH` in `EnvironmentVariables`, because launchd does not
+   inherit the interactive shell environment and otherwise may fail to find `outfitter` (status 127).
+4. Write changed plist content atomically, then always `launchctl bootout` + `launchctl bootstrap`.
+   Reloading unchanged jobs repairs unloaded or previously failed jobs without creating duplicates.
 
-Env overrides for testing/isolation: `PI_SCHEDULE_SYNC_AGENTS_DIR`, `PI_SCHEDULE_SYNC_LOG_DIR`,
+The wrapper marks sync with `PI_FLEET_PROFILE=personal-assistant`; an explicitly different profile
+is rejected. Direct manual sync remains supported when the marker is unset. Set
+`PI_SCHEDULE_SYNC_ENABLED=0` to unload and remove the personal LaunchAgents without editing JSON.
+Testing/isolation overrides: `PI_SCHEDULE_SYNC_AGENTS_DIR`, `PI_SCHEDULE_SYNC_LOG_DIR`,
+`PI_SCHEDULE_SYNC_SCHEDULES_JSON`, `PI_SCHEDULE_SYNC_RUNNER`, and
 `PI_SCHEDULE_SYNC_DRY_RUN=1` (writes/diffs plists, skips real `launchctl` calls).
 
 ## How a fire works (`bin/pi-personal-schedule-run <name>`)

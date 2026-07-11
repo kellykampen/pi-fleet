@@ -1,27 +1,36 @@
 #!/usr/bin/env bash
-# Smoke test for bin/pi-personal-schedule-sync (FLT-24): asserts
-#   1) first run creates both plists with the right Minute (Hour omitted = launchd's "every hour",
-#      matching cron's "*" hour field) + preserved cron string,
-#   2) second run is a true no-op (files untouched, byte-identical, no duplicate jobs),
-#   3) editing schedules.json (changing cron) triggers a real update on the third run, still no dup.
-# Runs against an isolated fake LaunchAgents/Logs dir + a fake schedules.json - never touches the
-# real machine's launchd state or the repo's own schedules.json.
-# PI_SCHEDULE_SYNC_DRY_RUN=1 skips real launchctl calls.
+# Regression smoke test for the launchd-only personal scheduler (FLT-35).
+# Runs entirely in a throwaway HOME: no real LaunchAgents, launchctl jobs, or global scheduler
+# state are touched.
 set -euo pipefail
 
 FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-FAKE_AGENTS_DIR="$TMPDIR/LaunchAgents"
-FAKE_LOG_DIR="$TMPDIR/Logs"
+FAKE_HOME="$TMPDIR/home"
+FAKE_AGENTS_DIR="$FAKE_HOME/Library/LaunchAgents"
+FAKE_LOG_DIR="$FAKE_HOME/Library/Logs/pi-fleet"
 FAKE_SCHEDULES="$TMPDIR/schedules.json"
+FAKE_BIN="$TMPDIR/bin"
+STABLE_RUNNER="$FAKE_HOME/code/pi-fleet/bin/pi-personal-schedule-run"
+GLOBAL_TASKS="$FAKE_HOME/.pi/agent/state/scheduler/tasks.json"
+LAUNCHCTL_LOG="$TMPDIR/launchctl.log"
+mkdir -p "$FAKE_BIN" "$(dirname "$STABLE_RUNNER")" "$(dirname "$GLOBAL_TASKS")"
 cp "$FLEET_ROOT/profiles/personal-assistant/schedules.json" "$FAKE_SCHEDULES"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$STABLE_RUNNER"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$FAKE_BIN/outfitter"
+cat > "$FAKE_BIN/launchctl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PI_TEST_LAUNCHCTL_LOG"
+exit 0
+EOF
+chmod +x "$STABLE_RUNNER" "$FAKE_BIN/outfitter" "$FAKE_BIN/launchctl"
+printf '{"version":2,"tasks":[]}\n' > "$GLOBAL_TASKS"
 
 pass=0
 fail=0
 check() {
-  # check <bool: "true"|"false"> <message>
   if [[ "$1" == "true" ]]; then
     echo "  ok - $2"
     pass=$((pass + 1))
@@ -31,7 +40,6 @@ check() {
   fi
 }
 check_eq() {
-  # check_eq <actual> <expected> <message>
   if [[ "$1" == "$2" ]]; then
     echo "  ok - $3 (got '$1')"
     pass=$((pass + 1))
@@ -46,53 +54,60 @@ plist_count() {
   shopt -u nullglob
   echo "${#plists[@]}"
 }
-
 run_sync() {
+  HOME="$FAKE_HOME" \
+  PATH="$FAKE_BIN:/usr/bin:/bin:/usr/sbin:/sbin" \
+  PI_FLEET_PROFILE=personal-assistant \
   PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
   PI_SCHEDULE_SYNC_LOG_DIR="$FAKE_LOG_DIR" \
   PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
-  PI_SCHEDULE_SYNC_DRY_RUN=1 \
+  PI_SCHEDULER_TASKS_FILE="$GLOBAL_TASKS" \
+  PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
   "$FLEET_ROOT/bin/pi-personal-schedule-sync"
 }
 
-echo "1) first run: creates both plists"
-run_sync
 SOCIAL_PLIST="$FAKE_AGENTS_DIR/dev.pi-fleet.personal.social-x-checkup.plist"
 GMAIL_PLIST="$FAKE_AGENTS_DIR/dev.pi-fleet.personal.gmail-reply-checkup.plist"
+
+echo "1) profile guard: a non-personal role cannot install schedules"
+HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=conductor \
+  PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
+  PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
+  "$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
+check_eq "$(plist_count)" "0" "conductor invocation creates no personal schedules"
+
+echo "2) first personal sync: creates and loads stable, launchd-safe jobs"
+run_sync
 [[ -f "$SOCIAL_PLIST" ]] && check true "social-x-checkup plist created" || check false "social-x-checkup plist created"
 [[ -f "$GMAIL_PLIST" ]] && check true "gmail-reply-checkup plist created" || check false "gmail-reply-checkup plist created"
-
-SOCIAL_MINUTE="$(plutil -extract StartCalendarInterval.Minute raw "$SOCIAL_PLIST" 2>/dev/null || echo MISSING)"
-check_eq "$SOCIAL_MINUTE" "0" "social-x-checkup Minute == 0 (top of every hour)"
-
+check_eq "$(plutil -extract ProgramArguments.0 raw "$SOCIAL_PLIST")" "$STABLE_RUNNER" "plist uses configured stable runner"
+check_eq "$(plutil -extract EnvironmentVariables.PATH raw "$SOCIAL_PLIST")" "$FAKE_BIN:/usr/bin:/bin:/usr/sbin:/sbin" "plist carries executable PATH for launchd"
+check_eq "$(plutil -extract StartCalendarInterval.Minute raw "$SOCIAL_PLIST")" "0" "social schedule fires at minute 0"
 SOCIAL_HOUR="$(plutil -extract StartCalendarInterval.Hour raw "$SOCIAL_PLIST" 2>/dev/null || echo MISSING)"
-check_eq "$SOCIAL_HOUR" "MISSING" "social-x-checkup Hour key omitted (cron '*' hour = every hour in launchd)"
+check_eq "$SOCIAL_HOUR" "MISSING" "cron '*' hour is represented by an omitted Hour key"
+check_eq "$(plutil -extract StartCalendarInterval.Minute raw "$GMAIL_PLIST")" "5" "gmail schedule fires at minute 5"
+check_eq "$(grep -c '^bootstrap ' "$LAUNCHCTL_LOG" || true)" "2" "both launchd jobs bootstrapped"
 
-GMAIL_MINUTE="$(plutil -extract StartCalendarInterval.Minute raw "$GMAIL_PLIST" 2>/dev/null || echo MISSING)"
-check_eq "$GMAIL_MINUTE" "5" "gmail-reply-checkup Minute == 5 (five past every hour)"
+TASKS_BEFORE="$(cat "$GLOBAL_TASKS")"
+check_eq "$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["tasks"]))' "$GLOBAL_TASKS")" "0" "global pi scheduler starts empty"
 
-CRON_ORIGINAL="$(plutil -extract PiFleetCronOriginal raw "$SOCIAL_PLIST" 2>/dev/null || echo MISSING)"
-check_eq "$CRON_ORIGINAL" "0 0 * * * *" "PiFleetCronOriginal preserved exactly"
-
-echo "2) second run: true no-op (byte-identical, no duplicate jobs)"
+echo "3) repeat sync: plist is byte-identical but failed/stale jobs are reloaded"
 BEFORE_SUM="$(shasum "$SOCIAL_PLIST" "$GMAIL_PLIST")"
 run_sync
 AFTER_SUM="$(shasum "$SOCIAL_PLIST" "$GMAIL_PLIST")"
-[[ "$BEFORE_SUM" == "$AFTER_SUM" ]] && check true "second run is byte-identical (idempotent)" || check false "second run is byte-identical (idempotent)"
-check_eq "$(plist_count)" "2" "still exactly 2 plists after second run"
+[[ "$BEFORE_SUM" == "$AFTER_SUM" ]] && check true "repeat sync leaves plist bytes unchanged" || check false "repeat sync leaves plist bytes unchanged"
+check_eq "$(grep -c '^bootstrap ' "$LAUNCHCTL_LOG" || true)" "4" "repeat sync reloads both jobs"
+check_eq "$(plist_count)" "2" "repeat sync creates no duplicate plists"
+check_eq "$(cat "$GLOBAL_TASKS")" "$TASKS_BEFORE" "personal sync leaves global scheduler store empty and unchanged"
 
-echo "3) editing schedules.json triggers a real update, not a duplicate"
-python3 -c "
-import json
-p = '$FAKE_SCHEDULES'
-d = json.load(open(p))
-d['schedules'][0]['cron'] = '0 30 * * * *'
-json.dump(d, open(p, 'w'))
-"
-run_sync
-NEW_MINUTE="$(plutil -extract StartCalendarInterval.Minute raw "$SOCIAL_PLIST" 2>/dev/null || echo MISSING)"
-check_eq "$NEW_MINUTE" "30" "updated cron reflected after edit"
-check_eq "$(plist_count)" "2" "still exactly 2 plists after update (no duplicate)"
+echo "4) PI_SCHEDULE_SYNC_ENABLED=0 unloads and removes installed schedules"
+HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
+  PI_SCHEDULE_SYNC_ENABLED=0 \
+  PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
+  PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
+  "$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
+check_eq "$(plist_count)" "0" "disabled sync removes both personal LaunchAgents"
+check_eq "$(cat "$GLOBAL_TASKS")" "$TASKS_BEFORE" "disabled sync does not populate global scheduler store"
 
 echo ""
 echo "pass=$pass fail=$fail"

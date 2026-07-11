@@ -14,8 +14,9 @@ Long-running seats — `pi-conductor`, `pi-project-lead`, and a personal-assista
 - Installed plists: `~/Library/LaunchAgents/dev.pi-fleet.personal.*.plist`
 
 This keeps the schedules **bound to the personal-assistant instance**:
-`pi-conductor`, `pi-project-lead`, and other profiles never see or fire them, and the global
-`~/.pi/agent/state/scheduler/tasks.json` remains empty.
+`pi-conductor`, `pi-project-lead`, and other profiles never install or fire them, and the global
+`~/.pi/agent/state/scheduler/tasks.json` remains empty. Conductor and project-lead wrappers print a
+read-only startup status (`0 global scheduled actions`) so scheduler isolation is visible at runtime.
 
 Current schedules:
 
