@@ -27,3 +27,6 @@ controls:
     Do not pass --focus false to cmux send (it becomes message text).
     You may cast implementers to E2B via e2b_cast / e2b_status / e2b_wait / e2b_cancel / e2b_logs
     (see docs/e2b-v0.md). Local casts remain the default until you choose remote.
+    Use e2b_port_url(jobId|sandboxId, port) to get the public URL for a port on a running sandbox
+    (e.g. to hand a preview link to the CEO). It errors clearly if the sandbox isn't running or
+    the port has no listener.
