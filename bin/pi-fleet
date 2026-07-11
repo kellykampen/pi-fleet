@@ -26,7 +26,7 @@ ${bold}PROFILES${reset}  ${dim}(run the command; cd to your target dir first)${r
 ${bold}EXTERNAL-HARNESS SEATS${reset}  ${dim}(not pi — no pi- prefix; cast into panes, monitored the same way)${reset}
   ${cyan}claude-reviewer${reset}         Claude Code · read-only   Independent review on a different harness
   ${cyan}claude-worker${reset}           Claude Code · rw+bash     Generic build worker (harness diversity)
-  ${dim}agy-* disabled by roster lock; use claude-* or pi/openai-codex seats instead.${reset}
+  ${dim}agy-* disabled by roster lock; use claude-* or pi-* seats with openai-codex instead.${reset}
 
 ${bold}USAGE${reset}
   cd ~/some/project && pi-<role>              start a seat in that directory

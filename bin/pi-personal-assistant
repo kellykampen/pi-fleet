@@ -5,12 +5,11 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/pi-model-env.sh"
-PI_MODEL_ARGS="$(pi_model_override_args personal-assistant "assistant personal" "$@")"
+pi_model_override_args personal-assistant "assistant personal" "$@"
 
 # FLT-24: ensure the global prompt schedules (social-x-checkup, gmail-reply-checkup) exist and
 # are up to date every time this profile starts/restarts. Non-fatal - a sync failure must not
 # block getting into an interactive/one-shot session.
 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pi-personal-schedule-sync" || echo "pi-personal-assistant: schedule sync failed, continuing" >&2
 
-# shellcheck disable=SC2086
-exec outfitter run --profile personal-assistant --agent pi -- $PI_MODEL_ARGS --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
+exec outfitter run --profile personal-assistant --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"

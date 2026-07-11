@@ -3,6 +3,5 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/peek-env.sh"
 . "$DIR/lib/pi-model-env.sh"
-PI_MODEL_ARGS="$(pi_model_override_args researcher "" "$@")"
-# shellcheck disable=SC2086
-exec outfitter run --profile researcher --agent pi -- $PI_MODEL_ARGS --tools read,grep,find,ls,context7_resolve-library-id,context7_query-docs "$@"
+pi_model_override_args researcher "" "$@"
+exec outfitter run --profile researcher --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --tools read,grep,find,ls,context7_resolve-library-id,context7_query-docs "$@"

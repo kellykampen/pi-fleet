@@ -57,6 +57,28 @@ check_not_contains "explicit CLI provider/model suppress env defaults" "$args" "
 check_not_contains "explicit CLI model suppresses env model" "$args" "env-model"
 check_contains "explicit CLI provider/model are preserved" "$args" "--provider explicit-provider --model explicit-model"
 
+args="$(run_wrapper PI_PLANNER_PROVIDER=openai-codex PI_PLANNER_MODEL=gpt-5.6-terra "$ROOT/bin/pi-planner" -p noop)"
+check_contains "role-specific env controls planner provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
+
+args="$(run_wrapper PI_REMOTION_PROVIDER=openai-codex PI_REMOTION_MODEL=gpt-5.6-terra "$ROOT/bin/pi-remotion" -p noop)"
+check_contains "role-specific env controls remotion provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
+
+args="$(run_wrapper PI_RESEARCHER_PROVIDER=openai-codex PI_RESEARCHER_MODEL=gpt-5.5 "$ROOT/bin/pi-researcher" -p noop)"
+check_contains "role-specific env controls researcher provider/model" "$args" "-- --provider openai-codex --model gpt-5.5 --tools"
+
+args="$(run_wrapper PI_PERSONAL_ASSISTANT_PROVIDER=openai-codex PI_PERSONAL_ASSISTANT_MODEL=gpt-5.6-terra \
+  PI_SCHEDULE_SYNC_DRY_RUN=1 PI_SCHEDULE_SYNC_AGENTS_DIR="$TMP/agents" PI_SCHEDULE_SYNC_LOG_DIR="$TMP/logs" \
+  "$ROOT/bin/pi-personal-assistant" -p noop)"
+check_contains "role-specific env controls personal-assistant provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
+
+# Regression guard: bin/lib/pi-model-env.sh populates PI_MODEL_ARGS as a bash array and wrappers
+# expand it as "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}". Without the [@]+ guard, expanding an
+# empty array under `set -u` throws "unbound variable" on bash 3.2 (macOS's default /bin/bash),
+# i.e. every wrapper invocation with zero overrides would crash.
+args="$(run_wrapper "$ROOT/bin/pi-researcher" -p noop)"
+check_contains "no override still launches (empty PI_MODEL_ARGS array under set -u)" "$args" '-- --tools read\,grep\,find\,ls\,context7_resolve-library-id\,context7_query-docs'
+check_not_contains "no override does not emit a stray --provider/--model" "$args" "--provider"
+
 if [ "$fail" -eq 0 ]; then
   echo "VERDICT: PASS ($pass checks)"
 else

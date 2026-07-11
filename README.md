@@ -298,9 +298,8 @@ pi-fleet/
    #!/usr/bin/env bash
    set -euo pipefail
    . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pi-model-env.sh"
-   PI_MODEL_ARGS="$(pi_model_override_args <role> "" "$@")"
-   # shellcheck disable=SC2086
-   exec outfitter run --profile <role> --agent pi -- $PI_MODEL_ARGS --tools read,grep,find,ls,... "$@"
+   pi_model_override_args <role> "" "$@"
+   exec outfitter run --profile <role> --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --tools read,grep,find,ls,... "$@"
    ```
 
    then `chmod +x bin/pi-<role>`.

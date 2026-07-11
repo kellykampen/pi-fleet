@@ -33,6 +33,11 @@ pi_first_env_value() {
   return 1
 }
 
+# Populates the global PI_MODEL_ARGS array (does not print to stdout), so overrides
+# reach outfitter as discrete argv elements. Callers pass it through as:
+#   exec outfitter run ... -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" ...
+# (the +"${...}" guard keeps an empty array from tripping "set -u" on bash 3.2, the
+# default /bin/bash on macOS.)
 pi_model_override_args() {
   local role="$1" aliases="${2:-}" role_key alias alias_key provider="" model=""
   shift 2 || true
@@ -63,9 +68,11 @@ pi_model_override_args() {
     [ -n "$model" ] || model="$(pi_first_env_value PI_MODEL || true)"
   fi
 
-  if [ -n "$provider" ]; then printf -- '--provider %s' "$provider"; fi
-  if [ -n "$model" ]; then
-    [ -n "$provider" ] && printf ' '
-    printf -- '--model %s' "$model"
-  fi
+  PI_MODEL_ARGS=()
+  [ -n "$provider" ] && PI_MODEL_ARGS+=(--provider "$provider")
+  [ -n "$model" ] && PI_MODEL_ARGS+=(--model "$model")
+  # Called directly (no command substitution) so callers can rely on the plain array; without an
+  # explicit success here, a false final `[ -n "$model" ] && ...` would return non-zero and, under
+  # a caller's `set -e`, abort the wrapper the moment no model override is present.
+  return 0
 }
