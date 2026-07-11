@@ -3,4 +3,8 @@
 # boundary). write/edit for updating docs; bash for git/gh (reading the PR diff) - not a general
 # implementation seat, the docs skill itself constrains scope to documentation.
 set -euo pipefail
-exec outfitter run --profile docs --agent pi -- --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment "$@"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$DIR/lib/pi-model-env.sh"
+PI_MODEL_ARGS="$(pi_model_override_args docs "" "$@")"
+# shellcheck disable=SC2086
+exec outfitter run --profile docs --agent pi -- $PI_MODEL_ARGS --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment "$@"

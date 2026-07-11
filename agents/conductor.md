@@ -2,7 +2,7 @@
 name: conductor
 description: Cross-project conductor — assign work to project leads, watch portfolio health, escalate to the CEO. Never implement; never cast workers directly.
 model: gpt-5.5
-fallbackModels: openai/gpt-5.6-luna, openai/gpt-5.5
+fallbackModels: gpt-5.6-luna, gpt-5.5
 thinking: high
 tools: read, grep, find, ls, write, edit, bash
 systemPromptMode: replace

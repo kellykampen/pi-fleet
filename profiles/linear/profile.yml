@@ -2,8 +2,8 @@ id: linear
 label: linear
 controls:
   pi:
-    provider: kimi-coding
-    model: k2p7
+    provider: openai-codex
+    model: gpt-5.5
     thinking: low
     skills:
       - ../skills/linear-management

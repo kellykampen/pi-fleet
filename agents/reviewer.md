@@ -1,8 +1,8 @@
 ---
 name: reviewer
 description: Independent, read-only code review / QC of a diff or PR. MUST run on a different model than the implementer. No bash, no write, no edit — cannot mutate the repo.
-model: k2p7
-fallbackModels: grok-4.5, gpt-5.5
+model: gpt-5.5
+fallbackModels: gpt-5.6-sol, gpt-5.5
 thinking: medium
 tools: read, grep, find, ls
 systemPromptMode: replace

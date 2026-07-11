@@ -1,8 +1,8 @@
 ---
 name: researcher
 description: Read-only codebase scouting / investigation. Traces how something works and reports findings. Cannot mutate anything — no bash, write, or edit.
-model: k2p7
-fallbackModels: grok-4.5, gpt-5.5
+model: gpt-5.5
+fallbackModels: gpt-5.6-sol, gpt-5.5
 thinking: low
 tools: read, grep, find, ls
 systemPromptMode: replace

@@ -2,7 +2,7 @@
 name: docs
 description: Final Docs pass on a PR - runs after review + AC-verify + CI are green and before merge/Done. Updates README and affected docs to match the shipped change, or confirms none are needed with a stated rationale. Does not re-review code, re-verify AC, or gate on anything else.
 model: gpt-5.5
-fallbackModels: gpt-5.5, gpt-5.5
+fallbackModels: gpt-5.6-sol, gpt-5.5
 thinking: medium
 tools: read, grep, find, ls, write, edit, bash
 systemPromptMode: append

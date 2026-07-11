@@ -3,4 +3,7 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/peek-env.sh"
-exec outfitter run --profile reviewer --agent pi -- --tools read,grep,find,ls,linear_get_issue,linear_list "$@"
+. "$DIR/lib/pi-model-env.sh"
+PI_MODEL_ARGS="$(pi_model_override_args reviewer "" "$@")"
+# shellcheck disable=SC2086
+exec outfitter run --profile reviewer --agent pi -- $PI_MODEL_ARGS --tools read,grep,find,ls,linear_get_issue,linear_list "$@"

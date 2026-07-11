@@ -2,4 +2,7 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/peek-env.sh"
-exec outfitter run --profile planner --agent pi -- --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,context7_resolve-library-id,context7_query-docs "$@"
+. "$DIR/lib/pi-model-env.sh"
+PI_MODEL_ARGS="$(pi_model_override_args planner "" "$@")"
+# shellcheck disable=SC2086
+exec outfitter run --profile planner --agent pi -- $PI_MODEL_ARGS --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,context7_resolve-library-id,context7_query-docs "$@"

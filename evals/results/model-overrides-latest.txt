@@ -1,0 +1,8 @@
+PASS: role-specific env controls implementer provider/model
+PASS: generic env controls reviewer provider/model
+PASS: role env beats generic env for ac-verifier model
+PASS: role alias PI_LEAD_MODEL controls project-lead
+PASS: explicit CLI provider/model suppress env defaults
+PASS: explicit CLI model suppresses env model
+PASS: explicit CLI provider/model are preserved
+VERDICT: PASS (7 checks)

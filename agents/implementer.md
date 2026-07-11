@@ -2,7 +2,7 @@
 name: implementer
 description: Build one ticket end-to-end (code + tests) in the current worktree, then hand off for review. Full read/write/bash within a git+package-manager policy.
 model: gpt-5.6-sol
-fallbackModels: grok-4.5, gpt-5.5
+fallbackModels: gpt-5.6-sol, gpt-5.5
 thinking: high
 tools: read, grep, find, ls, write, edit, bash
 systemPromptMode: append
