@@ -6,6 +6,7 @@ import { defineTool, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import { cancelSandbox, castJob, refreshFromSandbox } from "./cast.js";
 import { readJob, updateJob } from "./jobs.js";
+import { resolvePortUrl } from "./ports.js";
 import {
 	DEFAULT_TIMEOUT_MINUTES,
 	isTerminal,
@@ -195,6 +196,41 @@ export default function (pi: ExtensionAPI) {
 							: "cancelled by project lead",
 				});
 				return textResult(JSON.stringify(updated, null, 2), { job: updated });
+			},
+		}),
+	);
+
+	pi.registerTool(
+		defineTool({
+			name: "e2b_port_url",
+			label: "E2B: expose sandbox port",
+			description:
+				"Return the public URL for a port on a running sandbox, identified by jobId or sandboxId directly. Errors clearly if the sandbox isn't running or the port has no listener.",
+			promptSnippet: "e2b_port_url: public URL for a sandbox port",
+			parameters: Type.Object({
+				jobId: Type.Optional(
+					Type.String({
+						description:
+							"Job id returned by e2b_cast. Provide this or sandboxId.",
+					}),
+				),
+				sandboxId: Type.Optional(
+					Type.String({
+						description:
+							"E2B sandbox id, when calling without a fleet job. Provide this or jobId.",
+					}),
+				),
+				port: Type.Number({
+					description: "Port number inside the sandbox to expose.",
+				}),
+			}),
+			async execute(_id, params) {
+				const result = await resolvePortUrl({
+					jobId: params.jobId,
+					sandboxId: params.sandboxId,
+					port: params.port,
+				});
+				return textResult(JSON.stringify(result, null, 2), result);
 			},
 		}),
 	);
