@@ -18,7 +18,9 @@ import {
 	isOpaqueVersionError,
 	MISSING_TEMPLATE_ERROR,
 	refreshFromSandbox,
+	type RunnableSandbox,
 	SANDBOX_VERSION_ERROR_HINT,
+	tryCreateSandbox,
 } from "./cast.ts";
 import { readJob, writeJob } from "./jobs.ts";
 import type { FleetJob } from "./types.ts";
@@ -239,6 +241,92 @@ test("non-dry-run cast fails fast before sandbox creation when FLEET_REPO_URL is
 	} finally {
 		await rm(jobsDir, { recursive: true, force: true });
 	}
+});
+
+interface RecordingSandbox extends RunnableSandbox {
+	readonly calls: string[];
+	killed: number;
+}
+
+function recordingSandbox(opts: {
+	sandboxId?: string;
+	failOn?: RegExp;
+} = {}): RecordingSandbox {
+	const calls: string[] = [];
+	const sandbox: RecordingSandbox = {
+		sandboxId: "sandboxId" in opts ? opts.sandboxId : "sbx-mock",
+		calls,
+		killed: 0,
+		files: {
+			async write(path: string) {
+				calls.push(`write:${path}`);
+			},
+		},
+		commands: {
+			async run(command: string) {
+				calls.push(`run:${command}`);
+				if (opts.failOn?.test(command)) {
+					throw new Error(`command failed: ${command}`);
+				}
+				return {};
+			},
+		},
+		async kill() {
+			sandbox.killed += 1;
+		},
+	};
+	return sandbox;
+}
+
+function tryCreateSandboxEnv() {
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_E2B_TEMPLATE = "pi-fleet-node22";
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+}
+
+test("tryCreateSandbox chmods /work as root BEFORE writing the runner, then backgrounds it", async () => {
+	tryCreateSandboxEnv();
+	const sandbox = recordingSandbox();
+
+	const result = await tryCreateSandbox(implementerJob(), async () => sandbox);
+
+	assert.equal(result.sandboxId, "sbx-mock");
+	// Exact ordering: root chmod of /work must precede the runner write, and the
+	// executable bit + backgrounded runner follow it.
+	assert.deepEqual(sandbox.calls, [
+		"run:mkdir -p /work && chmod -R a+rwX /work",
+		"write:/work/run-job.sh",
+		"run:chmod +x /work/run-job.sh",
+		"run:bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",
+	]);
+	assert.equal(sandbox.killed, 0);
+});
+
+test("tryCreateSandbox kills the sandbox when a setup command fails", async () => {
+	tryCreateSandboxEnv();
+	const sandbox = recordingSandbox({ failOn: /nohup/ });
+
+	await assert.rejects(
+		() => tryCreateSandbox(implementerJob(), async () => sandbox),
+		/sbx-mock started but runner setup failed: command failed/,
+	);
+	assert.equal(sandbox.killed, 1);
+});
+
+test("tryCreateSandbox kills and fails clearly when create() yields no sandboxId", async () => {
+	tryCreateSandboxEnv();
+	const sandbox = recordingSandbox({ sandboxId: undefined });
+
+	await assert.rejects(
+		() => tryCreateSandbox(implementerJob(), async () => sandbox),
+		(err: Error) =>
+			/returned no sandboxId/.test(err.message) &&
+			!/started but/.test(err.message),
+	);
+	// No id to run setup against, so we never issued setup commands…
+	assert.deepEqual(sandbox.calls, []);
+	// …but we still best-effort killed whatever create() handed back.
+	assert.equal(sandbox.killed, 1);
 });
 
 test("isOpaqueVersionError detects the SDK envd version crash across phrasings", () => {
