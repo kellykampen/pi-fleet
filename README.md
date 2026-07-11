@@ -351,7 +351,7 @@ a local worktree. Planning and design live in Linear: E2B remote workers v0 proj
 Required environment variables for non-dry-run casts:
 
 - `E2B_API_KEY` — creates/connects the sandbox.
-- `FLEET_GITHUB_TOKEN` (preferred) or `GH_TOKEN` — injected into the sandbox for clone/push/PR operations.
+- `FLEET_GITHUB_TOKEN` (preferred) or `GH_TOKEN` — injected into the sandbox for clone/push/PR operations. Its repository scope is the access boundary for each cast's `repo`; pi-fleet does not maintain an approved-repository allowlist.
 - One or more fleet-worker model keys for the selected provider, for example `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `KIMI_API_KEY`, or `MOONSHOT_API_KEY`.
 
 1. **E2B account + API key**
@@ -395,7 +395,7 @@ Required environment variables for non-dry-run casts:
    (cd extensions/e2b && npm run template:publish -- pi-fleet-node22)
 
    export FLEET_E2B_TEMPLATE=pi-fleet-node22             # template id/name from publish
-   export FLEET_REPO_URL=https://github.com/YOUR_ORG/YOUR_REPO.git  # pin source
+   export FLEET_REPO_URL=https://github.com/YOUR_ORG/pi-fleet.git   # pi-fleet wrappers/profiles only
    ```
 
    Smoke a published template:
@@ -424,6 +424,12 @@ Required environment variables for non-dry-run casts:
    ```
 
    Record the published `FLEET_E2B_TEMPLATE` value as a comment on Linear issue FLT-1.
+
+`FLEET_REPO_URL` is infrastructure configuration: it is cloned to `/work/pi-fleet` for the fleet
+wrappers and profiles. It does **not** select the target repository. Every cast clones its `repo`
+parameter to `/work/repo`; access is determined solely by the scope of `FLEET_GITHUB_TOKEN` or
+`GH_TOKEN`. If that clone fails, the job becomes `failed` with a sanitized error explaining that
+the token may lack access (without persisting the token or raw authenticated URL).
 
 Without `E2B_API_KEY`, `e2b_cast` still works in **dry-run** mode (local job record only) so you can
 exercise the project-lead flow offline.
