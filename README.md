@@ -29,10 +29,17 @@ top.
 
 ```bash
 git clone https://github.com/YOUR_ORG/pi-fleet.git ~/code/pi-fleet && cd ~/code/pi-fleet
-bin/pi-fleet-bootstrap                        # symlink config, install the permission template, apply patches
+./setup.sh                                    # check + install deps, wire config, guide auth
 export PATH="$HOME/code/pi-fleet/bin:$PATH"   # add the wrappers to PATH (persist in ~/.zshrc)
 cd ~/your/project && pi-reviewer              # launch a read-only reviewer seat
 ```
+
+`setup.sh` is the one-copy onboarding entry point: it checks (and, on macOS with Homebrew, offers
+to install) the quick-start dependencies below, runs `bin/pi-fleet-bootstrap` to wire local config
+(idempotent — it backs up, never overwrites, any pre-existing config), and guides you through
+external-service auth (`gh`, Linear, a Pi provider, optional E2B). Run `./setup.sh --check` for a
+side-effect-free status report, or `./setup.sh --yes` to auto-confirm every install it knows how
+to do. See `./setup.sh --help` for details.
 
 Models in the profiles are **defaults, not locks** — override per launch with `--provider/--model`,
 or let the `pi-conductor`/`pi-project-lead` pick one via the bundled `model-classifier` skill.
