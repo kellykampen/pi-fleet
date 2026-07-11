@@ -15,6 +15,7 @@ import {
 	PI_AGENT_AUTH_ENV,
 	resolveFleetRepoUrl,
 	sanitizeSecrets,
+	TARGET_REPO_ACCESS_ERROR_HINT,
 } from "./secrets.ts";
 import {
 	castJob,
@@ -202,7 +203,7 @@ test("normalizeRepoSlug throws a clear error on invalid input", () => {
 	);
 });
 
-test("buildRunnerScript normalizes a github.com/.../.git repo before every gh invocation", () => {
+test("buildRunnerScript uses the normalized per-cast repo for every target clone", () => {
 	// buildRunnerScript now requires FLEET_REPO_URL (pi-fleet pin clone); set it
 	// so this repo-slug normalization test exercises the checkout lines.
 	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
@@ -222,7 +223,8 @@ test("buildRunnerScript normalizes a github.com/.../.git repo before every gh in
 		codeAccess: "clone",
 		repo: "github.com/kellykampen/pi-fleet.git",
 	});
-	assert.match(cloneScript, /gh repo clone 'kellykampen\/pi-fleet'/);
+	assert.match(cloneScript, /export TARGET_REPO='kellykampen\/pi-fleet'/);
+	assert.match(cloneScript, /gh repo clone "\$TARGET_REPO" \/work\/repo/);
 	assert.equal(cloneScript.includes("github.com/kellykampen/pi-fleet.git"), false);
 
 	const prScript = buildRunnerScript({
@@ -231,7 +233,8 @@ test("buildRunnerScript normalizes a github.com/.../.git repo before every gh in
 		repo: "github.com/kellykampen/pi-fleet.git",
 		prNumber: 42,
 	});
-	assert.match(prScript, /gh repo clone 'kellykampen\/pi-fleet'/);
+	assert.match(prScript, /export TARGET_REPO='kellykampen\/pi-fleet'/);
+	assert.match(prScript, /clone_target --depth 1/);
 	assert.equal(prScript.includes("github.com/kellykampen/pi-fleet.git"), false);
 
 	const branchScript = buildRunnerScript({
@@ -240,8 +243,24 @@ test("buildRunnerScript normalizes a github.com/.../.git repo before every gh in
 		repo: "github.com/kellykampen/pi-fleet.git",
 		branch: "feature/x",
 	});
-	assert.match(branchScript, /gh repo clone 'kellykampen\/pi-fleet'/);
+	assert.match(branchScript, /export TARGET_REPO='kellykampen\/pi-fleet'/);
+	assert.match(branchScript, /clone_target --depth 1 --branch 'feature\/x'/);
 	assert.equal(branchScript.includes("github.com/kellykampen/pi-fleet.git"), false);
+});
+
+test("buildRunnerScript keeps the per-cast target separate from FLEET_REPO_URL", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/fleet-org/pi-fleet.git";
+	const script = buildRunnerScript(
+		implementerJob({ repo: "customer-org/private-app", baseBranch: "develop" }),
+	);
+
+	assert.match(
+		script,
+		/git clone --depth 1 --branch 'develop' 'https:\/\/github\.com\/fleet-org\/pi-fleet\.git' \/work\/pi-fleet/,
+	);
+	assert.match(script, /export TARGET_REPO='customer-org\/private-app'/);
+	assert.match(script, /clone_target --depth 1 --branch 'develop'/);
+	assert.doesNotMatch(script, /TARGET_REPO='fleet-org\/pi-fleet'/);
 });
 
 /**
@@ -343,6 +362,32 @@ test("buildResultFinalizer leaves an existing result.json untouched when a needs
 		// The log line must reflect the persisted (succeeded) result, not the
 		// needs_input the marker file alone would imply.
 		assert.match(output, /FINAL_STATUS=succeeded/);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
+test("buildResultFinalizer surfaces a clear sanitized target-repo access error", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		const token = "github_pat_cloneFailureSecret_abcdefghijklmnopqrstuvwxyz123456";
+		process.env.FLEET_GITHUB_TOKEN = token;
+		runFinalizer(work, {
+			JOB_ID: "job-clone-denied",
+			EXIT: "1",
+			TARGET_REPO: "customer-org/private-app",
+			TARGET_REPO_CLONE_FAILED: "1",
+		});
+
+		const raw = await readFile(join(work, "result.json"), "utf8");
+		const result = JSON.parse(raw);
+		assert.equal(result.status, "failed");
+		assert.equal(
+			result.error,
+			`Target repository clone failed for customer-org/private-app: ${TARGET_REPO_ACCESS_ERROR_HINT}`,
+		);
+		assert.match(result.error, /token has repository access/i);
+		assert.equal(raw.includes(token), false);
 	} finally {
 		await rm(work, { recursive: true, force: true });
 	}

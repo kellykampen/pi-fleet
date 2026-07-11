@@ -11,6 +11,9 @@ import type { FleetJob } from "./types.js";
 export const MISSING_FLEET_REPO_URL_ERROR =
 	"FLEET_REPO_URL is required for non-dry-run implementer casts (the pi-fleet repo the sandbox clones for its bin/ wrappers + profiles, e.g. FLEET_REPO_URL=https://github.com/<owner>/pi-fleet.git)";
 
+export const TARGET_REPO_ACCESS_ERROR_HINT =
+	"FLEET_GITHUB_TOKEN/GH_TOKEN may not have access to this repository. Verify the repository exists and the token has repository access with Contents read permission.";
+
 /**
  * The pi-fleet repo the sandbox clones to /work/pi-fleet for its bin/ wrappers
  * and profiles. Read at call time (never at module load, so tests and the cast
@@ -163,7 +166,9 @@ export function buildResultFinalizer(): string {
 	return `WORK="\${WORK:-/work}"
 RESULT="$WORK/result.json"
 NEEDS_INPUT_FILE="$WORK/needs-input.json"
-if [ -f "$NEEDS_INPUT_FILE" ]; then
+if [ "\${TARGET_REPO_CLONE_FAILED:-0}" = "1" ]; then
+  STATUS=failed
+elif [ -f "$NEEDS_INPUT_FILE" ]; then
   STATUS=needs_input
 elif [ "\${EXIT:-1}" -eq 0 ]; then
   STATUS=succeeded
@@ -195,7 +200,13 @@ if status == "needs_input" and marker and os.path.exists(marker):
         questions = ["pi-implementer requested input but provided no questions"]
 
 error = None
-if status == "failed":
+if os.environ.get("TARGET_REPO_CLONE_FAILED") == "1":
+    target_repo = os.environ.get("TARGET_REPO", "unknown")
+    error = (
+        f"Target repository clone failed for {target_repo}: "
+        "${TARGET_REPO_ACCESS_ERROR_HINT}"
+    )
+elif status == "failed":
     error = f"pi-implementer exited {exit_code}"
 
 result = {
@@ -251,19 +262,19 @@ export function buildRunnerScript(job: FleetJob): string {
 	const repo = normalizeRepoSlug(job.repo || "");
 	if (job.codeAccess === "pr") {
 		checkout = [
-			`gh repo clone ${shellQuote(repo)} /work/repo -- --depth 1`,
+			"clone_target --depth 1",
 			"cd /work/repo",
 			`gh pr checkout ${Number(job.prNumber)}`,
 		].join("\n");
 	} else if (job.codeAccess === "branch") {
 		checkout = [
-			`gh repo clone ${shellQuote(repo)} /work/repo -- --depth 1 --branch ${shellQuote(job.branch || "")}`,
+			`clone_target --depth 1 --branch ${shellQuote(job.branch || "")}`,
 			"cd /work/repo",
 		].join("\n");
 	} else {
 		const newBranch = job.branch || `fleet/${job.jobId.slice(0, 8)}`;
 		checkout = [
-			`gh repo clone ${shellQuote(repo)} /work/repo -- --depth 1 --branch ${shellQuote(baseBranch)}`,
+			`clone_target --depth 1 --branch ${shellQuote(baseBranch)}`,
 			"cd /work/repo",
 			`git checkout -b ${shellQuote(newBranch)}`,
 		].join("\n");
@@ -272,6 +283,7 @@ export function buildRunnerScript(job: FleetJob): string {
 	return `#!/usr/bin/env bash
 set -euo pipefail
 export JOB_ID=${shellQuote(job.jobId)}
+export TARGET_REPO=${shellQuote(repo)}
 WORK=/work
 RESULT="$WORK/result.json"
 LOG="$WORK/job.log"
@@ -329,6 +341,29 @@ if [ -n "\${${PI_AGENT_AUTH_ENV}:-}" ]; then
   chmod 600 "${PI_AGENT_AUTH_PATH}"
 fi
 
+finalize_result() {
+${buildResultFinalizer()}
+}
+
+# The target is always the per-cast repo, never FLEET_REPO_URL (which is only
+# the pi-fleet wrapper/profile source). Convert clone failures into a terminal,
+# actionable result immediately instead of leaving the cast running until its
+# timeout. The persisted error is deliberately synthesized rather than copied
+# from gh/git output, so credentials can never be included in it.
+clone_target() {
+  set +e
+  gh repo clone "$TARGET_REPO" /work/repo -- "$@"
+  EXIT=$?
+  set -e
+  if [ "$EXIT" -ne 0 ]; then
+    export EXIT TARGET_REPO_CLONE_FAILED=1
+    echo "Target repository clone failed for $TARGET_REPO: ${TARGET_REPO_ACCESS_ERROR_HINT}"
+    finalize_result
+    echo "fleet e2b job $JOB_ID finished status=$STATUS"
+    exit "$EXIT"
+  fi
+}
+
 ${checkout}
 
 if command -v pi-implementer >/dev/null 2>&1 || [ -x /work/pi-fleet/bin/pi-implementer ]; then
@@ -347,7 +382,7 @@ export SHA=$(git -C /work/repo rev-parse HEAD 2>/dev/null || true)
 export PR_URL=$(gh pr view --json url -q .url 2>/dev/null || true)
 export EXIT
 
-${buildResultFinalizer()}
+finalize_result
 
 echo "fleet e2b job $JOB_ID finished status=$STATUS"
 exit "$EXIT"
