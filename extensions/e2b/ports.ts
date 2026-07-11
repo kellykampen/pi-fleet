@@ -1,4 +1,5 @@
 import { readJob } from "./jobs.js";
+import { connectE2BSandbox } from "./sdk.js";
 import { sanitizeSecrets } from "./secrets.js";
 import { isTerminal } from "./types.js";
 
@@ -33,12 +34,7 @@ export interface PortUrlResult {
 async function connectSandboxDefault(
 	sandboxId: string,
 ): Promise<SandboxHostLike> {
-	const apiKey = process.env.E2B_API_KEY?.trim();
-	if (!apiKey) {
-		throw new Error("E2B_API_KEY is not set");
-	}
-	const { Sandbox } = await import("e2b");
-	return Sandbox.connect(sandboxId, { apiKey }) as Promise<SandboxHostLike>;
+	return connectE2BSandbox<SandboxHostLike>(sandboxId);
 }
 
 /**

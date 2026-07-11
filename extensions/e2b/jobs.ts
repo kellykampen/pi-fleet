@@ -118,8 +118,22 @@ export async function writeJob(job: FleetJob): Promise<FleetJob> {
 	return next;
 }
 
+export async function findJob(jobId: string): Promise<FleetJob | null> {
+	return getJobStore().get(jobId);
+}
+
+export async function findJobByIdOrSandboxId(
+	jobIdOrSandboxId: string,
+): Promise<FleetJob | null> {
+	const store = getJobStore();
+	const direct = await store.get(jobIdOrSandboxId);
+	if (direct) return direct;
+	const jobs = await store.list();
+	return jobs.find((job) => job.sandboxId === jobIdOrSandboxId) ?? null;
+}
+
 export async function readJob(jobId: string): Promise<FleetJob> {
-	const job = await getJobStore().get(jobId);
+	const job = await findJob(jobId);
 	if (!job) throw new Error(`Unknown jobId: ${jobId}`);
 	return job;
 }
