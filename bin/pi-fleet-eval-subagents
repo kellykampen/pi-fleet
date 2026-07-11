@@ -6,7 +6,7 @@ set -uo pipefail
 OUT="${1:-$HOME/code/pi-fleet/evals/results/subagent-tools-latest.txt}"; : > "$OUT"
 SA="$HOME/.pi/agent/npm/node_modules/pi-subagents"
 # agent expect_bash expect_write expect_edit
-AGENTS="implementer:Y:Y:Y reviewer:N:N:N ac-verifier:Y:N:N researcher:N:N:N designer:Y:Y:Y planner:Y:N:N security-reviewer:N:N:N visual-qa:Y:N:N linear:Y:N:N"
+AGENTS="implementer:Y:Y:Y reviewer:N:N:N ac-verifier:Y:N:N researcher:N:N:N designer:Y:Y:Y planner:Y:N:N spike-breakdown:Y:N:N security-reviewer:N:N:N visual-qa:Y:N:N linear:Y:N:N"
 printf "%-20s | bash | write | edit | verdict\n" agent >> "$OUT"
 for entry in $AGENTS; do
   a="${entry%%:*}"; r="${entry#*:}"; eb="${r%%:*}"; r="${r#*:}"; ew="${r%%:*}"; ee="${r##*:}"

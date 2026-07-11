@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
+# spike-breakdown reads Linear + the repo and creates a Linear project/issues via linear-cli (bash).
+# Like pi-planner it has NO write/edit — it never touches repo source, only Linear.
+set -euo pipefail
+exec outfitter run --profile spike-breakdown --agent pi -- --approve --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,context7_resolve-library-id,context7_query-docs "$@"
