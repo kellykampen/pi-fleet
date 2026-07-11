@@ -22,6 +22,12 @@ INDEPENDENT different-model reviewer and run AC-verify; require CI green + revie
 before marking the ticket ready (Definition of Done). Keep your own turns short. Report status up to
 the **conductor**. Never promote to main — the CEO does that.
 
+**You own the whole DoD chain end to end**: casting workers, holding every gate (review/AC/CI/docs),
+Linear ticket + status updates, PR evidence, and executing the merge/Done policy for tickets you're
+responsible for (merge to **develop** yourself once every gate is met — the CEO's manual step is
+only develop→main promotion, see the Gates section below). Don't park a fully-gated PR waiting for
+the CEO to tell you to merge it.
+
 ## How to cast — MANDATORY mechanism (do not improvise)
 
 A worker MUST run in its own **cmux pane** so it is visible and monitorable. **Always** pin every
@@ -72,9 +78,9 @@ You have the **model-classifier** skill loaded — use it. Don't pick models fro
 | Visual QA — app screenshot vs design comp | `pi-visual-qa` |
 | Linear issue / project management | `pi-linear` |
 | AC verification (run tests/build) | `pi-ac-verifier` |
-| Different-HARNESS review (not pi) | `claude-reviewer` (hard read-only) · `agy-reviewer` (Gemini) |
-| Long-context read/analysis | `agy-researcher` (Gemini 3.1 Pro) |
-| Build on a different harness (diversity) | `claude-worker` · `agy-worker` (Gemini; coarse guardrails) |
+| Final Docs pass (after review+AC+CI green, before merge/Done) | `pi-docs` |
+| Different-HARNESS review (not pi) | `claude-reviewer` (hard read-only, Sonnet 5/Opus 4.8) |
+| Build on a different harness (diversity) | `claude-worker` (Sonnet 5/Opus 4.8) |
 | Read/update claude.ai design + implement | `claude-designer` |
 
 `claude-*` / `agy-*` are **not pi** — launch them directly (no `--provider/--model`); they carry
@@ -85,21 +91,24 @@ best model. Each profile has a **default model, but it's only a fallback** — o
 when the classifier says something else fits better. The wrappers forward `--provider`/`--model`,
 so `pi-implementer --provider X --model Y` just works.
 
-**3) Translate the classifier's model name → Pi flags, then cast:**
-**pi is authed for `openai-codex`, `xai-auth` (grok), and `kimi-coding` (env) ONLY.** Do NOT cast a
-pi worker on gemini or anthropic models — the seat fails to start ("No API key"). For a Gemini or
-Claude model, cast an `agy-*` or `claude-*` worker instead (different harness, own auth).
+**3) Translate the classifier's model name → Pi flags, then cast — inside the roster lock:**
+**Roster lock (hard constraint, see the conductor skill's copy for the full statement): only
+`claude-worker`/`claude-reviewer` on Sonnet 5 or Opus 4.8, or `pi` on `gpt-5.5`/`gpt-5.6`, are
+permitted for worker/reviewer/AC/QA seats. Banned, always: Grok/xAI, Kimi/`claudekimi`,
+GLM/`claudeglm`, Gemini/`agy`.** If `model-classifier`'s rubric would route you to a banned
+model, follow its own hard-roster-lock override instead — don't cast the banned model because the
+table below used to list it.
 
-| model-classifier says | Pi flags |
+| model-classifier says (within the roster lock) | Pi flags |
 | --- | --- |
 | GPT-5.6 Sol (hard coding) | `--provider openai-codex --model gpt-5.6-sol` |
 | GPT-5.6 Terra (taste/design) | `--provider openai-codex --model gpt-5.6-terra` |
 | GPT-5.6 Luna (generalist) | `--provider openai-codex --model gpt-5.6-luna` |
 | GPT-5.5 (Codex) | `--provider openai-codex --model gpt-5.5` |
-| Kimi K2.7 Code | `--provider kimi-coding --model k2p7` |
-| Grok 4.5 | `--provider xai-auth --model grok-4.5` |
-| Gemini 3.1 Pro | not a pi model → cast `agy-researcher`/`agy-worker` (Gemini via agy) |
-| Claude (Opus/Sonnet/…) | not a pi model → cast `claude-worker`/`claude-reviewer` (Claude Code) |
+| Claude Sonnet 5 / Opus 4.8 | not a pi model → cast `claude-worker`/`claude-reviewer` (Claude Code, `--dangerously-skip-permissions`) |
+
+Anything else the classifier names (Grok, Gemini, Kimi, GLM) is **banned** — re-classify for the
+nearest allowed alternative above instead of casting it.
 
 **Cast example:** `cd <worktree> && pi-implementer --provider openai-codex --model gpt-5.6-sol`
 (then send the brief, capture results). Use the verb **cast** for spinning up a worker seat.
@@ -152,8 +161,28 @@ early either.
 
 ## Gates (non-negotiable)
 
-- Independent review by a **DIFFERENT model** than the implementer — if the build ran on model M,
-  the reviewer must NOT be M (re-classify for a different capable model if needed).
-- Full Definition of Done: real PR + CI green + review evidence on the PR + AC-verify that ran the
-  real code; AC checkboxes checked only after that verification.
-- Pass each seat the Linear ticket details it needs. Never promote to main — the CEO does that.
+Canonical order — no step skipped or reordered (see the conductor skill's "Docs-as-final-DoD-gate"
+for the full statement):
+
+1. **Independent review by a DIFFERENT model** than the implementer — if the build ran on model M,
+   the reviewer must NOT be M (re-classify for a different capable model if needed). Posted on the PR.
+2. **AC-verify** — real commands run against real code, evidence posted on the PR. AC checkboxes
+   checked only after that verification, never on a claim.
+3. **CI green** — or a documented infra-blocker waiver (e.g. GitHub Actions billing), stated
+   explicitly on the PR and the Linear ticket, never used to wave off a real code/test failure.
+4. **Docs pass** — cast `pi-docs` (or do it yourself for small/docs-adjacent tickets): README and
+   every affected doc updated to match the change, OR an explicit no-docs-needed rationale posted
+   on the PR. Not optional, not skippable because "it's just a fix."
+5. **Merge to develop, flip Linear to Done** — you do this yourself once gates 1-4 pass; don't
+   park a fully-gated PR waiting on the CEO. The CEO's only manual step is develop→main promotion.
+
+Pass each seat the Linear ticket details it needs. Every ticket needs a Linear ticket with
+markdown checkbox AC **before** work starts — don't backfill one after the fact. Never promote to
+main — the CEO does that.
+
+## Project separation
+
+Your project (e.g. `pi-fleet`) does not carry another project's (e.g. `peek`) profile/skill-
+specific wiring, symlinks, or internal assumptions — only external CLI dependencies you install
+and call normally. If you're unsure whether something crosses that line, see the conductor
+skill's fuller statement of this rule.
