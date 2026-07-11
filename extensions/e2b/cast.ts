@@ -140,17 +140,23 @@ export async function tryCreateSandbox(
 	// Once the sandbox exists, any later failure must kill it so we don't leak a
 	// billed sandbox for a job that will be marked failed.
 	try {
+		// /work is created by the template's build (root) but the sandbox runs
+		// commands as its non-root default user; re-assert ownership/perms as
+		// root *before* writing into /work so this succeeds even if the
+		// template image predates the Dockerfile chown fix (i.e. /work is
+		// still root-owned and the non-root user can't write into it yet).
+		await sandbox.commands.run("mkdir -p /work && chmod -R a+rwX /work", {
+			timeoutMs: 60_000,
+			user: "root",
+		});
+
 		const runner = buildRunnerScript(job);
 		await sandbox.files.write("/work/run-job.sh", runner);
 
-		// /work is created by the template's build (root) but the sandbox runs
-		// commands as its non-root default user; re-assert ownership/perms as
-		// root so the backgrounded runner below can create job.log/job.pid even
-		// if the template image predates this fix.
-		await sandbox.commands.run(
-			"mkdir -p /work && chmod -R a+rwX /work && chmod +x /work/run-job.sh",
-			{ timeoutMs: 60_000, user: "root" },
-		);
+		await sandbox.commands.run("chmod +x /work/run-job.sh", {
+			timeoutMs: 60_000,
+			user: "root",
+		});
 
 		await sandbox.commands.run(
 			"bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",
