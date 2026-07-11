@@ -36,6 +36,11 @@ RUNNER="${PI_SCHEDULE_SYNC_RUNNER:-$DEFAULT_ROOT/bin/pi-personal-schedule-run}"
 
 mkdir -p "$AGENTS_DIR" "$LOG_DIR"
 
+# Runtime enforcement: personal launchd schedules must never bleed into pi's global scheduler
+# store. Other pi runtimes (e.g. remote-pi/dev.remotepi.supervisord) can still write to it from
+# outside this repo, so every sync purges whatever is found there.
+"$SELF_ROOT/bin/lib/scheduler-status.sh" || echo "pi-personal-schedule-sync: scheduler-status check failed, continuing" >&2
+
 if [[ "$ENABLED" == "0" ]]; then
   shopt -s nullglob
   plists=("$AGENTS_DIR/$LABEL_PREFIX".*.plist)

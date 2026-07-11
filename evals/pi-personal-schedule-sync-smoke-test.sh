@@ -18,52 +18,52 @@ GLOBAL_TASKS="$FAKE_HOME/.pi/agent/state/scheduler/tasks.json"
 LAUNCHCTL_LOG="$TMPDIR/launchctl.log"
 mkdir -p "$FAKE_BIN" "$(dirname "$STABLE_RUNNER")" "$(dirname "$GLOBAL_TASKS")"
 cp "$FLEET_ROOT/profiles/personal-assistant/schedules.json" "$FAKE_SCHEDULES"
-printf '#!/usr/bin/env bash\nexit 0\n' > "$STABLE_RUNNER"
-printf '#!/usr/bin/env bash\nexit 0\n' > "$FAKE_BIN/outfitter"
-cat > "$FAKE_BIN/launchctl" <<'EOF'
+printf '#!/usr/bin/env bash\nexit 0\n' >"$STABLE_RUNNER"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$FAKE_BIN/outfitter"
+cat >"$FAKE_BIN/launchctl" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$PI_TEST_LAUNCHCTL_LOG"
 exit 0
 EOF
 chmod +x "$STABLE_RUNNER" "$FAKE_BIN/outfitter" "$FAKE_BIN/launchctl"
-printf '{"version":2,"tasks":[]}\n' > "$GLOBAL_TASKS"
+printf '{"version":2,"tasks":[]}\n' >"$GLOBAL_TASKS"
 
 pass=0
 fail=0
 check() {
-  if [[ "$1" == "true" ]]; then
-    echo "  ok - $2"
-    pass=$((pass + 1))
-  else
-    echo "  FAIL - $2"
-    fail=$((fail + 1))
-  fi
+	if [[ "$1" == "true" ]]; then
+		echo "  ok - $2"
+		pass=$((pass + 1))
+	else
+		echo "  FAIL - $2"
+		fail=$((fail + 1))
+	fi
 }
 check_eq() {
-  if [[ "$1" == "$2" ]]; then
-    echo "  ok - $3 (got '$1')"
-    pass=$((pass + 1))
-  else
-    echo "  FAIL - $3 (expected '$2', got '$1')"
-    fail=$((fail + 1))
-  fi
+	if [[ "$1" == "$2" ]]; then
+		echo "  ok - $3 (got '$1')"
+		pass=$((pass + 1))
+	else
+		echo "  FAIL - $3 (expected '$2', got '$1')"
+		fail=$((fail + 1))
+	fi
 }
 plist_count() {
-  shopt -s nullglob
-  local plists=("$FAKE_AGENTS_DIR"/*.plist)
-  shopt -u nullglob
-  echo "${#plists[@]}"
+	shopt -s nullglob
+	local plists=("$FAKE_AGENTS_DIR"/*.plist)
+	shopt -u nullglob
+	echo "${#plists[@]}"
 }
 run_sync() {
-  HOME="$FAKE_HOME" \
-  PATH="$FAKE_BIN:/usr/bin:/bin:/usr/sbin:/sbin" \
-  PI_FLEET_PROFILE=personal-assistant \
-  PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
-  PI_SCHEDULE_SYNC_LOG_DIR="$FAKE_LOG_DIR" \
-  PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
-  PI_SCHEDULER_TASKS_FILE="$GLOBAL_TASKS" \
-  PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
-  "$FLEET_ROOT/bin/pi-personal-schedule-sync"
+	HOME="$FAKE_HOME" \
+		PATH="$FAKE_BIN:/usr/bin:/bin:/usr/sbin:/sbin" \
+		PI_FLEET_PROFILE=personal-assistant \
+		PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
+		PI_SCHEDULE_SYNC_LOG_DIR="$FAKE_LOG_DIR" \
+		PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
+		PI_SCHEDULER_TASKS_FILE="$GLOBAL_TASKS" \
+		PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
+		"$FLEET_ROOT/bin/pi-personal-schedule-sync"
 }
 
 SOCIAL_PLIST="$FAKE_AGENTS_DIR/dev.pi-fleet.personal.social-x-checkup.plist"
@@ -71,9 +71,9 @@ GMAIL_PLIST="$FAKE_AGENTS_DIR/dev.pi-fleet.personal.gmail-reply-checkup.plist"
 
 echo "1) profile guard: a non-personal role cannot install schedules"
 HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=conductor \
-  PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
-  PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
-  "$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
+	PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
+	PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
+	"$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
 check_eq "$(plist_count)" "0" "conductor invocation creates no personal schedules"
 
 echo "2) first personal sync: creates and loads stable, launchd-safe jobs"
@@ -102,10 +102,10 @@ check_eq "$(cat "$GLOBAL_TASKS")" "$TASKS_BEFORE" "personal sync leaves global s
 
 echo "4) PI_SCHEDULE_SYNC_ENABLED=0 unloads and removes installed schedules"
 HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
-  PI_SCHEDULE_SYNC_ENABLED=0 \
-  PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
-  PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
-  "$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
+	PI_SCHEDULE_SYNC_ENABLED=0 \
+	PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
+	PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
+	"$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
 check_eq "$(plist_count)" "0" "disabled sync removes both personal LaunchAgents"
 check_eq "$(cat "$GLOBAL_TASKS")" "$TASKS_BEFORE" "disabled sync does not populate global scheduler store"
 

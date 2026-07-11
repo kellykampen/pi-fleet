@@ -14,9 +14,15 @@ Long-running seats — `pi-conductor`, `pi-project-lead`, and a personal-assista
 - Installed plists: `~/Library/LaunchAgents/dev.pi-fleet.personal.*.plist`
 
 This keeps the schedules **bound to the personal-assistant instance**:
-`pi-conductor`, `pi-project-lead`, and other profiles never install or fire them, and the global
-`~/.pi/agent/state/scheduler/tasks.json` remains empty. Conductor and project-lead wrappers print a
-read-only startup status (`0 global scheduled actions`) so scheduler isolation is visible at runtime.
+`pi-conductor`, `pi-project-lead`, and other profiles never install or fire them, and
+`bin/lib/scheduler-status.sh` actively purges anything found in the global
+`~/.pi/agent/state/scheduler/tasks.json` on every conductor/project-lead start and every personal
+schedule sync (leaked tasks are backed up alongside the store, not silently dropped, and a warning
+names the file). This matters because other pi runtimes - notably the `remote-pi` /
+`dev.remotepi.supervisord` daemon, which is outside this repo - can still write directly to that
+file; a persistently-running instance of that daemon can keep re-registering tasks faster than any
+one sync can purge them, so a recurring warning means that daemon needs a restart
+(`launchctl kickstart -k gui/$(id -u)/dev.remotepi.supervisord`), not a change in this repo.
 
 Current schedules:
 
@@ -30,8 +36,9 @@ See `docs/personal-schedules.md` for full details.
 ## ⚠️ Avoid machine-global scheduler extensions
 
 The old machine-global scheduler stored jobs in `~/.pi/agent/state/scheduler/tasks.json` and
-leaked scheduled actions into every pi instance. That store is now kept empty; personal checkups
-are recreated locally from the personal-assistant profile instead.
+leaked scheduled actions into every pi instance. That store is now actively kept empty by
+`bin/lib/scheduler-status.sh`; personal checkups are recreated locally from the personal-assistant
+profile instead.
 
 ## Historical: `@jl1990/pi-scheduler` and `pi-schedule-prompt`
 
