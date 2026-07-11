@@ -383,10 +383,20 @@ export async function refreshFromSandbox(
 
 		if (resultRaw) {
 			const remote = sanitizeObject(JSON.parse(resultRaw)) as Partial<FleetJob>;
+			const nextStatus = (remote.status as FleetJob["status"]) || job.status;
+			// Lifecycle hygiene: once the remote side has written a terminal result,
+			// the sandbox is done; kill it immediately rather than waiting for TTL.
+			if (isTerminal(nextStatus)) {
+				try {
+					await sandbox.kill?.();
+				} catch {
+					// ignore best-effort kill
+				}
+			}
 			return updateJob(
 				job.jobId,
 				sanitizeJobPatch({
-					status: (remote.status as FleetJob["status"]) || job.status,
+					status: nextStatus,
 					commitSha: remote.commitSha ?? job.commitSha,
 					prUrl: remote.prUrl ?? job.prUrl,
 					branch: remote.branch ?? job.branch,

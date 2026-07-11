@@ -88,7 +88,7 @@ export interface JobStore {
 	list(filter?: JobFilter): Promise<FleetJob[]>;
 }
 
-export const DEFAULT_TIMEOUT_MINUTES = 90;
+export const DEFAULT_TIMEOUT_MINUTES = 60;
 export const TERMINAL_STATUSES: JobStatus[] = [
 	"succeeded",
 	"failed",

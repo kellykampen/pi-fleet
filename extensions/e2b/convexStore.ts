@@ -36,7 +36,7 @@ export interface ConvexJobStoreOptions {
 /** Convex adds `_id`/`_creationTime` to every document; strip them from jobs. */
 function stripSystemFields(row: Record<string, unknown>): FleetJob {
 	const { _id, _creationTime, ...job } = row;
-	return job as FleetJob;
+	return job as unknown as FleetJob;
 }
 
 export function isConvexConfigured(): boolean {
