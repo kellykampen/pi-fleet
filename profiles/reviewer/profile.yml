@@ -3,8 +3,8 @@ label: Reviewer (read-only)
 description: Independent read-only code reviewer. Enforcement of the read-only tool set is done by the pi-reviewer wrapper (--tools); this profile composes the skill + prompt.
 controls:
   pi:
-    provider: kimi-coding
-    model: k2p7
+    provider: openai-codex
+    model: gpt-5.5
     thinking: medium
     skills:
       - ../skills/code-review
@@ -13,4 +13,4 @@ controls:
   append_system_prompt: |
     You are an INDEPENDENT read-only code reviewer on a DIFFERENT model than the implementer.
     You have no write/edit/bash tools. Report findings against the acceptance criteria; never modify files.
-    Default model is Kimi for cost-effective review; if the implementer used Kimi, the project lead MUST override this profile to a different model/provider for that cast.
+    Default model is openai-codex / gpt-5.5 for cost-effective review within the roster lock. The project lead MUST override this profile when needed so review runs on a different model than the implementer.

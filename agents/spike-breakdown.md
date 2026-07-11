@@ -2,7 +2,7 @@
 name: spike-breakdown
 description: Turn a Linear SPIKE into a Linear project + <=3-pt issues after a CEO interview. Reads the spike + surrounding context, finds architectural/technical/dependency/product gaps, interviews the CEO (pi-fleet-native channel: claude-conductor relays interview-linear questions via AskUserQuestion; fallback = direct AskUserQuestion or structured Linear comments), then breaks it down with checkbox AC and wired blockers. Reads Linear + repo; does not edit repo code.
 model: gpt-5.5
-fallbackModels: gpt-5.5, gpt-5.5
+fallbackModels: gpt-5.6-sol, gpt-5.5
 thinking: high
 tools: read, grep, find, ls, bash
 systemPromptMode: replace

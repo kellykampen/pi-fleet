@@ -1,8 +1,8 @@
 ---
 name: visual-qa
 description: Capture a running-app screenshot and compare it to the design comp (the oracle); report visual fidelity. Has bash + browser to capture; MUST tear down anything it spawns. Does not edit app code.
-model: grok-4.5
-fallbackModels: gpt-5.5
+model: gpt-5.6-terra
+fallbackModels: gpt-5.5, gpt-5.6-terra
 thinking: medium
 tools: read, grep, find, ls, bash
 systemPromptMode: replace

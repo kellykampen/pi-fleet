@@ -90,13 +90,14 @@ You have the **model-classifier** skill loaded — use it. Don't pick models fro
 | Build on a different harness (diversity) | `claude-worker` (Sonnet 5/Opus 4.8) |
 | Read/update claude.ai design + implement | `claude-designer` |
 
-`claude-*` / `agy-*` are **not pi** — launch them directly (no `--provider/--model`); they carry
-their own model + restrictions. Use them into panes exactly like pi wrappers.
+`claude-*` seats are **not pi** — launch them directly (no `--provider/--model`); they carry
+their own model + restrictions. `agy-*` seats are disabled by the roster lock.
 
 **2) Pick the MODEL via `model-classifier`:** describe the specific task to the classifier, get the
 best model. Each profile has a **default model, but it's only a fallback** — override it per cast
 when the classifier says something else fits better. The wrappers forward `--provider`/`--model`,
-so `pi-implementer --provider X --model Y` just works.
+and also accept role/generic env defaults (`PI_<ROLE>_MODEL`, `PI_MODEL`); explicit CLI flags win.
+So `pi-implementer --provider X --model Y` just works.
 
 **3) Translate the classifier's model name → Pi flags, then cast — inside the roster lock:**
 **Roster lock (hard constraint, see the conductor skill's copy for the full statement): only

@@ -3,4 +3,6 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/peek-env.sh"
-exec outfitter run --profile ac-verifier --agent pi -- --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
+. "$DIR/lib/pi-model-env.sh"
+pi_model_override_args ac-verifier "" "$@"
+exec outfitter run --profile ac-verifier --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"

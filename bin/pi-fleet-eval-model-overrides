@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# pi-fleet-eval-model-overrides — deterministic check for wrapper model/provider env override merging.
+# No real agent launch: mocks outfitter and asserts the args each wrapper would hand to Pi.
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="${1:-$ROOT/evals/results/model-overrides-latest.txt}"
+exec > >(tee "$OUT") 2>&1
+
+pass=0; fail=0
+check_contains() {
+  local desc="$1" got="$2" want="$3"
+  if [[ "$got" == *"$want"* ]]; then
+    pass=$((pass + 1)); echo "PASS: $desc"
+  else
+    fail=$((fail + 1)); echo "FAIL: $desc"; echo "  got:  $got"; echo "  want contains: $want"
+  fi
+}
+check_not_contains() {
+  local desc="$1" got="$2" banned="$3"
+  if [[ "$got" != *"$banned"* ]]; then
+    pass=$((pass + 1)); echo "PASS: $desc"
+  else
+    fail=$((fail + 1)); echo "FAIL: $desc"; echo "  got: $got"; echo "  banned: $banned"
+  fi
+}
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+cat > "$TMP/outfitter" <<'SH'
+#!/usr/bin/env bash
+printf '%q ' "$@" > "$PI_FLEET_MOCK_OUT"
+printf '\n' >> "$PI_FLEET_MOCK_OUT"
+SH
+chmod +x "$TMP/outfitter"
+
+run_wrapper() {
+  local outfile="$TMP/args.txt"
+  : > "$outfile"
+  env -i HOME="$HOME" PATH="$TMP:$PATH" PI_FLEET_MOCK_OUT="$outfile" "$@"
+  cat "$outfile"
+}
+
+args="$(run_wrapper PI_IMPLEMENTER_PROVIDER=openai-codex PI_IMPLEMENTER_MODEL=gpt-5.6-sol "$ROOT/bin/pi-implementer" -p noop)"
+check_contains "role-specific env controls implementer provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-sol --tools"
+
+args="$(run_wrapper PI_PROVIDER=openai-codex PI_MODEL=gpt-5.5 "$ROOT/bin/pi-reviewer" -p noop)"
+check_contains "generic env controls reviewer provider/model" "$args" "-- --provider openai-codex --model gpt-5.5 --tools"
+
+args="$(run_wrapper PI_PROVIDER=openai-codex PI_MODEL=gpt-5.5 PI_AC_VERIFIER_MODEL=gpt-5.6-luna "$ROOT/bin/pi-ac-verifier" -p noop)"
+check_contains "role env beats generic env for ac-verifier model" "$args" "-- --provider openai-codex --model gpt-5.6-luna --tools"
+
+args="$(run_wrapper PI_PROVIDER=openai-codex PI_LEAD_MODEL=gpt-5.6-sol "$ROOT/bin/pi-project-lead" -p noop)"
+check_contains "role alias PI_LEAD_MODEL controls project-lead" "$args" "-- --provider openai-codex --model gpt-5.6-sol --no-lens"
+
+args="$(run_wrapper PI_PROVIDER=env-provider PI_MODEL=env-model "$ROOT/bin/pi-implementer" --provider explicit-provider --model explicit-model -p noop)"
+check_not_contains "explicit CLI provider/model suppress env defaults" "$args" "env-provider"
+check_not_contains "explicit CLI model suppresses env model" "$args" "env-model"
+check_contains "explicit CLI provider/model are preserved" "$args" "--provider explicit-provider --model explicit-model"
+
+args="$(run_wrapper PI_PLANNER_PROVIDER=openai-codex PI_PLANNER_MODEL=gpt-5.6-terra "$ROOT/bin/pi-planner" -p noop)"
+check_contains "role-specific env controls planner provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
+
+args="$(run_wrapper PI_REMOTION_PROVIDER=openai-codex PI_REMOTION_MODEL=gpt-5.6-terra "$ROOT/bin/pi-remotion" -p noop)"
+check_contains "role-specific env controls remotion provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
+
+args="$(run_wrapper PI_RESEARCHER_PROVIDER=openai-codex PI_RESEARCHER_MODEL=gpt-5.5 "$ROOT/bin/pi-researcher" -p noop)"
+check_contains "role-specific env controls researcher provider/model" "$args" "-- --provider openai-codex --model gpt-5.5 --tools"
+
+args="$(run_wrapper PI_PERSONAL_ASSISTANT_PROVIDER=openai-codex PI_PERSONAL_ASSISTANT_MODEL=gpt-5.6-terra \
+  PI_SCHEDULE_SYNC_DRY_RUN=1 PI_SCHEDULE_SYNC_AGENTS_DIR="$TMP/agents" PI_SCHEDULE_SYNC_LOG_DIR="$TMP/logs" \
+  "$ROOT/bin/pi-personal-assistant" -p noop)"
+check_contains "role-specific env controls personal-assistant provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
+
+# Regression guard: bin/lib/pi-model-env.sh populates PI_MODEL_ARGS as a bash array and wrappers
+# expand it as "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}". Without the [@]+ guard, expanding an
+# empty array under `set -u` throws "unbound variable" on bash 3.2 (macOS's default /bin/bash),
+# i.e. every wrapper invocation with zero overrides would crash.
+args="$(run_wrapper "$ROOT/bin/pi-researcher" -p noop)"
+check_contains "no override still launches (empty PI_MODEL_ARGS array under set -u)" "$args" '-- --tools read\,grep\,find\,ls\,context7_resolve-library-id\,context7_query-docs'
+check_not_contains "no override does not emit a stray --provider/--model" "$args" "--provider"
+
+if [ "$fail" -eq 0 ]; then
+  echo "VERDICT: PASS ($pass checks)"
+else
+  echo "VERDICT: FAIL ($fail failed, $pass passed)"
+fi
+exit "$fail"

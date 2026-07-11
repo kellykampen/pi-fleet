@@ -3,6 +3,9 @@
 # allowlist. Full toolset (bash) so it can run finch (X) + linear-cli; the draft->approve->execute
 # gate is enforced by the personal-assistant skill/prompt, not by removing tools.
 set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$DIR/lib/pi-model-env.sh"
+pi_model_override_args personal-assistant "assistant personal" "$@"
 
 # Keep personal schedules in launchd only. The explicit profile marker prevents another role from
 # accidentally installing them; sync failure remains non-fatal for interactive availability.
@@ -10,4 +13,4 @@ PI_FLEET_PROFILE=personal-assistant \
   "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pi-personal-schedule-sync" \
   || echo "pi-personal-assistant: schedule sync failed, continuing" >&2
 
-exec outfitter run --profile personal-assistant --agent pi -- --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
+exec outfitter run --profile personal-assistant --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
