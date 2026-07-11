@@ -9,6 +9,7 @@ import {
 	collectWorkerEnv,
 	FLEET_WORKER_MODEL_KEYS,
 	MISSING_FLEET_REPO_URL_ERROR,
+	PI_AGENT_AUTH_ENV,
 	resolveFleetRepoUrl,
 	sanitizeSecrets,
 } from "./secrets.ts";
@@ -33,6 +34,7 @@ function clearSensitiveEnv() {
 	delete process.env.E2B_API_KEY;
 	delete process.env.FLEET_REPO_URL;
 	delete process.env.FLEET_E2B_TEMPLATE;
+	delete process.env[PI_AGENT_AUTH_ENV];
 	for (const key of FLEET_WORKER_MODEL_KEYS) delete process.env[key];
 }
 
@@ -61,6 +63,18 @@ test("collectWorkerEnv forwards GitHub and fleet worker keys under canonical nam
 		OPENAI_API_KEY: "sk-worker-openai",
 		ANTHROPIC_API_KEY: "sk-worker-anthropic",
 	});
+});
+
+test("collectWorkerEnv forwards the pi agent auth blob when present", () => {
+	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJ0b2tlbi1zZWNyZXQifQ==";
+
+	assert.equal(
+		collectWorkerEnv()[PI_AGENT_AUTH_ENV],
+		"eyJvYXV0aCI6ICJ0b2tlbi1zZWNyZXQifQ==",
+	);
+	// Absent when unset (no empty string leaked into the sandbox env).
+	delete process.env[PI_AGENT_AUTH_ENV];
+	assert.equal(PI_AGENT_AUTH_ENV in collectWorkerEnv(), false);
 });
 
 function implementerJob(overrides: Partial<FleetJob> = {}): FleetJob {
@@ -126,6 +140,36 @@ test("buildRunnerScript anchors Outfitter profile resolution to /work/pi-fleet/p
 	// must be symlinked there or the profile fails to load its extension.
 	assert.match(script, /ln -sfn \/work\/pi-fleet\/extensions \/work\/extensions/);
 	assert.match(script, /ln -sfn \/work\/pi-fleet\/skills \/work\/skills/);
+});
+
+test("buildRunnerScript materializes ~/.pi/agent/auth.json from the env var without embedding the token", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	// A stand-in for the base64 auth blob; the literal must never appear in the
+	// generated script — only the env-var reference does.
+	process.env[PI_AGENT_AUTH_ENV] = "TOKEN_LITERAL_MUST_NOT_APPEAR_zzz999";
+	const script = buildRunnerScript(implementerJob());
+
+	assert.equal(script.includes(process.env[PI_AGENT_AUTH_ENV] as string), false);
+	// Decodes straight to a 600-locked file, never to stdout.
+	assert.match(script, /mkdir -p "\$HOME\/\.pi\/agent"/);
+	assert.match(
+		script,
+		/printf '%s' "\$\{PI_AGENT_AUTH_JSON_B64\}" \| base64 -d > "\$HOME\/\.pi\/agent\/auth\.json"/,
+	);
+	assert.match(script, /chmod 600 "\$HOME\/\.pi\/agent\/auth\.json"/);
+	// Guarded so an unset blob doesn't clobber auth.json with an empty file.
+	assert.match(script, /if \[ -n "\$\{PI_AGENT_AUTH_JSON_B64:-\}" \]/);
+});
+
+test("sanitizeSecrets redacts the pi agent auth blob value", () => {
+	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJzdXBlci1zZWNyZXQtdG9rZW4ifQ==";
+
+	const sanitized = sanitizeSecrets(
+		`auth=${process.env[PI_AGENT_AUTH_ENV]} done`,
+	);
+
+	assert.equal(sanitized.includes(process.env[PI_AGENT_AUTH_ENV] as string), false);
+	assert.equal(sanitized, "auth=*** done");
 });
 
 test("sanitizeSecrets redacts exact env values and common GitHub token shapes", () => {

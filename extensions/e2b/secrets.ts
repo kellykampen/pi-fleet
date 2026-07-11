@@ -36,10 +36,20 @@ export const FLEET_WORKER_MODEL_KEYS = [
 	"MOONSHOT_API_KEY",
 ] as const;
 
+// Base64 of the local pi agent auth blob (`~/.pi/agent/auth.json`). pi uses
+// OAuth (not an API key) for providers like openai-codex, so the sandbox can't
+// authenticate from *_API_KEY env vars alone. When set locally, this is
+// forwarded into the sandbox and materialized to `$HOME/.pi/agent/auth.json`.
+export const PI_AGENT_AUTH_ENV = "PI_AGENT_AUTH_JSON_B64";
+
+/** Path the runner writes the decoded pi auth blob to inside the sandbox. */
+export const PI_AGENT_AUTH_PATH = "$HOME/.pi/agent/auth.json";
+
 /** All env keys that may hold sensitive values; used for log sanitization. */
 export const SENSITIVE_ENV_KEYS = [
 	...GITHUB_TOKEN_ENV_KEYS,
 	"E2B_API_KEY",
+	PI_AGENT_AUTH_ENV,
 	...FLEET_WORKER_MODEL_KEYS,
 ];
 
@@ -68,6 +78,8 @@ export function collectWorkerEnv(): Record<string, string> {
 		const v = process.env[key]?.trim();
 		if (v) envs[key] = v;
 	}
+	const piAuth = process.env[PI_AGENT_AUTH_ENV]?.trim();
+	if (piAuth) envs[PI_AGENT_AUTH_ENV] = piAuth;
 	return envs;
 }
 
@@ -178,6 +190,16 @@ ln -sfn /work/pi-fleet/skills /work/skills
 if [ -n "\${FLEET_GITHUB_TOKEN:-}" ]; then
   export GH_TOKEN="\$FLEET_GITHUB_TOKEN"
   git config --global url."https://x-access-token:\${FLEET_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+fi
+
+# pi agent auth: pi uses OAuth (not an API key) for providers like openai-codex,
+# so forward the local ~/.pi/agent/auth.json as base64 and materialize it here.
+# Decode straight to the file (never to stdout) and lock it down to 600 so the
+# token values are never echoed into the job log.
+if [ -n "\${${PI_AGENT_AUTH_ENV}:-}" ]; then
+  mkdir -p "\$HOME/.pi/agent"
+  printf '%s' "\${${PI_AGENT_AUTH_ENV}}" | base64 -d > "${PI_AGENT_AUTH_PATH}"
+  chmod 600 "${PI_AGENT_AUTH_PATH}"
 fi
 
 ${checkout}
