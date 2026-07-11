@@ -132,8 +132,13 @@ Only **you** (project lead) have the E2B tools; do not expect workers or the con
 | `e2b_wait` | Optional block until terminal |
 | `e2b_cancel` | Kill sandbox + mark cancelled |
 
+Lifecycle hygiene: `cast.ts` kills the E2B sandbox the moment a terminal `result.json`
+(success/failure/timeout/cancelled/needs_input) is observed; it does **not** wait for TTL. Any
+terminal job's sandbox must be considered dead/reclaimed. If you cancel a job via `e2b_cancel`,
+the sandbox is killed immediately.
+
 Rules: no local worktree for E2B casts; structured job JSON is authoritative; implementer still opens a PR.
-Stuck remote worker → `needs_input` then re-cast. Default hard timeout 90m. Design: E2B v0 design doc (see docs/e2b-v0.md).
+Stuck remote worker → `needs_input` then re-cast. Default hard timeout 60m. Design: E2B v0 design doc (see docs/e2b-v0.md).
 
 ## Model usage, roster overrides, and the machine-load guard
 

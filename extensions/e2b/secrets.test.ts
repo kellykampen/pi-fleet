@@ -234,7 +234,8 @@ test("buildRunnerScript uses the normalized per-cast repo for every target clone
 		prNumber: 42,
 	});
 	assert.match(prScript, /export TARGET_REPO='kellykampen\/pi-fleet'/);
-	assert.match(prScript, /clone_target --depth 1/);
+	assert.match(prScript, /clone_target\s*$/m);
+	assert.equal(prScript.includes("clone_target --depth"), false);
 	assert.equal(prScript.includes("github.com/kellykampen/pi-fleet.git"), false);
 
 	const branchScript = buildRunnerScript({
@@ -244,7 +245,8 @@ test("buildRunnerScript uses the normalized per-cast repo for every target clone
 		branch: "feature/x",
 	});
 	assert.match(branchScript, /export TARGET_REPO='kellykampen\/pi-fleet'/);
-	assert.match(branchScript, /clone_target --depth 1 --branch 'feature\/x'/);
+	assert.match(branchScript, /clone_target\s*$/m);
+	assert.equal(branchScript.includes("clone_target --depth"), false);
 	assert.equal(branchScript.includes("github.com/kellykampen/pi-fleet.git"), false);
 });
 
@@ -261,6 +263,27 @@ test("buildRunnerScript keeps the per-cast target separate from FLEET_REPO_URL",
 	assert.match(script, /export TARGET_REPO='customer-org\/private-app'/);
 	assert.match(script, /clone_target --depth 1 --branch 'develop'/);
 	assert.doesNotMatch(script, /TARGET_REPO='fleet-org\/pi-fleet'/);
+});
+
+test("buildRunnerScript uses full clone + gh pr checkout for codeAccess=pr", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildRunnerScript(
+		implementerJob({ codeAccess: "pr", prNumber: 42 }),
+	);
+	assert.match(script, /clone_target\s*$/m);
+	assert.doesNotMatch(script, /clone_target --depth/);
+	assert.match(script, /gh pr checkout 42/);
+});
+
+test("buildRunnerScript fetches and checks out the branch for codeAccess=branch", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildRunnerScript(
+		implementerJob({ codeAccess: "branch", branch: "feature/x" }),
+	);
+	assert.match(script, /clone_target\s*$/m);
+	assert.doesNotMatch(script, /clone_target --depth/);
+	assert.match(script, /git fetch origin 'feature\/x'/);
+	assert.match(script, /git checkout -b 'feature\/x' origin\/'feature\/x'/);
 });
 
 /**

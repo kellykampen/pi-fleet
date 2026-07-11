@@ -262,14 +262,21 @@ export function buildRunnerScript(job: FleetJob): string {
 	const repo = normalizeRepoSlug(job.repo || "");
 	if (job.codeAccess === "pr") {
 		checkout = [
-			"clone_target --depth 1",
+			// PR checkout needs a non-shallow clone so gh can fetch the PR ref and
+			// set up tracking without "starting point is not a branch" errors.
+			"clone_target",
 			"cd /work/repo",
 			`gh pr checkout ${Number(job.prNumber)}`,
 		].join("\n");
 	} else if (job.codeAccess === "branch") {
+		const branch = job.branch || "";
 		checkout = [
-			`clone_target --depth 1 --branch ${shellQuote(job.branch || "")}`,
+			// A full clone + explicit fetch/checkout avoids shallow-clone tracking
+			// failures for branches that may not be the repo's default.
+			"clone_target",
 			"cd /work/repo",
+			`git fetch origin ${shellQuote(branch)}`,
+			`git checkout -b ${shellQuote(branch)} origin/${shellQuote(branch)} || git checkout ${shellQuote(branch)}`,
 		].join("\n");
 	} else {
 		const newBranch = job.branch || `fleet/${job.jobId.slice(0, 8)}`;
@@ -304,12 +311,12 @@ export PATH="/work/pi-fleet/bin:$PATH"
 
 # Anchor Outfitter profile resolution to the cloned pi-fleet repo. The bin/pi-*
 # wrappers run \`outfitter run --profile <id>\`, which resolves profiles from
-# \$HOME/.outfitter/settings.yml or <cwd>/.outfitter — and the implementer runs
+# $HOME/.outfitter/settings.yml or <cwd>/.outfitter — and the implementer runs
 # with cwd=/work/repo (the target repo), where no such settings exist. Write a
 # user-scope settings file with an absolute profile source so the profile
 # resolves regardless of cwd, without moving the agent off /work/repo.
-mkdir -p "\$HOME/.outfitter"
-cat > "\$HOME/.outfitter/settings.yml" <<'FLEET_OUTFITTER_EOF'
+mkdir -p "$HOME/.outfitter"
+cat > "$HOME/.outfitter/settings.yml" <<'FLEET_OUTFITTER_EOF'
 default_profile: implementer
 profile_sources:
   - path: /work/pi-fleet/profiles
@@ -327,7 +334,7 @@ ln -sfn /work/pi-fleet/skills /work/skills
 
 # auth for gh/git (token from env — never echo values)
 if [ -n "\${FLEET_GITHUB_TOKEN:-}" ]; then
-  export GH_TOKEN="\$FLEET_GITHUB_TOKEN"
+  export GH_TOKEN="$FLEET_GITHUB_TOKEN"
   git config --global url."https://x-access-token:\${FLEET_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 fi
 
@@ -336,7 +343,7 @@ fi
 # Decode straight to the file (never to stdout) and lock it down to 600 so the
 # token values are never echoed into the job log.
 if [ -n "\${${PI_AGENT_AUTH_ENV}:-}" ]; then
-  mkdir -p "\$HOME/.pi/agent"
+  mkdir -p "$HOME/.pi/agent"
   printf '%s' "\${${PI_AGENT_AUTH_ENV}}" | base64 -d > "${PI_AGENT_AUTH_PATH}"
   chmod 600 "${PI_AGENT_AUTH_PATH}"
 fi

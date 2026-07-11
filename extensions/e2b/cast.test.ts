@@ -113,3 +113,52 @@ test("refreshFromSandbox kills the sandbox and marks the job timeout when result
 		await rm(jobsDir, { recursive: true, force: true });
 	}
 });
+
+test("refreshFromSandbox kills the sandbox when a terminal result.json appears", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+
+	const created = new Date().toISOString();
+	const job: FleetJob = await writeJob({
+		jobId: "job-terminal-kill",
+		profile: "implementer",
+		status: "running",
+		brief: "brief",
+		codeAccess: "clone",
+		repo: "owner/repo",
+		timeoutMinutes: 60,
+		dryRun: false,
+		sandboxId: "sandbox-terminal",
+		createdAt: created,
+		updatedAt: created,
+	});
+
+	let killed = false;
+	try {
+		const refreshed = await refreshFromSandbox(job, {
+			connectSandbox: async () => ({
+				files: {
+					async read(path: string) {
+						if (path === "/work/result.json") {
+							return JSON.stringify({ status: "succeeded", commitSha: "abc123" });
+						}
+						return "";
+					},
+				},
+				async kill() {
+					killed = true;
+				},
+			}),
+		});
+
+		assert.equal(killed, true);
+		assert.equal(refreshed.status, "succeeded");
+		assert.equal(refreshed.commitSha, "abc123");
+
+		const persisted = await readJob("job-terminal-kill");
+		assert.equal(persisted.status, "succeeded");
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
