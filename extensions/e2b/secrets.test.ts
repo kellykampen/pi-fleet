@@ -118,6 +118,12 @@ test("buildRunnerScript anchors Outfitter profile resolution to /work/pi-fleet/p
 	assert.match(script, /\$HOME\/\.outfitter\/settings\.yml/);
 	assert.match(script, /profile_sources:/);
 	assert.match(script, /- path: \/work\/pi-fleet\/profiles/);
+
+	// profile.yml extensions (`../extensions/<x>`) are resolved by pi against its
+	// cwd (/work/repo) → /work/extensions/..., so the pi-fleet extensions/skills
+	// must be symlinked there or the profile fails to load its extension.
+	assert.match(script, /ln -sfn \/work\/pi-fleet\/extensions \/work\/extensions/);
+	assert.match(script, /ln -sfn \/work\/pi-fleet\/skills \/work\/skills/);
 });
 
 test("sanitizeSecrets redacts exact env values and common GitHub token shapes", () => {

@@ -164,6 +164,16 @@ profile_sources:
   - path: /work/pi-fleet/profiles
 FLEET_OUTFITTER_EOF
 
+# Profile.yml declares extensions as \`../extensions/<x>\` (siblings of the
+# profiles dir). Outfitter resolves skills against the profile source dir, but
+# passes extension paths through to pi verbatim, and pi resolves them against
+# its cwd — which is /work/repo (the target repo). So \`../extensions/linear.ts\`
+# resolves to /work/extensions/linear.ts, not /work/pi-fleet/extensions/... .
+# Symlink the pi-fleet extensions (and skills, defensively) to where that
+# cwd-relative resolution lands so the profile loads regardless of cwd.
+ln -sfn /work/pi-fleet/extensions /work/extensions
+ln -sfn /work/pi-fleet/skills /work/skills
+
 # auth for gh/git (token from env — never echo values)
 if [ -n "\${FLEET_GITHUB_TOKEN:-}" ]; then
   export GH_TOKEN="\$FLEET_GITHUB_TOKEN"
