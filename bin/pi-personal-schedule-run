@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Build the full prompt for one named schedule (profiles/personal-assistant/schedules.json) and
+# run it one-shot through pi-personal-assistant. Invoked by launchd (see
+# bin/pi-personal-schedule-sync) - not meant to be run interactively, but safe to run by hand:
+#   bin/pi-personal-schedule-run social-x-checkup
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: $(basename "$0") <schedule-name>" >&2
+  exit 1
+fi
+
+FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCHEDULES_JSON="$FLEET_ROOT/profiles/personal-assistant/schedules.json"
+SCHEDULE_NAME="$1"
+
+PROMPT="$(python3 - "$SCHEDULES_JSON" "$SCHEDULE_NAME" <<'PYEOF'
+import json, sys
+
+schedules_path, name = sys.argv[1:3]
+with open(schedules_path) as f:
+    data = json.load(f)
+
+sched = next((s for s in data.get("schedules", []) if s["name"] == name), None)
+if sched is None:
+    print(f"unknown schedule: {name}", file=sys.stderr)
+    sys.exit(1)
+
+lines = []
+lines.append(f"Scheduled checkup: {sched['name']} ({sched['purpose']}).")
+lines.append("")
+lines.append(f"Roster: prefer {sched['roster']['prefer']}. Do NOT use: {', '.join(sched['roster']['banned'])}.")
+lines.append("")
+lines.append(f"Primary source: {sched['source']}.")
+lines.append("Run these commands first, in order:")
+for c in sched["commandsFirst"]:
+    lines.append(f"  {c}")
+if sched.get("fallback"):
+    lines.append("")
+    lines.append(f"Fallback: {sched['fallback']}")
+lines.append("")
+lines.append("Hard constraints:")
+for c in sched["hardConstraints"]:
+    lines.append(f"  - {c}")
+lines.append("")
+out = sched["output"]
+lines.append(
+    f"Output: under ~{out['maxWords']} words. Label source {out['sourceLabel']!r}. "
+    f"Label anything reply-needed or a broken dependency as {out['actionLabel']!r}."
+)
+lines.append(f"Escalation: {sched['escalation']}.")
+if sched.get("taskId"):
+    lines.append(f"Current local task ID if useful (do not hard-code stale-only behavior around it): {sched['taskId']}.")
+
+print("\n".join(lines))
+PYEOF
+)"
+
+exec "$FLEET_ROOT/bin/pi-personal-assistant" -p "$PROMPT"
