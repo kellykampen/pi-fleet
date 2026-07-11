@@ -8,8 +8,20 @@
  */
 import type { FleetJob } from "./types.js";
 
-// Repo the E2B worker clones. No hardcoded default — set FLEET_REPO_URL in your env.
-const FLEET_REPO_DEFAULT = process.env.FLEET_REPO_URL?.trim() || "";
+export const MISSING_FLEET_REPO_URL_ERROR =
+	"FLEET_REPO_URL is required for non-dry-run implementer casts (the pi-fleet repo the sandbox clones for its bin/ wrappers + profiles, e.g. FLEET_REPO_URL=https://github.com/<owner>/pi-fleet.git)";
+
+/**
+ * The pi-fleet repo the sandbox clones to /work/pi-fleet for its bin/ wrappers
+ * and profiles. Read at call time (never at module load, so tests and the cast
+ * see the current env) and fail fast with a clear error rather than emitting a
+ * `git clone ''` that dies with "fatal: repository '' does not exist".
+ */
+export function resolveFleetRepoUrl(): string {
+	const url = process.env.FLEET_REPO_URL?.trim();
+	if (!url) throw new Error(MISSING_FLEET_REPO_URL_ERROR);
+	return url;
+}
 
 export const GITHUB_TOKEN_ENV_KEYS = ["FLEET_GITHUB_TOKEN", "GH_TOKEN"] as const;
 
@@ -209,7 +221,7 @@ export STATUS`;
 
 /** Build the remote runner script (secrets only via env — never embedded). */
 export function buildRunnerScript(job: FleetJob): string {
-	const fleetRepo = FLEET_REPO_DEFAULT;
+	const fleetRepo = resolveFleetRepoUrl();
 	const fleetRef = job.fleetRef || "develop";
 	const baseBranch = job.baseBranch || "main";
 	const provider = job.provider || "";
@@ -265,6 +277,19 @@ FLEET_BRIEF_EOF
 git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet \\
   || git clone --depth 1 ${shellQuote(fleetRepo)} /work/pi-fleet
 export PATH="/work/pi-fleet/bin:$PATH"
+
+# Anchor Outfitter profile resolution to the cloned pi-fleet repo. The bin/pi-*
+# wrappers run \`outfitter run --profile <id>\`, which resolves profiles from
+# \$HOME/.outfitter/settings.yml or <cwd>/.outfitter — and the implementer runs
+# with cwd=/work/repo (the target repo), where no such settings exist. Write a
+# user-scope settings file with an absolute profile source so the profile
+# resolves regardless of cwd, without moving the agent off /work/repo.
+mkdir -p "\$HOME/.outfitter"
+cat > "\$HOME/.outfitter/settings.yml" <<'FLEET_OUTFITTER_EOF'
+default_profile: implementer
+profile_sources:
+  - path: /work/pi-fleet/profiles
+FLEET_OUTFITTER_EOF
 
 # auth for gh/git (token from env — never echo values)
 if [ -n "\${FLEET_GITHUB_TOKEN:-}" ]; then

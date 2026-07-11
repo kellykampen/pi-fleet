@@ -10,7 +10,9 @@ import {
 	buildRunnerScript,
 	collectWorkerEnv,
 	FLEET_WORKER_MODEL_KEYS,
+	MISSING_FLEET_REPO_URL_ERROR,
 	normalizeRepoSlug,
+	resolveFleetRepoUrl,
 	sanitizeSecrets,
 } from "./secrets.ts";
 import {
@@ -30,6 +32,8 @@ function clearSensitiveEnv() {
 	delete process.env.FLEET_GITHUB_TOKEN;
 	delete process.env.GH_TOKEN;
 	delete process.env.E2B_API_KEY;
+	delete process.env.FLEET_REPO_URL;
+	delete process.env.FLEET_E2B_TEMPLATE;
 	for (const key of FLEET_WORKER_MODEL_KEYS) delete process.env[key];
 }
 
@@ -60,11 +64,9 @@ test("collectWorkerEnv forwards GitHub and fleet worker keys under canonical nam
 	});
 });
 
-test("buildRunnerScript never embeds token values", () => {
-	process.env.FLEET_GITHUB_TOKEN =
-		"github_pat_thisSecretMustNotAppearInTheRunnerScript123456";
-	process.env.OPENAI_API_KEY = "sk-worker-secret";
-	const script = buildRunnerScript({
+function implementerJob(overrides: Partial<FleetJob> = {}): FleetJob {
+	const now = new Date().toISOString();
+	return {
 		jobId: "job-12345678",
 		profile: "implementer",
 		status: "queued",
@@ -73,9 +75,18 @@ test("buildRunnerScript never embeds token values", () => {
 		repo: "owner/repo",
 		timeoutMinutes: 90,
 		dryRun: false,
-		createdAt: new Date().toISOString(),
-		updatedAt: new Date().toISOString(),
-	});
+		createdAt: now,
+		updatedAt: now,
+		...overrides,
+	};
+}
+
+test("buildRunnerScript never embeds token values", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	process.env.FLEET_GITHUB_TOKEN =
+		"github_pat_thisSecretMustNotAppearInTheRunnerScript123456";
+	process.env.OPENAI_API_KEY = "sk-worker-secret";
+	const script = buildRunnerScript(implementerJob());
 
 	assert.equal(script.includes(process.env.FLEET_GITHUB_TOKEN), false);
 	assert.equal(script.includes(process.env.OPENAI_API_KEY), false);
@@ -330,6 +341,36 @@ test("refreshFromSandbox persists needs_input status and questions from a remote
 	}
 });
 
+test("resolveFleetRepoUrl throws a clear error when FLEET_REPO_URL is unset", () => {
+	delete process.env.FLEET_REPO_URL;
+	assert.throws(() => resolveFleetRepoUrl(), /FLEET_REPO_URL is required/);
+	process.env.FLEET_REPO_URL = "  https://github.com/owner/pi-fleet.git  ";
+	assert.equal(resolveFleetRepoUrl(), "https://github.com/owner/pi-fleet.git");
+});
+
+test("buildRunnerScript fails fast instead of emitting `git clone ''` when FLEET_REPO_URL is unset", () => {
+	delete process.env.FLEET_REPO_URL;
+	assert.throws(
+		() => buildRunnerScript(implementerJob()),
+		new RegExp(MISSING_FLEET_REPO_URL_ERROR.slice(0, 24)),
+	);
+});
+
+test("buildRunnerScript anchors Outfitter profile resolution to /work/pi-fleet/profiles", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildRunnerScript(implementerJob());
+
+	// The clone of the pi-fleet pin must use a real URL, never an empty string.
+	assert.equal(script.includes("git clone ''"), false);
+	assert.match(script, /github\.com\/owner\/pi-fleet\.git/);
+
+	// Profiles are resolved via a user-scope settings file with an absolute path,
+	// so `pi-implementer` resolves the profile even when run from /work/repo.
+	assert.match(script, /\$HOME\/\.outfitter\/settings\.yml/);
+	assert.match(script, /profile_sources:/);
+	assert.match(script, /- path: \/work\/pi-fleet\/profiles/);
+});
+
 test("sanitizeSecrets redacts exact env values and common GitHub token shapes", () => {
 	process.env.FLEET_GITHUB_TOKEN =
 		"github_pat_exactTokenValue_abcdefghijklmnopqrstuvwxyz123456";
@@ -409,6 +450,37 @@ test("non-dry-run cast fails clearly before sandboxId when FLEET_E2B_TEMPLATE is
 		const persisted = await readJob(job.jobId);
 		assert.equal(persisted.status, "failed");
 		assert.equal(persisted.error, MISSING_TEMPLATE_ERROR);
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+test("non-dry-run cast fails fast before sandbox creation when FLEET_REPO_URL is missing", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+	process.env.FLEET_E2B_TEMPLATE = "pi-fleet-node22";
+	delete process.env.FLEET_REPO_URL;
+
+	try {
+		// Real tryCreateSandbox: the FLEET_REPO_URL check must throw before the e2b
+		// SDK is imported or any sandbox is created — otherwise the runner would
+		// emit `git clone ''` inside a billed sandbox (FLT-4 blocker #1).
+		const job = await castJob({
+			profile: "implementer",
+			brief: "implement FLT-4",
+			codeAccess: "clone",
+			repo: "owner/repo",
+		});
+
+		assert.equal(job.status, "failed");
+		assert.equal(job.sandboxId, undefined);
+		assert.equal(job.error, MISSING_FLEET_REPO_URL_ERROR);
+
+		const persisted = await readJob(job.jobId);
+		assert.equal(persisted.status, "failed");
+		assert.equal(persisted.error, MISSING_FLEET_REPO_URL_ERROR);
 	} finally {
 		await rm(jobsDir, { recursive: true, force: true });
 	}

@@ -3,6 +3,7 @@ import {
 	buildRunnerScript,
 	collectWorkerEnv,
 	githubTokenPresent,
+	resolveFleetRepoUrl,
 	sanitizeSecrets,
 } from "./secrets.js";
 import {
@@ -122,6 +123,12 @@ export async function tryCreateSandbox(
 		// SDK's envd handshake instead of failing clearly. Fail fast here.
 		throw new Error(MISSING_TEMPLATE_ERROR);
 	}
+
+	// The runner clones FLEET_REPO_URL to /work/pi-fleet for its wrappers; a
+	// missing value would otherwise emit `git clone ''` inside the sandbox and
+	// die with "fatal: repository '' does not exist". Fail fast before we pay to
+	// create a sandbox.
+	resolveFleetRepoUrl();
 
 	const { Sandbox } = await import("e2b");
 	const timeoutMs = job.timeoutMinutes * 60 * 1000;
