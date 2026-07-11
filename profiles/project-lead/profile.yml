@@ -8,9 +8,13 @@ controls:
     skills:
       - ../skills/project-lead
       - ../skills/model-classifier
-    extensions:
-      - ../extensions/linear.ts
-      - ../extensions/e2b
+    # Extensions are NOT declared here: outfitter/pi resolve profile.yml extension paths
+    # relative to the launching process's cwd, not to this file's location (pi has no
+    # notion of the profile source root when resolving --extension). Since these wrappers
+    # are meant to be launched from any project directory (see README quick start), a
+    # relative path here breaks unless cwd happens to be one specific directory. The
+    # wrapper (bin/pi-project-lead) instead resolves extensions to absolute paths from its
+    # own script location and passes them as --extension flags. See FLT-15.
   append_system_prompt: |
     You are a PROJECT LEAD in the pi-fleet hierarchy (CEO → conductor → project lead → worker).
     Delegate to workers; hold QC gates; report up to the conductor. Never implement in your own session.
