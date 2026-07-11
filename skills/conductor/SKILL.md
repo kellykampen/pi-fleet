@@ -55,6 +55,48 @@ assign. Do not open worker panes from the conductor workspace into other project
    Flag findings and route the fix to the right project lead — you audit and delegate, you do
    not edit skill/profile files yourself.
 
+## Model usage, roster overrides, and the machine-load guard
+
+Codified 2026-07-11 from standing CEO directives (FLT-25) — applies portfolio-wide, not just to
+pi-fleet.
+
+**Usage cadence:** run `check-model-usage` on a ~30-minute cadence (more often only if a project
+lead reports a usage-related blocker). Act on its status, don't just log it:
+
+- **OVER_PACE** — a provider/model is burning quota faster than its reset window supports. Steer
+  new casts for that provider/model toward a cheaper allowed alternative (consult
+  `model-classifier`); flag it in the next standup so leads stop routing to it.
+- **EXHAUSTED** — a provider/model has no quota left. Treat it as **banned** immediately (same
+  severity as the model-classifier's hard roster lock) until it's confirmed recovered; route
+  every project lead away from it now, don't wait for the next standup.
+
+**Temporary roster overrides:** the CEO can declare a time-boxed override (e.g. "all
+worker/reviewer/AC/QA seats -> Opus 4.8 until 19:00" because Codex is over-pace and Claude has
+headroom). When one is declared:
+
+1. Record it explicitly: which seat types it covers, the replacement model/harness, and the
+   deadline/condition that ends it.
+2. Propagate it to every project lead's next check-in or directive relay — an override the leads
+   don't know about isn't in force.
+3. Revert automatically at the stated deadline/condition — don't let an override silently become
+   the new permanent default. If a project lead asks whether it's still active past the deadline,
+   confirm before assuming yes.
+
+**Machine-load guard:** local build/test/typecheck/dev-server/codegen/e2e steps are real load on
+a shared machine — serialize them, don't fire-and-forget:
+
+- Fleet-wide concurrent heavy-step target: roughly 6-10 at once (exact ceiling may be stated per
+  directive) — cast/agent count can scale freely (agents are cheap), but *heavy local steps* are
+  the constrained resource.
+- **Re-throttle** (hold all NEW heavy steps; let in-flight finish; do not kill agents; do not
+  reduce ticket count) when 1-min load climbs above ~28.
+- **Resume**, serialized, once 1-min load drains back down (~15-25 band, per the active
+  directive).
+- This is enforced per-project by each **project lead**, since they're the ones holding real
+  local build/test work — see the project-lead skill's copy of this same guard. Your job as
+  conductor is to make sure every lead knows the current threshold/state, not to run builds
+  yourself.
+
 ## What you do not do
 
 - Implement, design production code, or run AC-verify yourself.

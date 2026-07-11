@@ -119,6 +119,37 @@ Only **you** (project lead) have the E2B tools; do not expect workers or the con
 Rules: no local worktree for E2B casts; structured job JSON is authoritative; implementer still opens a PR.
 Stuck remote worker → `needs_input` then re-cast. Default hard timeout 90m. Design: E2B v0 design doc (see docs/e2b-v0.md).
 
+## Model usage, roster overrides, and the machine-load guard
+
+Codified 2026-07-11 from standing CEO directives (FLT-25) — same policy as the conductor's copy;
+you're the one who actually enforces the load half of it, since you hold the real local
+build/test work.
+
+**Usage cadence:** the conductor runs `check-model-usage` on a ~30-minute cadence and relays
+OVER_PACE/EXHAUSTED status to you. Treat EXHAUSTED as an immediate ban on that provider/model for
+new casts — re-classify via `model-classifier` and route to an allowed alternative. Treat
+OVER_PACE as a steer-away-from signal for new casts, not an immediate hard stop.
+
+**Temporary roster overrides:** when the CEO/conductor declares one (e.g. "worker/reviewer/AC/QA
+seats -> Opus 4.8 until 19:00"), it overrides your normal `model-classifier` pick for the covered
+seat types until its stated deadline/condition. Apply it to every new cast in scope; don't apply
+it retroactively to seats already running. If you're unsure whether it's still active, confirm
+before assuming yes — don't let a stale override linger past its deadline, and don't let it lapse
+early either.
+
+**Machine-load guard (you enforce this directly):**
+
+- Check load before starting any new local build/test/typecheck/dev-server/codegen/e2e step
+  (`uptime` — 1-min average is the trigger metric).
+- **Hold** new heavy steps (let in-flight finish; do not kill agents; do not reduce your ticket
+  count — keep casting/planning/reviewing/docs work) when 1-min load is above ~28.
+- **Resume, serialized** (one heavy step at a time per lead, not a fresh burst) once load drains
+  to roughly the 15-25 band — exact thresholds come from the active directive.
+- Fleet-wide heavy-step concurrency target is shared across all leads (roughly 6-10 at once) —
+  don't assume your project gets the whole budget.
+- Casting more seats is fine even while throttled (agents are cheap) — the constraint is on heavy
+  *local* steps specifically, not on how many workers you have in flight.
+
 ## Gates (non-negotiable)
 
 - Independent review by a **DIFFERENT model** than the implementer — if the build ran on model M,
