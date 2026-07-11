@@ -90,6 +90,9 @@ test("normalizeRepoSlug reduces every supported input shape to owner/repo", () =
 		"github.com/owner/repo.git",
 		"https://github.com/owner/repo",
 		"https://github.com/owner/repo.git",
+		"git@github.com:owner/repo.git",
+		"git@github.com:owner/repo",
+		"github.com/owner/repo/",
 	];
 	for (const input of inputs) {
 		assert.equal(normalizeRepoSlug(input), "owner/repo", `input: ${input}`);

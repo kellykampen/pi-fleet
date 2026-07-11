@@ -50,9 +50,11 @@ const NEEDS_INPUT_BRIEF_PREAMBLE = `Sandbox note: if this task is genuinely ambi
  */
 export function normalizeRepoSlug(repo: string): string {
 	let slug = repo.trim();
+	slug = slug.replace(/^git@github\.com:/, "");
 	slug = slug.replace(/^https?:\/\//, "");
 	slug = slug.replace(/^github\.com\//, "");
 	slug = slug.replace(/\.git$/, "");
+	slug = slug.replace(/\/$/, "");
 
 	if (!/^[^/]+\/[^/]+$/.test(slug)) {
 		throw new Error(`Invalid repo slug: expected "owner/repo", got ${JSON.stringify(repo)}`);
