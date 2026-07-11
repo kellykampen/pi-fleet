@@ -39,7 +39,9 @@ RUN npm install -g \
         @ai-outfitter/outfitter \
     && npm cache clean --force
 
-RUN mkdir -p /work \
+RUN (id -u user >/dev/null 2>&1 || useradd -m -u 1000 -s /bin/bash user) \
+    && mkdir -p /work \
+    && chown -R user:user /work \
     && node --version \
     && git --version \
     && gh --version \
@@ -47,4 +49,5 @@ RUN mkdir -p /work \
     && outfitter --version
 
 WORKDIR /work
+USER user
 CMD ["sleep", "infinity"]
