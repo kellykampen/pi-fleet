@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# pi-fleet-smoke-spike-breakdown — static shape check for the spike-breakdown seat.
+# No pi, no auth, no Linear writes: it only asserts the profile/wrapper/skill/agent files are wired
+# the way the other seats are, and that the wrapper's --tools allowlist keeps the intended boundary
+# (bash + linear read, but NO write/edit — spike-breakdown writes to Linear, never to repo source).
+# Exit non-zero on the first failed assertion so CI can gate on it.
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+fail=0
+ok(){ printf "  ok   %s\n" "$1"; }
+no(){ printf "  FAIL %s\n" "$1"; fail=1; }
+has(){ grep -q -- "$2" "$1"; }
+
+echo "spike-breakdown smoke ($ROOT)"
+
+PROFILE="$ROOT/profiles/spike-breakdown/profile.yml"
+WRAPPER="$ROOT/bin/pi-spike-breakdown"
+SKILL="$ROOT/skills/spike-breakdown/SKILL.md"
+AGENT="$ROOT/agents/spike-breakdown.md"
+
+# 1. Profile exists, has the right id, skills, and linear extension.
+if [ -f "$PROFILE" ]; then ok "profile.yml exists"; else no "profile.yml missing"; fi
+has "$PROFILE" 'id: spike-breakdown'        && ok "profile id"            || no "profile id"
+has "$PROFILE" '../skills/spike-breakdown'  && ok "spike-breakdown skill" || no "spike-breakdown skill"
+has "$PROFILE" '../skills/issue-breakdown'  && ok "issue-breakdown skill" || no "issue-breakdown skill"
+has "$PROFILE" '../extensions/linear.ts'    && ok "linear extension"      || no "linear extension"
+python3 -c "import sys,yaml; yaml.safe_load(open('$PROFILE'))" 2>/dev/null \
+  && ok "profile is valid YAML" || no "profile is NOT valid YAML"
+
+# 2. Wrapper exists, executable, targets the profile, and keeps the tool boundary.
+if [ -x "$WRAPPER" ]; then ok "wrapper is executable"; else no "wrapper missing/not executable"; fi
+has "$WRAPPER" -- '--profile spike-breakdown' && ok "wrapper targets profile" || no "wrapper targets profile"
+has "$WRAPPER" -- 'bash'                       && ok "wrapper has bash (linear-cli)" || no "wrapper missing bash"
+has "$WRAPPER" -- 'linear_get_issue'           && ok "wrapper has linear read" || no "wrapper missing linear read"
+TOOLS_LINE="$(grep -oE -- '--tools [^\"]+' "$WRAPPER" || true)"
+case "$TOOLS_LINE" in
+  *,write,*|*,write|*write,*) no "wrapper allowlist leaks write" ;;
+  *) ok "wrapper allowlist has no write" ;;
+esac
+case "$TOOLS_LINE" in
+  *,edit,*|*,edit|*edit,*) no "wrapper allowlist leaks edit" ;;
+  *) ok "wrapper allowlist has no edit" ;;
+esac
+
+# 3. Skill + subagent roster entry exist and name themselves correctly.
+has "$SKILL" 'name: spike-breakdown' && ok "skill front-matter name" || no "skill front-matter name"
+has "$AGENT" 'name: spike-breakdown' && ok "agent front-matter name" || no "agent front-matter name"
+
+# 4. The behavioral contract the AC cares about is documented somewhere in the seat's text.
+CONTRACT="$PROFILE $SKILL $AGENT"
+grep -qiE 'Spike'            $CONTRACT && ok "spike label filtering documented"        || no "spike label filtering documented"
+grep -qi  'interview'        $CONTRACT && ok "interview mechanism documented"          || no "interview mechanism documented"
+grep -qi  'claude-conductor' $CONTRACT && ok "claude-conductor relay channel documented" || no "claude-conductor relay channel documented"
+grep -qi  'AskUserQuestion'  $CONTRACT && ok "AskUserQuestion channel documented"      || no "AskUserQuestion channel documented"
+# Correction (CEO): pi-fleet-native channel only — the peek/PEK needs-input dependency must be gone.
+grep -qiE 'peek|PEK-'        $CONTRACT && no "peek/PEK dependency must be removed"      || ok "no peek/PEK dependency"
+grep -qE  '3 ?pt|<=3|≤3'     $CONTRACT && ok "<=3-point rule documented"               || no "<=3-point rule documented"
+grep -q   -- '- \[ \]'       $CONTRACT && ok "checkbox AC documented"                  || no "checkbox AC documented"
+grep -qi  'blocker'          $CONTRACT && ok "blockers/dependencies documented"        || no "blockers/dependencies documented"
+
+# 5. If outfitter is on PATH, confirm it can load the profile (best-effort; skipped otherwise).
+if command -v outfitter >/dev/null 2>&1; then
+  if outfitter profile list 2>/dev/null | grep -q spike-breakdown; then
+    ok "outfitter lists the profile"
+  else
+    echo "  note outfitter present but profile not listed (profile_sources may point elsewhere) — skipping"
+  fi
+else
+  echo "  note outfitter not on PATH — skipping live profile-list check"
+fi
+
+echo
+if [ "$fail" = 0 ]; then echo "VERDICT: PASS"; else echo "VERDICT: FAIL"; fi
+exit "$fail"
