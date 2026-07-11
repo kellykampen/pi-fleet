@@ -5,6 +5,7 @@
   "scripts": {
     "template:publish": "bash template/publish.sh",
     "template:verify": "bash template/verify-local.sh",
+    "jobs": "tsx jobs-ui.ts",
     "test": "tsx --test *.test.ts"
   },
   "dependencies": {
