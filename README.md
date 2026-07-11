@@ -3,7 +3,7 @@
 **A fleet of restricted, single-purpose AI coding agents you launch from the terminal.**
 
 pi-fleet turns the [Pi coding agent](https://pi.dev) into a set of reusable agent **"seats"** — each
-one a role (implementer, reviewer, researcher, designer, …) with a *fixed* model, skill, and **tool
+one a role (implementer, reviewer, researcher, designer, …) with a documented default model, skill, and **tool
 allowlist**. A reviewer seat literally has no `bash`/`write`/`edit`; a builder does — the restriction
 is enforced, not just suggested. You compose the seats into a small org: a **conductor** routes work
 to **project leads**, who **cast workers** into their own terminal panes — so you can run many agents
@@ -20,7 +20,7 @@ top.
 
 - [Pi](https://pi.dev) and [outfitter](https://pi.dev/packages/@ai-outfitter/outfitter) installed
 - Global pi packages: `pi-mcp-adapter`, `pi-subagents`, `@gotgenes/pi-permission-system`
-- At least one provider/model authenticated in Pi (e.g. `openai-codex`, `xai-auth`, `kimi-coding`, `openrouter`)
+- At least one allowed provider/model authenticated in Pi (recommended: `openai-codex` with `gpt-5.5`/`gpt-5.6`)
 - *Optional*, for long-running `pi-conductor`/`pi-project-lead` seats that self-schedule checkups:
   `@jl1990/pi-scheduler` — see [docs/scheduling.md](docs/scheduling.md). **Avoid `pi-schedule-prompt`**;
   its full-screen overlay can get stuck and block input to the pane.
@@ -76,7 +76,7 @@ Every profile is a **hybrid** of two pieces:
   wrapper, not the YAML. The wrapper forwards any extra args straight to Pi.
 
 ```
-pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist>  "$@"
+pi-<role>  ==  outfitter run --profile <role> --agent pi  --  [env model args] --tools <allowlist>  "$@"
 ```
 
 ---
@@ -85,20 +85,20 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 
 | Command | Model (default) | Tools | What it does |
 | --- | --- | --- | --- |
-| **`pi-implementer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls, **write, edit, bash** + linear read | Builds one ticket end-to-end in a worktree (code + tests → PR). Override to Kimi `k2p7` for simple work. |
-| **`pi-reviewer`** | Kimi K2.7 (`kimi-coding`) · medium | read, grep, find, ls + linear read *(no bash)* | Independent **read-only** code review/QC. Must run on a **different model** than the implementer. |
-| **`pi-ac-verifier`** | Grok 4.5 (`xai-auth`) · high | read, grep, find, ls, **bash** + linear | **Runs** the acceptance-criteria verification (tests/build), checks the AC boxes only on real pass. Different model than the build. |
-| **`pi-researcher`** | Kimi K2.7 · low | read, grep, find, ls | Read-only scouting / codebase investigation. |
+| **`pi-implementer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls, **write, edit, bash** + linear read | Builds one ticket end-to-end in a worktree (code + tests → PR). Strong coding default; override to `gpt-5.5` for simple work. |
+| **`pi-reviewer`** | GPT-5.5 (`openai-codex`) · medium | read, grep, find, ls + linear read *(no bash)* | Independent **read-only** code review/QC. Must run on a **different model** than the implementer. |
+| **`pi-ac-verifier`** | GPT-5.5 (`openai-codex`) · high | read, grep, find, ls, **bash** + linear | **Runs** the acceptance-criteria verification (tests/build), checks the AC boxes only on real pass. Different model than the build. |
+| **`pi-researcher`** | GPT-5.5 (`openai-codex`) · low | read, grep, find, ls | Read-only scouting / codebase investigation. |
 | **`pi-designer`** | GPT-5.6 Terra (`openai-codex`) · high | read, grep, find, ls, write, edit, bash | Design / architecture / API + planning docs (taste model). Hands build to `pi-implementer`. For **claude.ai design import/update**, use `claude-designer` instead. |
 | **`claude-designer`** | Claude Code (`--agent claude`) | `mcp__claude_design__*` + Read/Grep/Glob/Edit/Write/Bash(git,pnpm,npm) | Reads/updates **claude.ai design** projects via the `claude_design` MCP and implements them. Runs **Claude Code, not pi** — claude_design's OAuth is gated to Claude Code's blessed client (pi's generic MCP OAuth is turned down). One-time `/design-login` if tools 401. |
 | **`pi-planner`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Breaks a feature into a Linear project + ≤3-pt issues with checkbox AC + blockers. |
 | **`pi-spike-breakdown`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Turns a Linear **spike** into a Linear project + ≤3-pt issues: reads the spike + context, finds the gaps (architecture/technical/dependency/product), **interviews the CEO** (`claude-conductor` relays the interview-linear questions via AskUserQuestion; fallback = direct AskUserQuestion or structured Linear comments — no peek dependency), then applies `issue-breakdown`. Reads Linear + repo; no repo `write`/`edit`. |
-| **`pi-security-reviewer`** | Grok 4.5 (`openrouter`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. |
+| **`pi-security-reviewer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. Strong reasoning default. |
 | **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Cross-project router — assigns **project leads**, watches portfolio health, escalates to the CEO. Does not cast workers. |
 | **`claude-conductor`** | Claude Code (`--remote-control`) | *(no allowlist — same tool surface as `claude`)* | Thin wrapper that launches Claude Code with `--remote-control` so the CEO can reach the Conductor from the Claude Code **mobile app**. Every other Claude seat has `remoteControlAtStartup=false`; this is the one session that opts back in. Session name defaults to `claude-conductor`, override with `CONDUCTOR_NAME`. `FLEET_YOLO=1` gates `--dangerously-skip-permissions`, same convention as the other wrappers. |
 | **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Owns one project — routes each task to the right worker + model (via **model-classifier**), casts seats, holds QC gates. |
-| **`pi-visual-qa`** | Grok 4.5 (`xai-auth`) · high | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. |
-| **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
+| **`pi-visual-qa`** | GPT-5.6 Terra (`openai-codex`) · medium | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. Taste/visual default. |
+| **`pi-linear`** | GPT-5.5 (`openai-codex`) · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
 | **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
 | **`pi-docs`** | GPT-5.5 (`openai-codex`) · medium | read, grep, find, ls, **write, edit, bash** + linear | **Final Docs-as-DoD gate** — runs after review + AC-verify + CI are green, before merge/Done. Reads the PR diff, updates README/docs to match, or states an explicit no-docs-needed rationale. Does not re-review code or AC. |
 
@@ -110,6 +110,28 @@ The `pi-personal-assistant` toolkit (all via `bash`, documented in its skill):
 standalone — but the **`pi-project-lead`** picks the model per task using the **model-classifier
 skill** (loaded into it) and overrides via `--provider/--model` on the cast. So routing = "which
 worker profile + which model," decided per task, not baked rigidly into the profile.
+
+### Model/provider override precedence
+
+All `pi-*` wrappers merge model flags before launching Pi through outfitter. Precedence is:
+
+1. Explicit wrapper CLI flags: `--provider ...` / `--model ...` (or `--provider=...` / `--model=...`)
+2. Role env: `PI_<ROLE>_PROVIDER` / `PI_<ROLE>_MODEL` (uppercase role; hyphens become underscores)
+3. Role aliases where defined, e.g. `PI_LEAD_PROVIDER` / `PI_LEAD_MODEL` for `pi-project-lead`
+4. Generic env: `PI_PROVIDER` / `PI_MODEL`
+5. The documented `profiles/<role>/profile.yml` default
+
+Examples:
+
+```bash
+PI_MODEL=gpt-5.5 pi-reviewer -p "review PR #123"
+PI_IMPLEMENTER_PROVIDER=openai-codex PI_IMPLEMENTER_MODEL=gpt-5.6-sol pi-implementer
+PI_LEAD_MODEL=gpt-5.6-luna pi-project-lead
+PI_MODEL=gpt-5.5 pi-reviewer --model gpt-5.6-sol  # explicit CLI wins
+```
+
+The deterministic guard is `bin/pi-fleet-eval-model-overrides`; it mocks `outfitter` and verifies
+role env, generic env, aliases, and explicit CLI precedence without starting an interactive session.
 
 ---
 
@@ -131,7 +153,7 @@ make sure they're on `PATH`:
 | `pi-personal-assistant` | your own CLIs on `PATH`: `finch` (X), `gog` (Google), `imsg` (iMessage), `wacli` (WhatsApp), `obsidian-cli`, `ntn` (Notion), `linear-cli`, `gh`/`git`. **Not bundled** — supply your own; the profile only orchestrates them under a draft→approve→execute gate. |
 | `pi-docs` | `git`, `gh` (to read the PR diff) |
 | `claude-designer`, `claude-reviewer`, `claude-worker`, `claude-conductor` | [Claude Code](https://claude.com/claude-code) (`claude`), authenticated. `claude-designer` also needs a one-time `/design-login`. |
-| `agy-researcher`, `agy-reviewer`, `agy-worker` | the `agy` CLI (Antigravity/Gemini), authenticated. |
+| `agy-researcher`, `agy-reviewer`, `agy-worker` | Disabled by roster lock; use `claude-*` or `pi-*` seats instead. |
 
 Read-only seats (`pi-reviewer` etc.) deliberately have **no `bash`**, so they need nothing extra.
 A seat whose CLI is missing will simply fail that command — install it and re-run.
@@ -182,7 +204,7 @@ The wrappers live in `bin/` and are on your `$PATH` (see setup below). From any 
 cd ~/code/tiny-projects/kellyk-dev && pi-personal-assistant
 
 # any extra args forward straight to Pi:
-pi-reviewer --provider openrouter --model x-ai/grok-4.5   # override the model for this run
+pi-reviewer --provider openai-codex --model gpt-5.6-luna  # override the model for this run
 pi-personal-assistant -p "draft a reply to my latest mention"   # one-shot, non-interactive
 ```
 
@@ -259,8 +281,8 @@ pi-fleet/
    label: <Role label>
    controls:
      pi:
-       provider: openai-codex        # or kimi-coding / openrouter / xai-auth
-       model: gpt-5.5                 # per model-classifier / cost-arbitrage
+       provider: openai-codex        # allowed pi default provider
+       model: gpt-5.5                 # documented fallback; override at launch when needed
        thinking: medium               # off|minimal|low|medium|high|xhigh
        skills:
          - ../skills/<role>
@@ -275,7 +297,9 @@ pi-fleet/
    ```bash
    #!/usr/bin/env bash
    set -euo pipefail
-   exec outfitter run --profile <role> --agent pi -- --tools read,grep,find,ls,... "$@"
+   . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pi-model-env.sh"
+   pi_model_override_args <role> "" "$@"
+   exec outfitter run --profile <role> --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --tools read,grep,find,ls,... "$@"
    ```
 
    then `chmod +x bin/pi-<role>`.
@@ -289,7 +313,7 @@ The security boundary is the wrapper's `--tools` line — a read-only seat simpl
 
 ## Fleet legibility (`peek`)
 
-Every worker wrapper sources `bin/lib/peek-env.sh` before it execs `outfitter`/`claude`/`agy`, so a
+Every worker wrapper sources `bin/lib/peek-env.sh` before it execs `outfitter`/`claude`, so a
 cast worker registers correctly with `peek` — the tiny serverless CLI that makes the fleet's
 hierarchy visible (`peek`, `peek watch`) without capturing panes. The helper exports four vars into
 the worker's own process env:
@@ -402,7 +426,7 @@ Required environment variables for non-dry-run casts:
 
 - `E2B_API_KEY` — creates/connects the sandbox.
 - `FLEET_GITHUB_TOKEN` (preferred) or `GH_TOKEN` — injected into the sandbox for clone/push/PR operations. Its repository scope is the access boundary for each cast's `repo`; pi-fleet does not maintain an approved-repository allowlist.
-- One or more fleet-worker model keys for the selected provider, for example `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `KIMI_API_KEY`, or `MOONSHOT_API_KEY`.
+- One or more fleet-worker model keys for the selected allowed provider, typically `OPENAI_API_KEY` for openai-codex-backed workers.
 
 1. **E2B account + API key**
 

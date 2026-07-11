@@ -111,14 +111,26 @@ registration).
 
 Last verified run: [`results/peek-env-latest.txt`](./results/peek-env-latest.txt) — **16/16 PASS**.
 
+## Model/provider override eval
+
+Every `bin/pi-*` wrapper accepts model/provider defaults from env before launching outfitter. This
+non-interactive eval mocks `outfitter` and verifies role env (`PI_<ROLE>_MODEL`), generic env
+(`PI_MODEL`), role aliases such as `PI_LEAD_MODEL`, and the key precedence rule: explicit wrapper
+CLI flags (`--provider`/`--model`) win over env defaults.
+
+```bash
+bin/pi-fleet-eval-model-overrides        # writes evals/results/model-overrides-latest.txt
+```
+
+See [`../docs/model-overrides.md`](../docs/model-overrides.md) for the full env-name and default
+model table.
+
 ## Gotchas
 
 - **Model auth ≠ tool boundary.** A subagent whose default/fallback models aren't authed in pi
-  (e.g. `google/gemini-3.1-pro-preview` via openrouter, or an `anthropic/…` fallback with no
-  anthropic key) will fail to *start* and report NO-OUTPUT — that's a model-availability problem,
-  not a boundary failure. Re-run with a working model (`…set its model to kimi-coding/k2p7…`) to
-  read the real boundary. Follow-up: point `fallbackModels` at providers pi actually has
-  (openai-codex / kimi-coding / xai-auth / zai / openrouter), not bare `openai/…` or `anthropic/…`.
+  will fail to *start* and report NO-OUTPUT — that's a model-availability problem, not a boundary
+  failure. Re-run with an allowed working model (typically `openai-codex` / `gpt-5.5` or a
+  `gpt-5.6` variant) to read the real boundary. Keep `fallbackModels` inside the fleet roster lock.
 - **Don't** run these in a narrow terminal expecting interactive output — the seat evals are
   headless (`-p`) and unaffected, but interactive seats need the pi-tui truncation patch
   (`bin/pi-fleet-repair`) or they crash on the welcome banner in panes under ~120 cols.

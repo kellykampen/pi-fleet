@@ -7,9 +7,11 @@ FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Establish this lead's own PEEK_* identity (role=orchestrator) BEFORE anything else, so its cast
 # commands have a real $PEEK_ID to forward as PEEK_PARENT to workers (see skills/project-lead).
 . "$FLEET_ROOT/bin/lib/peek-lead-env.sh"
+. "$FLEET_ROOT/bin/lib/pi-model-env.sh"
+pi_model_override_args project-lead "lead" "$@"
 # Fleet secrets (E2B_API_KEY, FLEET_GITHUB_TOKEN) — only the project lead casts E2B, so load them
 # into the env here (600 file, not the repo, not the laptop shell history). e2b_cast reads process.env.
 if [ -f "$HOME/.pi/fleet/secrets.env" ]; then set -a; . "$HOME/.pi/fleet/secrets.env"; set +a; fi
-exec outfitter run --profile project-lead --agent pi -- --no-lens \
+exec outfitter run --profile project-lead --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --no-lens \
   --extension "$FLEET_ROOT/extensions/linear.ts" --extension "$FLEET_ROOT/extensions/e2b" \
   --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update,e2b_cast,e2b_status,e2b_wait,e2b_cancel,e2b_logs,e2b_port_url "$@"
