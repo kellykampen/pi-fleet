@@ -443,4 +443,9 @@ e2b_cast({
 # → jobId
 e2b_status({ jobId })
 e2b_wait({ jobId })   # optional
+
+# Lost the local job record? Reconnect to the still-running sandbox directly:
+e2b_status({ sandboxId: "<e2b-sandbox-id>" })
+e2b_logs({ sandboxId: "<e2b-sandbox-id>" })
+# The live result/log data rehydrates a local job record where possible.
 ```

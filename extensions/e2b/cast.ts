@@ -1,4 +1,10 @@
-import { newJobId, updateJob, writeJob } from "./jobs.js";
+import {
+	findJobByIdOrSandboxId,
+	newJobId,
+	updateJob,
+	writeJob,
+} from "./jobs.js";
+import { connectE2BSandbox, createE2BSandbox } from "./sdk.js";
 import {
 	buildRunnerScript,
 	collectWorkerEnv,
@@ -93,6 +99,10 @@ export interface RefreshDependencies {
 	connectSandbox?: (sandboxId: string) => Promise<SandboxLike>;
 }
 
+export interface ReconnectDependencies extends RefreshDependencies {
+	now?: () => Date;
+}
+
 export function requireImplementerCast(params: CastParams): void {
 	if (params.profile !== "implementer") {
 		throw new Error(
@@ -119,12 +129,7 @@ export function requireImplementerCast(params: CastParams): void {
 }
 
 async function connectSandboxDefault(sandboxId: string): Promise<SandboxLike> {
-	const apiKey = process.env.E2B_API_KEY?.trim();
-	if (!apiKey) {
-		throw new Error("E2B_API_KEY is not set");
-	}
-	const { Sandbox } = await import("e2b");
-	return Sandbox.connect(sandboxId, { apiKey }) as Promise<SandboxLike>;
+	return connectE2BSandbox<SandboxLike>(sandboxId);
 }
 
 export async function tryCreateSandbox(
@@ -157,10 +162,7 @@ export async function tryCreateSandbox(
 	// createSandbox implementation benefits — not just this default one.
 	const createRaw: RawSandboxFactory =
 		createRawSandbox ??
-		(async (t, opts) => {
-			const { Sandbox } = await import("e2b");
-			return Sandbox.create(t, opts) as unknown as RunnableSandbox;
-		});
+		((t, opts) => createE2BSandbox<RunnableSandbox>(t, opts));
 
 	const sandbox = await createRaw(template, { timeoutMs, apiKey });
 
@@ -236,6 +238,119 @@ function sanitizeObject(value: unknown): unknown {
 		return Object.fromEntries(entries);
 	}
 	return value;
+}
+
+export async function reconnectSandbox(
+	sandboxId: string,
+	deps: ReconnectDependencies = {},
+): Promise<FleetJob> {
+	const id = sandboxId.trim();
+	if (!id) throw new Error("sandboxId is required");
+	if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+		throw new Error(`invalid sandboxId: ${sandboxId}`);
+	}
+
+	const existing = await findJobByIdOrSandboxId(id);
+	if (existing) return refreshFromSandbox(existing, deps);
+
+	let sandbox: SandboxLike;
+	try {
+		sandbox = deps.connectSandbox
+			? await deps.connectSandbox(id)
+			: await connectSandboxDefault(id);
+	} catch (err) {
+		throw new Error(
+			`Could not reconnect to sandbox ${id}: ${sanitizeSecrets(err instanceof Error ? err.message : String(err))}`,
+		);
+	}
+	const now = (deps.now ?? (() => new Date()))().toISOString();
+	let remote: Partial<FleetJob> = {};
+	try {
+		remote = sanitizeObject(
+			JSON.parse(await sandbox.files.read("/work/result.json")),
+		) as Partial<FleetJob>;
+	} catch {
+		// A running job may not have emitted result.json yet.
+	}
+
+	let logTail = "";
+	try {
+		logTail = sanitizeSecrets(await sandbox.files.read("/work/job.log")).slice(
+			-4000,
+		);
+	} catch {
+		// Logs may not exist yet.
+	}
+
+	let brief = "";
+	try {
+		brief = sanitizeSecrets(await sandbox.files.read("/work/brief.md"));
+	} catch {
+		// Older/non-fleet sandboxes may not have a brief.
+	}
+
+	const resultJobId =
+		typeof remote.jobId === "string" &&
+		/^[A-Za-z0-9_-]+$/.test(remote.jobId.trim())
+			? remote.jobId.trim()
+			: undefined;
+	const logJobId = logTail.match(/fleet e2b job ([A-Za-z0-9_-]+) (?:starting|finished)/)?.[1];
+	const remoteJobId = resultJobId ?? logJobId ?? id;
+	const remoteCreatedAt =
+		typeof remote.createdAt === "string" ? remote.createdAt : now;
+	const status =
+		typeof remote.status === "string" &&
+		["queued", "running", "succeeded", "failed", "timeout", "cancelled", "needs_input"].includes(
+			remote.status,
+		)
+			? (remote.status as FleetJob["status"])
+			: "running";
+	const job: FleetJob = {
+		jobId: remoteJobId,
+		profile: "implementer",
+		status,
+		brief:
+			typeof remote.brief === "string"
+				? remote.brief
+				: brief || `Reconnected to E2B sandbox ${id}`,
+		codeAccess: ["none", "clone", "pr", "branch"].includes(
+			remote.codeAccess ?? "",
+		)
+			? (remote.codeAccess as FleetJob["codeAccess"])
+			: "none",
+		repo: remote.repo,
+		baseBranch: remote.baseBranch,
+		prNumber: remote.prNumber,
+		branch: remote.branch,
+		ticketId: remote.ticketId,
+		provider: remote.provider,
+		model: remote.model,
+		timeoutMinutes: remote.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES,
+		fleetRef: remote.fleetRef,
+		dryRun: false,
+		sandboxId: id,
+		commitSha: remote.commitSha,
+		prUrl: remote.prUrl,
+		commandsRun: remote.commandsRun,
+		blockers: remote.blockers,
+		questions: remote.questions,
+		artifacts: remote.artifacts,
+		error: remote.error,
+		logTail,
+		createdAt: remoteCreatedAt,
+		updatedAt: typeof remote.updatedAt === "string" ? remote.updatedAt : now,
+		finishedAt: remote.finishedAt,
+	};
+
+	return writeJob(sanitizeObject(job) as FleetJob);
+}
+
+export async function resolveAndRefreshJob(
+	id: string,
+	deps: ReconnectDependencies = {},
+): Promise<FleetJob> {
+	const local = await findJobByIdOrSandboxId(id);
+	return local ? refreshFromSandbox(local, deps) : reconnectSandbox(id, deps);
 }
 
 export async function refreshFromSandbox(

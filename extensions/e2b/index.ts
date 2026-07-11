@@ -4,7 +4,12 @@
  */
 import { defineTool, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
-import { cancelSandbox, castJob, refreshFromSandbox } from "./cast.js";
+import {
+	cancelSandbox,
+	castJob,
+	refreshFromSandbox,
+	resolveAndRefreshJob,
+} from "./cast.js";
 import { readJob, updateJob } from "./jobs.js";
 import { resolvePortUrl } from "./ports.js";
 import {
@@ -92,14 +97,24 @@ export default function (pi: ExtensionAPI) {
 			name: "e2b_status",
 			label: "E2B: job status",
 			description:
-				"Read a fleet E2B job by id; probes the sandbox for result.json when running.",
-			promptSnippet: "e2b_status: fetch remote job status JSON",
+				"Read and refresh a fleet E2B job. Pass jobId for a known job or sandboxId to reconnect to a live sandbox and rehydrate a missing local job record where possible.",
+			promptSnippet:
+				"e2b_status: fetch by jobId or reconnect by raw E2B sandboxId",
 			parameters: Type.Object({
-				jobId: Type.String({ description: "Job id returned by e2b_cast." }),
+				jobId: Type.Optional(
+					Type.String({ description: "Job ID returned by e2b_cast." }),
+				),
+				sandboxId: Type.Optional(
+					Type.String({
+						description:
+							"Raw E2B sandbox ID. Reconnects and rehydrates a missing local job.",
+					}),
+				),
 			}),
 			async execute(_id, params) {
-				let job = await readJob(params.jobId);
-				job = await refreshFromSandbox(job);
+				const id = params.sandboxId?.trim() || params.jobId?.trim();
+				if (!id) throw new Error("either jobId or sandboxId is required");
+				const job = await resolveAndRefreshJob(id);
 				return textResult(JSON.stringify(job, null, 2), { job });
 			},
 		}),
@@ -240,13 +255,24 @@ export default function (pi: ExtensionAPI) {
 			name: "e2b_logs",
 			label: "E2B: job logs",
 			description:
-				"Return the latest log tail for a job (from local record and/or sandbox).",
-			promptSnippet: "e2b_logs: tail remote job logs",
+				"Return the latest log tail. Pass jobId for a known job or sandboxId to reconnect and rehydrate a missing local job record.",
+			promptSnippet:
+				"e2b_logs: tail by jobId or reconnect by raw E2B sandboxId",
 			parameters: Type.Object({
-				jobId: Type.String({ description: "Job id returned by e2b_cast." }),
+				jobId: Type.Optional(
+					Type.String({ description: "Job ID returned by e2b_cast." }),
+				),
+				sandboxId: Type.Optional(
+					Type.String({
+						description:
+							"Raw E2B sandbox ID. Reconnects and rehydrates a missing local job.",
+					}),
+				),
 			}),
 			async execute(_id, params) {
-				const job = await refreshFromSandbox(await readJob(params.jobId));
+				const id = params.sandboxId?.trim() || params.jobId?.trim();
+				if (!id) throw new Error("either jobId or sandboxId is required");
+				const job = await resolveAndRefreshJob(id);
 				const text = job.logTail || "(no logs yet)";
 				return textResult(text, { jobId: job.jobId, status: job.status });
 			},
