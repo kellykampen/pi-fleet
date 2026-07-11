@@ -87,6 +87,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  --tools <allowlist
 | **`pi-planner`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Breaks a feature into a Linear project + ≤3-pt issues with checkbox AC + blockers. |
 | **`pi-security-reviewer`** | Grok 4.5 (`openrouter`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. |
 | **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Cross-project router — assigns **project leads**, watches portfolio health, escalates to the CEO. Does not cast workers. |
+| **`claude-conductor`** | Claude Code (`--remote-control`) | *(no allowlist — same tool surface as `claude`)* | Thin wrapper that launches Claude Code with `--remote-control` so the CEO can reach the Conductor from the Claude Code **mobile app**. Every other Claude seat has `remoteControlAtStartup=false`; this is the one session that opts back in. Session name defaults to `claude-conductor`, override with `CONDUCTOR_NAME`. `FLEET_YOLO=1` gates `--dangerously-skip-permissions`, same convention as the other wrappers. |
 | **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Owns one project — routes each task to the right worker + model (via **model-classifier**), casts seats, holds QC gates. |
 | **`pi-visual-qa`** | Grok 4.5 (`xai-auth`) · high | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. |
 | **`pi-linear`** | Kimi K2.7 · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
@@ -119,7 +120,7 @@ make sure they're on `PATH`:
 | `pi-project-lead` **E2B remote casts** | the `e2b` CLI (`npm i` in `extensions/e2b`) + `E2B_API_KEY` + `FLEET_GITHUB_TOKEN` — see [E2B section](#e2b-remote-implementers-v0) |
 | `pi-remotion` | `node`/`npm` + [Remotion](https://www.remotion.dev) (`npx remotion`) |
 | `pi-personal-assistant` | your own CLIs on `PATH`: `finch` (X), `gog` (Google), `imsg` (iMessage), `wacli` (WhatsApp), `obsidian-cli`, `ntn` (Notion), `linear-cli`, `gh`/`git`. **Not bundled** — supply your own; the profile only orchestrates them under a draft→approve→execute gate. |
-| `claude-designer`, `claude-reviewer`, `claude-worker` | [Claude Code](https://claude.com/claude-code) (`claude`), authenticated. `claude-designer` also needs a one-time `/design-login`. |
+| `claude-designer`, `claude-reviewer`, `claude-worker`, `claude-conductor` | [Claude Code](https://claude.com/claude-code) (`claude`), authenticated. `claude-designer` also needs a one-time `/design-login`. |
 | `agy-researcher`, `agy-reviewer`, `agy-worker` | the `agy` CLI (Antigravity/Gemini), authenticated. |
 
 Read-only seats (`pi-reviewer` etc.) deliberately have **no `bash`**, so they need nothing extra.
