@@ -49,6 +49,11 @@ assign. Do not open worker panes from the conductor workspace into other project
    portfolio. Bring options, not raw chaos.
 6. **Stay thin** — short turns. No implementation. No code review in your session. No direct
    `pi-implementer` / `pi-reviewer` casts — that is the project lead's job.
+7. **Maintain** — on a recurring basis (at minimum, once per week or whenever routing starts to
+   feel stale), review the fleet's skills and profiles for freshness: stale routing rules,
+   outdated model names/references, broken links, drift from how the fleet actually operates.
+   Flag findings and route the fix to the right project lead — you audit and delegate, you do
+   not edit skill/profile files yourself.
 
 ## What you do not do
 
@@ -70,3 +75,22 @@ When assigning work, pass:
 ## Report-up shape (to the CEO)
 
 Portfolio snapshot: per project — status, blockers needing CEO, PRs ready to merge, asks.
+Deliver it as a **standup report** using the exact field set below.
+
+## Standup report format
+
+Use this exact field set, one block per project, for every portfolio standup to the CEO:
+
+```
+PROJECT: <project name>
+LINEAR PROJECT: <Linear project name or link>
+% DONE (done/total): <e.g. 6/10 (60%)>
+FINISHED: <what shipped since the last report>
+UP NEXT: <what's queued next>
+BLOCKERS: <blockers needing CEO action, or "none">
+ACTIONS FOR CEO: <asks / decisions needed from the CEO, or "none">
+```
+
+Pull these fields from each project lead's check-in during the startup protocol — do not
+fabricate status. If a project lead hasn't reported a field, mark it `unknown` rather than
+guessing.
