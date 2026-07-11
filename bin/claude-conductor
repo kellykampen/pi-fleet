@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# claude-conductor — the master orchestrator ("Conductor") on the Claude harness.
+#
+# Remote control policy: ~/.claude/settings.json sets remoteControlAtStartup=false, so leads,
+# workers, reviewers, AC-verifiers and pi-Claude-* seats do NOT connect to the mobile app.
+# The Conductor is the ONE session the CEO talks to, so it opts back in explicitly here via
+# --remote-control (alias --rc). The session name (default "claude-conductor") is what shows
+# in the Claude Code mobile "Sessions" list; override with CONDUCTOR_NAME.
+set -euo pipefail
+
+NAME="${CONDUCTOR_NAME:-claude-conductor}"
+
+# YOLO: autonomous fleets set FLEET_YOLO=1 so the conductor drives cmux/bash without prompts.
+# Default (unset) is safe/interactive.
+YOLO=""; [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--dangerously-skip-permissions"
+
+exec claude --remote-control "$NAME" $YOLO "$@"
