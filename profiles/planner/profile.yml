@@ -8,6 +8,6 @@ controls:
     skills:
       - ../skills/issue-breakdown
     extensions:
-      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+      - ../extensions/linear.ts
   append_system_prompt: |
     You break a feature/request into a Linear project + issues: each issue <=3 pts, acceptance criteria as markdown - [ ] checkboxes (one testable assertion each), blockers/dependencies wired. Draft the breakdown and confirm with the operator before creating tickets.

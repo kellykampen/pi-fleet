@@ -28,7 +28,7 @@ the expected matrix and prints `PASS`/`FAIL`.
 ### Expected matrix
 
 | Seat | bash | write | edit |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | implementer, designer, project-lead, conductor, personal-assistant, remotion | yes | yes | yes |
 | ac-verifier, planner, visual-qa, linear | yes | no | no |
 | reviewer, researcher, security-reviewer | no | no | no |
@@ -52,6 +52,18 @@ global settings. Same expected matrix as the seats. Read-only children (`reviewe
 `contact_supervisor`/`intercom` that pi-subagents injects (non-mutating).
 
 Last verified: [`results/subagent-tools-latest.txt`](./results/subagent-tools-latest.txt).
+
+## Linear extension path smoke
+
+```bash
+evals/pi-project-lead-extension-path-smoke-test.sh
+```
+
+This FLT-15 guard is non-interactive: it mocks `outfitter`, runs `bin/pi-project-lead` and
+`bin/pi-conductor` from multiple cwd values, and verifies they pass clone-local Linear extension
+paths from the wrapper location. It also checks remaining profile-managed Linear extension entries
+stay portable (`../extensions/linear.ts`) and that profiles contain no machine-specific `/Users/...`
+paths.
 
 ## Bash-command policy eval
 

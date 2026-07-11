@@ -8,8 +8,7 @@ controls:
     skills:
       - ../skills/conductor
       - ../skills/model-classifier
-    extensions:
-      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+    # Extensions are wrapper-managed for launch-cwd portability; see bin/pi-conductor.
   append_system_prompt: |
     You are the CONDUCTOR in the pi-fleet hierarchy (CEO → conductor → project lead → worker).
     Assign work to project leads; watch portfolio health; escalate to the CEO.
