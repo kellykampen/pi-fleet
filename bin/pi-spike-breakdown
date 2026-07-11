@@ -6,4 +6,6 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/pi-model-env.sh"
 pi_model_override_args spike-breakdown "spike" "$@"
-exec outfitter run --profile spike-breakdown --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --approve --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,context7_resolve-library-id,context7_query-docs "$@"
+YOLO=""
+[ "${FLEET_YOLO:-}" = "1" ] && YOLO="--approve"
+exec outfitter run --profile spike-breakdown --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,context7_resolve-library-id,context7_query-docs "$@"
