@@ -274,6 +274,18 @@ fi
 
 ${checkout}
 
+# outfitter resolves profiles (e.g. "implementer") via ~/.outfitter/settings.yml.
+# On a real laptop pi-fleet-bootstrap maintains that file; a fresh sandbox has
+# none, so outfitter can't find any profile at all. Point it at the pi-fleet
+# checkout's profiles dir now that /work/pi-fleet exists, before pi-implementer
+# runs (see FLT-4).
+mkdir -p ~/.outfitter
+cat > ~/.outfitter/settings.yml <<'EOF'
+default_profile: implementer
+profile_sources:
+  - path: /work/pi-fleet/profiles
+EOF
+
 if command -v pi-implementer >/dev/null 2>&1 || [ -x /work/pi-fleet/bin/pi-implementer ]; then
   PI_IMPL=$(command -v pi-implementer || echo /work/pi-fleet/bin/pi-implementer)
   set +e

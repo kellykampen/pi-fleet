@@ -148,6 +148,35 @@ test("buildRunnerScript normalizes a github.com/.../.git repo before every gh in
 	assert.equal(branchScript.includes("github.com/kellykampen/pi-fleet.git"), false);
 });
 
+test("buildRunnerScript writes ~/.outfitter/settings.yml pointing at the cloned profiles before invoking pi-implementer", () => {
+	const script = buildRunnerScript({
+		jobId: "job-outfitter-profile",
+		profile: "implementer",
+		status: "queued",
+		brief: "do the thing",
+		codeAccess: "clone",
+		repo: "owner/repo",
+		timeoutMinutes: 90,
+		dryRun: false,
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+	});
+
+	assert.match(script, /mkdir -p ~\/\.outfitter/);
+	assert.match(script, /cat > ~\/\.outfitter\/settings\.yml <<'EOF'/);
+	assert.match(script, /default_profile: implementer/);
+	assert.match(script, /path: \/work\/pi-fleet\/profiles/);
+
+	const settingsIndex = script.indexOf("~/.outfitter/settings.yml");
+	const implementerIndex = script.indexOf('"$PI_IMPL"');
+	assert.ok(settingsIndex > -1, "settings.yml write must be present");
+	assert.ok(implementerIndex > -1, "pi-implementer invocation must be present");
+	assert.ok(
+		settingsIndex < implementerIndex,
+		"settings.yml must be written before pi-implementer is invoked",
+	);
+});
+
 /**
  * Run the finalizer bash snippet in isolation against a throwaway $WORK dir,
  * exercising the real marker-file → result.json translation that the remote
