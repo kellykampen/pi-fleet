@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { castJob, refreshFromSandbox } from "./cast.ts";
 import { readJob, writeJob } from "./jobs.ts";
-import type { FleetJob } from "./types.ts";
+import { DEFAULT_TIMEOUT_MINUTES, type FleetJob } from "./types.ts";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -60,6 +60,39 @@ test("non-dry-run cast propagates a successful createSandbox's sandboxId into th
 		const persisted = await readJob(job.jobId);
 		assert.equal(persisted.status, "running");
 		assert.equal(persisted.sandboxId, "sandbox-abc123");
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+test("a cast without an explicit timeout uses the 90-minute hard-timeout default (FLT-4 AC #5)", async () => {
+	assert.equal(DEFAULT_TIMEOUT_MINUTES, 90);
+
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+
+	try {
+		const job = await castJob(
+			{
+				profile: "implementer",
+				brief: "implement FLT-4",
+				codeAccess: "clone",
+				repo: "owner/repo",
+				// timeoutMinutes deliberately omitted so the default applies.
+			},
+			{
+				createSandbox: async () => ({
+					sandboxId: "sandbox-default-timeout",
+					logTail: "sandbox started; runner backgrounded",
+				}),
+			},
+		);
+
+		assert.equal(job.timeoutMinutes, 90);
+		const persisted = await readJob(job.jobId);
+		assert.equal(persisted.timeoutMinutes, 90);
 	} finally {
 		await rm(jobsDir, { recursive: true, force: true });
 	}
