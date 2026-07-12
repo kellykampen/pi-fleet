@@ -2,7 +2,6 @@
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "$DIR/lib/peek-env.sh"
 . "$DIR/lib/pi-model-env.sh"
 pi_model_override_args reviewer "" "$@"
 YOLO=""

@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# pi-fleet-eval-banned-terms — ENFORCED guard: pi-fleet must never carry another project's
+# canonical-file footprint (see "Project separation" in skills/conductor/SKILL.md). FLT-42 reverted
+# peek's footprint out of pi-fleet after it crept back in via manual edits; this guard exists so a
+# reintroduction fails fast and locally — scripts, docs, and evals alike — instead of relying on
+# another one-time manual audit. Deterministic, no agent, safe and fast to re-run anywhere.
+#
+# Add future banned sibling-project names/prefixes to BANNED_PATTERN as they come up.
+set -uo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+BANNED_PATTERN='peek|PEK-'
+
+# This script and its own results file necessarily name the banned pattern (to test for it /
+# report it) — self-excluded, not a loophole for anything else.
+SELF_REL="bin/$(basename "$0")"
+RESULTS_REL="evals/results/banned-terms-latest.txt"
+OUT="${1:-$ROOT/$RESULTS_REL}"
+exec > >(tee "$OUT") 2>&1
+
+echo "banned-terms guard — scanning tracked files for: $BANNED_PATTERN"
+echo "(self-excluded: $SELF_REL, $RESULTS_REL)"
+
+hits="$(git grep -niE "$BANNED_PATTERN" -- . ":!$SELF_REL" ":!$RESULTS_REL" 2>/dev/null)"
+rc=$?
+
+if [ "$rc" -gt 1 ]; then
+  echo "  ERROR: git grep failed unexpectedly (exit $rc)"
+  echo "  VERDICT: FAIL"
+  exit 1
+elif [ -n "$hits" ]; then
+  echo "  FAIL: banned term(s) found in tracked files:"
+  echo "$hits" | sed 's/^/    /'
+  echo "  VERDICT: FAIL"
+  exit 1
+else
+  echo "  PASS: no banned terms found in tracked files"
+  echo "  VERDICT: PASS"
+fi

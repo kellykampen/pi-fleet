@@ -1,0 +1,4 @@
+banned-terms guard — scanning tracked files for: peek|PEK-
+(self-excluded: bin/pi-fleet-eval-banned-terms, evals/results/banned-terms-latest.txt)
+  PASS: no banned terms found in tracked files
+  VERDICT: PASS

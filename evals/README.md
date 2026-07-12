@@ -82,34 +82,31 @@ so `remote-pi` can't hijack while the policy layer stays active. Expect `git sta
 
 Last verified: [`results/bash-policy-latest.txt`](./results/bash-policy-latest.txt).
 
-## PEEK_* launcher-env eval
+## Banned-terms guard (MANDATORY pre-merge gate)
 
-Every worker wrapper sources `bin/lib/peek-env.sh`, `pi-project-lead` sources
-`bin/lib/peek-lead-env.sh`, and `pi-conductor` sources `bin/lib/peek-conductor-env.sh` before
-exec'ing its agent CLI — all three built on the shared registration core in
-`bin/lib/peek-common.sh`. This is what makes casts register correctly in `peek`'s fleet tree:
-`PEEK_ID` (fresh per process; `worker-<uuid>` / `lead-<uuid>` / fixed `conductor`), `PEEK_ROLE`
-(`worker` / `orchestrator` / `conductor`, unless already set), `PEEK_PARENT` (the caster's id,
-preserved *before* the process's own `PEEK_ID` overwrites it), and `PEEK_WORKSPACE` (falls back to
-`CMUX_WORKSPACE_ID`).
+pi-fleet must never carry another project's canonical-file footprint (see "Project separation" in
+`skills/conductor/SKILL.md`). A sibling project's own wiring (helper scripts, env-var contract,
+ticket-prefix references) had previously crept into pi-fleet's wrappers/docs/evals and had to be
+reverted; this guard is what makes that a standing rule instead of a one-time cleanup: it fails
+fast and locally if any banned sibling-project name/prefix reappears anywhere in the tracked repo
+(scripts, docs, evals — everything `git grep` can see). See the guard script itself for the exact
+banned pattern.
 
 ```bash
-bin/pi-fleet-eval-peekenv               # writes evals/results/peek-env-latest.txt
+bin/pi-fleet-eval-banned-terms   # writes evals/results/banned-terms-latest.txt
 ```
 
-Pure env/sourcing checks in throwaway subshells — no agent, no `outfitter`/`pi`/`claude`/`agy`
-dependency, so it's safe and fast to re-run anywhere. Covers: clean-env defaulting for worker, lead,
-and conductor; the `worker-`/`lead-` id prefixes; inherited `PEEK_ID`/`PEEK_ORCH_ID` promoted to
-`PEEK_PARENT`; explicit `PEEK_PARENT` (the cast-forwarding case) trusted as-is; pre-set
-`PEEK_ID`/`PEEK_ROLE`/`PEEK_WORKSPACE` left untouched; sibling workers minting distinct ids; **the
-full cast chain** (lead mints a real id → forwards it as `PEEK_PARENT` into a fresh subshell → the
-worker registers under that exact id — the regression test for a QC finding against PR #12, where
-`pi-project-lead`/`pi-conductor` never established their own identity so the forwarded
-`PEEK_PARENT="$PEEK_ID"` was silently empty); and the **empty-parent degradation** case (an empty
-forwarded `PEEK_PARENT` must not crash the worker — it degrades to a parentless-but-valid
-registration).
+Deterministic, no agent, `git grep -niE '<banned pattern>'` under the hood — safe and fast to
+re-run anywhere, and cheap enough to run on every PR before merge. Non-zero exit on any hit,
+including the exact `file:line` match. The guard script and its own results file are the only
+self-exclusions (they must name the pattern to test for and report it).
 
-Last verified run: [`results/peek-env-latest.txt`](./results/peek-env-latest.txt) — **16/16 PASS**.
+**This is a required gate, not an optional eval** — a project lead holding the DoD chain (see
+`skills/project-lead/SKILL.md`) runs this before every merge to develop, alongside review/AC-
+verify/CI. Add future banned sibling-project names/prefixes to `BANNED_PATTERN` in the script as
+they come up.
+
+Last verified: [`results/banned-terms-latest.txt`](./results/banned-terms-latest.txt).
 
 ## Model/provider override eval
 

@@ -162,6 +162,11 @@ branch/code -> independent review (DIFFERENT model, POSTED on the PR)
             -> merge to develop -> Linear auto-transitions to Done (GitHub integration)
 ```
 
+For PRs in **pi-fleet itself**, "CI green" includes a required, non-skippable run of
+`bin/pi-fleet-eval-banned-terms` (see `evals/README.md`) — it fails the merge if another project's
+name/prefix has crept back into pi-fleet's tracked scripts, docs, or evals. This is the standing
+enforcement mechanism for the "Project separation" rule below, not a one-time manual cleanup.
+
 **Every gate above completes and PASSES before the PR is approved/merged — none of them "after"
 (CEO directive, 2026-07-12).** "When a PR is merged, that ticket is considered done... every
 check, all the QC, all QA, all the AC check and QA visual checks, etc, all needs to be done before
@@ -214,12 +219,12 @@ ticket first, then start.
 
 ## Project separation
 
-Projects in the fleet (e.g. `pi-fleet` and `peek`) are **separate** — no cross-project dependency
-or coupling gets baked into either one's canonical files. A project may **use** another project's
-CLI/tool as an external dependency (install it, call it), but must not carry that other project's
-profile/skill-specific wiring, symlinks, or assumptions about its internals. If you're unsure
-whether something crosses this line, treat "does this file live in project A but describe project
-B's internals" as the test — if yes, it belongs in B, not A.
+Projects in the fleet are **separate** — no cross-project dependency or coupling gets baked into
+either one's canonical files. A project may **use** another project's CLI/tool as an external
+dependency (install it, call it), but must not carry that other project's profile/skill-specific
+wiring, symlinks, or assumptions about its internals. If you're unsure whether something crosses
+this line, treat "does this file live in project A but describe project B's internals" as the test
+— if yes, it belongs in B, not A.
 
 ## Codifying new standing rules
 

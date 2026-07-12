@@ -39,15 +39,8 @@ Exact steps:
 
 1. `cmux new-pane --workspace "${CMUX_WORKSPACE_ID}" --type terminal --direction right` → note the
    returned `surface:<N>`.
-2. `cmux send --workspace "${CMUX_WORKSPACE_ID}" --surface surface:<N> "cd <worktree> && PEEK_PARENT=\"$PEEK_ID\" <wrapper> [--provider X --model Y]"` then
+2. `cmux send --workspace "${CMUX_WORKSPACE_ID}" --surface surface:<N> "cd <worktree> && <wrapper> [--provider X --model Y]"` then
    `cmux send-key --workspace "${CMUX_WORKSPACE_ID}" --surface surface:<N> enter`.
-   Forward `PEEK_PARENT="$PEEK_ID"` **on the cast command itself** — the new pane is a fresh shell
-   that does not inherit your process env, so without this the worker has no way to know who cast
-   it and registers as parentless in `peek`. Every worker wrapper exports `PEEK_ID`/`PEEK_ROLE`/
-   `PEEK_WORKSPACE` on its own (see `bin/lib/peek-env.sh`); only the parent link needs your help.
-   `$PEEK_ID` is always non-empty here — `pi-project-lead` establishes its own identity
-   (`bin/lib/peek-lead-env.sh`, role=`orchestrator`) at startup, before anything else, precisely so
-   this forwarding never sends an empty string.
 3. Send the brief the same way; monitor with
    `cmux capture-pane --workspace "${CMUX_WORKSPACE_ID}" --surface surface:<N>`.
 4. When done, collect the result and
@@ -215,6 +208,9 @@ for the full statement):
    silently omit it.
 4. **CI green** — or a documented infra-blocker waiver (e.g. GitHub Actions billing), stated
    explicitly on the PR and the Linear ticket, never used to wave off a real code/test failure.
+   For PRs in **pi-fleet itself**, this includes `bin/pi-fleet-eval-banned-terms` — a required,
+   non-skippable gate (not just an available eval) that fails the merge if another project's name
+   has crept back into pi-fleet's tracked files (see `evals/README.md`).
 5. **Docs pass** — cast `pi-docs` (or do it yourself for small/docs-adjacent tickets): README and
    every affected doc updated to match the change, OR an explicit no-docs-needed rationale posted
    on the PR. Not optional, not skippable because "it's just a fix."
@@ -233,7 +229,6 @@ main — the CEO does that.
 
 ## Project separation
 
-Your project (e.g. `pi-fleet`) does not carry another project's (e.g. `peek`) profile/skill-
-specific wiring, symlinks, or internal assumptions — only external CLI dependencies you install
-and call normally. If you're unsure whether something crosses that line, see the conductor
-skill's fuller statement of this rule.
+Your project does not carry another project's profile/skill-specific wiring, symlinks, or internal
+assumptions — only external CLI dependencies you install and call normally. If you're unsure
+whether something crosses that line, see the conductor skill's fuller statement of this rule.

@@ -4,9 +4,6 @@
 # own location — see FLT-15 — so we resolve them here from the script's own path instead).
 set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Establish this lead's own PEEK_* identity (role=orchestrator) BEFORE anything else, so its cast
-# commands have a real $PEEK_ID to forward as PEEK_PARENT to workers (see skills/project-lead).
-. "$FLEET_ROOT/bin/lib/peek-lead-env.sh"
 # Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
 "$FLEET_ROOT/bin/lib/scheduler-status.sh" || echo "pi-project-lead: scheduler-status check failed, continuing" >&2
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
