@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { REPO_SOURCE_ARCHIVE_PATH } from "./archive.ts";
 import {
 	buildResultFinalizer,
 	buildRunnerScript,
@@ -224,8 +225,18 @@ test("buildRunnerScript uses the normalized per-cast repo for every target clone
 		repo: "github.com/kellykampen/pi-fleet.git",
 	});
 	assert.match(cloneScript, /export TARGET_REPO='kellykampen\/pi-fleet'/);
-	assert.match(cloneScript, /gh repo clone "\$TARGET_REPO" \/work\/repo/);
-	assert.equal(cloneScript.includes("github.com/kellykampen/pi-fleet.git"), false);
+	// FLT-9: codeAccess=clone unpacks a pre-uploaded source archive instead of
+	// having the sandbox `gh repo clone` the target — no read credentials needed
+	// for this step. clone_target (the credential-bearing helper) is defined
+	// (shared with pr/branch below) but never invoked for clone; extract_source_
+	// archive runs instead, and the git remote is still added (using the
+	// normalized slug) so the later push/PR step has somewhere to push to.
+	assert.doesNotMatch(cloneScript, /^clone_target(\s|$)/m);
+	assert.match(cloneScript, /^extract_source_archive$/m);
+	assert.match(
+		cloneScript,
+		/git remote add origin 'https:\/\/github\.com\/kellykampen\/pi-fleet\.git'/,
+	);
 
 	const prScript = buildRunnerScript({
 		...baseJob,
@@ -261,7 +272,14 @@ test("buildRunnerScript keeps the per-cast target separate from FLEET_REPO_URL",
 		/git clone --depth 1 --branch 'develop' 'https:\/\/github\.com\/fleet-org\/pi-fleet\.git' \/work\/pi-fleet/,
 	);
 	assert.match(script, /export TARGET_REPO='customer-org\/private-app'/);
-	assert.match(script, /clone_target --depth 1 --branch 'develop'/);
+	// codeAccess=clone no longer calls clone_target (that requires the sandbox
+	// to hold read credentials); it extracts the pre-uploaded source archive
+	// and wires the target as the push remote instead.
+	assert.doesNotMatch(script, /^clone_target(\s|$)/m);
+	assert.match(
+		script,
+		/git remote add origin 'https:\/\/github\.com\/customer-org\/private-app\.git'/,
+	);
 	assert.doesNotMatch(script, /TARGET_REPO='fleet-org\/pi-fleet'/);
 });
 
@@ -304,6 +322,72 @@ test("buildRunnerScript wraps codeAccess=branch checkout so a bad branch fails f
 	const checkoutFnIdx = script.indexOf("checkout_branch() {");
 	const implementerIdx = script.indexOf('"$PI_IMPL"');
 	assert.ok(checkoutFnIdx !== -1 && checkoutFnIdx < implementerIdx);
+});
+
+test("buildRunnerScript extracts the pre-uploaded source archive for codeAccess=clone instead of cloning with credentials (FLT-9)", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildRunnerScript(
+		implementerJob({ codeAccess: "clone", repo: "owner/private-app", branch: "fleet/my-branch" }),
+	);
+
+	// No read path requires the sandbox to hold credentials: clone_target (the
+	// only place `gh repo clone` runs) is defined for the pr/branch paths but
+	// never invoked here.
+	assert.doesNotMatch(script, /^clone_target(\s|$)/m);
+
+	// The runner decodes+extracts the archive the host already uploaded to
+	// REPO_SOURCE_ARCHIVE_PATH, and cleans it up immediately after. `< file`
+	// (stdin redirection, not a positional `base64 -d file` argument) so this
+	// decodes identically under GNU and BSD base64.
+	assert.match(script, /extract_source_archive\(\)\s*\{/);
+	assert.match(script, /^extract_source_archive$/m);
+	const escapedPath = REPO_SOURCE_ARCHIVE_PATH.replace(/\//g, "\\/");
+	assert.match(
+		script,
+		new RegExp(`base64 -d < ${escapedPath} \\| tar -xzf - -C /work/repo`),
+	);
+	assert.match(script, new RegExp(`rm -f ${escapedPath}`));
+
+	// A fresh git repo is initialized from the extracted tree, wired to the
+	// target as its push remote, and the new branch is created from there —
+	// so push/PR (still using FLEET_GITHUB_TOKEN) works exactly as before.
+	assert.match(script, /git init -q/);
+	assert.match(
+		script,
+		/git remote add origin 'https:\/\/github\.com\/owner\/private-app\.git'/,
+	);
+	assert.match(script, /git checkout -b 'fleet\/my-branch'/);
+
+	// Extraction failure is a distinct, sanitized error — not the GH-token
+	// access hint, since it has nothing to do with token scope.
+	assert.match(
+		script,
+		/extract_source_archive\(\)\s*\{[\s\S]*?SOURCE_ARCHIVE_EXTRACT_FAILED=1[\s\S]*?finalize_result[\s\S]*?exit "\$EXIT"[\s\S]*?\}/,
+	);
+
+	const extractFnIdx = script.indexOf("extract_source_archive() {");
+	const implementerIdx = script.indexOf('"$PI_IMPL"');
+	assert.ok(extractFnIdx !== -1 && extractFnIdx < implementerIdx);
+});
+
+test("buildResultFinalizer surfaces a clear, sanitized error for a failed source-archive extraction, distinct from the token-access hint (FLT-9)", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		runFinalizer(work, {
+			JOB_ID: "job-archive-extract-failed",
+			EXIT: "1",
+			TARGET_REPO: "owner/private-app",
+			SOURCE_ARCHIVE_EXTRACT_FAILED: "1",
+		});
+
+		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.equal(result.status, "failed");
+		assert.match(result.error, /owner\/private-app/);
+		assert.equal(result.error.includes(TARGET_REPO_ACCESS_ERROR_HINT), false);
+		assert.doesNotMatch(result.error, /token/i);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
 });
 
 /**
@@ -698,14 +782,41 @@ test("tryCreateSandbox chmods /work as root BEFORE writing the runner, then back
 
 	assert.equal(result.sandboxId, "sbx-mock");
 	// Exact ordering: root chmod of /work must precede the runner write, and the
-	// executable bit + backgrounded runner follow it.
+	// executable bit + backgrounded runner follow it. codeAccess=clone (the
+	// implementerJob() default) also uploads the source archive (FLT-9) before
+	// run-job.sh, since the runner needs it present the moment it starts.
 	assert.deepEqual(sandbox.calls, [
 		"run:mkdir -p /work && chmod -R a+rwX /work",
+		`write:${REPO_SOURCE_ARCHIVE_PATH}`,
 		"write:/work/run-job.sh",
 		"run:chmod +x /work/run-job.sh",
 		"run:bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",
 	]);
 	assert.equal(sandbox.killed, 0);
+});
+
+test("tryCreateSandbox does not upload a source archive for codeAccess=pr/branch (only clone needs it)", async () => {
+	tryCreateSandboxEnv();
+
+	const prSandbox = recordingSandbox({ sandboxId: "sbx-pr" });
+	await tryCreateSandbox(
+		implementerJob({ codeAccess: "pr", prNumber: 7 }),
+		async () => prSandbox,
+	);
+	assert.equal(
+		prSandbox.calls.some((c) => c === `write:${REPO_SOURCE_ARCHIVE_PATH}`),
+		false,
+	);
+
+	const branchSandbox = recordingSandbox({ sandboxId: "sbx-branch" });
+	await tryCreateSandbox(
+		implementerJob({ codeAccess: "branch", branch: "feature/x" }),
+		async () => branchSandbox,
+	);
+	assert.equal(
+		branchSandbox.calls.some((c) => c === `write:${REPO_SOURCE_ARCHIVE_PATH}`),
+		false,
+	);
 });
 
 test("tryCreateSandbox kills the sandbox when a setup command fails", async () => {

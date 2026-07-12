@@ -1,3 +1,4 @@
+import { buildRepoSourceArchive, REPO_SOURCE_ARCHIVE_PATH } from "./archive.js";
 import {
 	findJobByIdOrSandboxId,
 	newJobId,
@@ -186,6 +187,15 @@ export async function tryCreateSandbox(
 			timeoutMs: 60_000,
 			user: "root",
 		});
+
+		// codeAccess=clone: upload a source snapshot instead of having the
+		// sandbox `gh repo clone` the target with read credentials (FLT-9). Must
+		// land before run-job.sh is backgrounded, since the runner's
+		// extract_source_archive step expects it present the moment it starts.
+		if (job.codeAccess === "clone") {
+			const archive = await buildRepoSourceArchive({ ref: job.baseBranch });
+			await sandbox.files.write(REPO_SOURCE_ARCHIVE_PATH, archive.base64);
+		}
 
 		const runner = buildRunnerScript(job);
 		await sandbox.files.write("/work/run-job.sh", runner);
