@@ -1240,6 +1240,25 @@ test("buildReviewerRunnerScript invokes pi-reviewer (not pi-implementer) and anc
 	assert.match(script, /- path: \/work\/pi-fleet\/profiles/);
 });
 
+test("buildReviewerRunnerScript emits a matched --provider/--model pair before -p when both are set on the job (FLT-45 model-auth fix)", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+
+	const overridden = buildReviewerRunnerScript(
+		reviewerJob({ provider: "anthropic", model: "some-model" }),
+	);
+	assert.match(
+		overridden,
+		/"\$PI_REVIEW" --provider 'anthropic' --model 'some-model' -p "\$\(cat \/work\/brief\.md\)"/,
+	);
+
+	// No override: falls through to the profile's own default (openai-codex /
+	// gpt-5.5 per profiles/reviewer/profile.yml) — no --provider/--model flags
+	// at all, exactly like the implementer runner's equivalent no-override case.
+	const defaulted = buildReviewerRunnerScript(reviewerJob());
+	assert.match(defaulted, /"\$PI_REVIEW" -p "\$\(cat \/work\/brief\.md\)"/);
+	assert.doesNotMatch(defaulted, /--provider|--model/);
+});
+
 test("buildReviewerRunnerScript cd's into a /work subdirectory before invoking pi-reviewer, so profile.yml's ../extensions/linear.ts resolves to the symlinked /work/extensions (regression: sandbox previously ran pi-reviewer from a shallower cwd, resolving to the nonexistent /extensions/linear.ts)", () => {
 	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
 	const script = buildReviewerRunnerScript(reviewerJob());

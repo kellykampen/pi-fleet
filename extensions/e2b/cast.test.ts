@@ -8,6 +8,7 @@ import { join } from "node:path";
 import {
 	castJob,
 	MISSING_REVIEWER_GITHUB_TOKEN_ERROR,
+	MISSING_REVIEWER_MODEL_AUTH_ERROR,
 	reconnectSandbox,
 	refreshFromSandbox,
 	requireReviewerCast,
@@ -19,6 +20,7 @@ import {
 	GITHUB_APP_PRIVATE_KEY_ENV,
 } from "./githubApp.ts";
 import { readJob, writeJob } from "./jobs.ts";
+import { PI_AGENT_AUTH_ENV } from "./secrets.ts";
 import { DEFAULT_TIMEOUT_MINUTES, type FleetJob } from "./types.ts";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -31,6 +33,7 @@ function clearSensitiveEnv() {
 	delete process.env[GITHUB_APP_ID_ENV];
 	delete process.env[GITHUB_APP_INSTALLATION_ID_ENV];
 	delete process.env[GITHUB_APP_PRIVATE_KEY_ENV];
+	delete process.env[PI_AGENT_AUTH_ENV];
 }
 
 // Throwaway RSA keypair generated fresh in-process — never a real App secret.
@@ -388,11 +391,37 @@ test("requireReviewerCast rejects anything but a PR-targeted reviewer cast", () 
 	);
 });
 
+test("requireReviewerCast rejects a partial provider/model override (live evidence: a lone model override was silently dropped rather than erroring)", () => {
+	const base = {
+		profile: "reviewer" as const,
+		brief: "review it",
+		codeAccess: "pr" as const,
+		repo: "owner/repo",
+		prNumber: 1,
+	};
+	assert.throws(
+		() => requireReviewerCast({ ...base, model: "gpt-5.6-sol" }),
+		/provider\/model override must be set together/,
+	);
+	assert.throws(
+		() => requireReviewerCast({ ...base, provider: "anthropic" }),
+		/provider\/model override must be set together/,
+	);
+	assert.doesNotThrow(() =>
+		requireReviewerCast({ ...base, provider: "anthropic", model: "some-model" }),
+	);
+	assert.doesNotThrow(() => requireReviewerCast(base));
+});
+
 test("non-dry-run reviewer cast dispatches to a running job distinct from an implementer cast", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
 	process.env.FLEET_JOBS_DIR = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+	// Satisfies the reviewer model-auth preflight (openai-codex needs OAuth) so
+	// this test can exercise dispatch/status, not the auth gate — see the
+	// dedicated MISSING_REVIEWER_MODEL_AUTH_ERROR tests below.
+	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJ0b2tlbi1zZWNyZXQifQ==";
 
 	try {
 		const job = await castJob(
@@ -457,11 +486,116 @@ test("non-dry-run reviewer cast fails clearly before sandbox creation when no Gi
 	}
 });
 
+test("non-dry-run reviewer cast fails fast before sandbox creation when no model-auth path is available (no OAuth blob, no provider/model override) — live evidence: jobs ab043369/9e9c2a4f failed deep in pi's launch with \"No API key found for openai-codex\" instead", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+	let sandboxCreated = false;
+
+	try {
+		const job = await castJob(
+			{
+				profile: "reviewer",
+				brief: "review it",
+				codeAccess: "pr",
+				repo: "owner/repo",
+				prNumber: 1,
+				// No provider/model override, and PI_AGENT_AUTH_JSON_B64 (cleared by
+				// clearSensitiveEnv) is unset — openai-codex has no way to authenticate.
+			},
+			{
+				createSandbox: async () => {
+					sandboxCreated = true;
+					return { sandboxId: "sandbox", logTail: "started" };
+				},
+			},
+		);
+
+		assert.equal(sandboxCreated, false);
+		assert.equal(job.status, "failed");
+		assert.equal(job.error, MISSING_REVIEWER_MODEL_AUTH_ERROR);
+
+		const persisted = await readJob(job.jobId);
+		assert.equal(persisted.status, "failed");
+		assert.equal(persisted.error, MISSING_REVIEWER_MODEL_AUTH_ERROR);
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+test("a reviewer cast reaches sandbox creation when PI_AGENT_AUTH_JSON_B64 is forwarded, even without an explicit provider/model override", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJ0b2tlbi1zZWNyZXQifQ==";
+	let sandboxCreated = false;
+
+	try {
+		const job = await castJob(
+			{
+				profile: "reviewer",
+				brief: "review it",
+				codeAccess: "pr",
+				repo: "owner/repo",
+				prNumber: 1,
+			},
+			{
+				createSandbox: async () => {
+					sandboxCreated = true;
+					return { sandboxId: "sandbox-oauth", logTail: "started" };
+				},
+			},
+		);
+
+		assert.equal(sandboxCreated, true);
+		assert.equal(job.status, "running");
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+test("a reviewer cast reaches sandbox creation when a matched provider/model override is given, even without PI_AGENT_AUTH_JSON_B64", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+	process.env.ANTHROPIC_API_KEY = "sk-worker-anthropic";
+	let sandboxCreated = false;
+
+	try {
+		const job = await castJob(
+			{
+				profile: "reviewer",
+				brief: "review it",
+				codeAccess: "pr",
+				repo: "owner/repo",
+				prNumber: 1,
+				provider: "anthropic",
+				model: "some-model",
+			},
+			{
+				createSandbox: async () => {
+					sandboxCreated = true;
+					return { sandboxId: "sandbox-override", logTail: "started" };
+				},
+			},
+		);
+
+		assert.equal(sandboxCreated, true);
+		assert.equal(job.status, "running");
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
 test("a reviewer cast succeeds with only FLEET_GITHUB_REVIEWER_TOKEN set (no implementer push token required)", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
 	process.env.FLEET_JOBS_DIR = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerOnlyToken1234567890abcdefgh";
+	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJ0b2tlbi1zZWNyZXQifQ==";
 
 	try {
 		const job = await castJob(

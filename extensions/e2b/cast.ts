@@ -14,6 +14,8 @@ import {
 	collectWorkerEnv,
 	githubCredentialSourceConfigured,
 	MISSING_REVIEWER_GITHUB_TOKEN_ERROR,
+	MISSING_REVIEWER_MODEL_AUTH_ERROR,
+	PI_AGENT_AUTH_ENV,
 	resolveFleetRepoUrl,
 	resolveInjectedGithubToken,
 	sanitizeSecrets,
@@ -30,7 +32,7 @@ import {
 export const MISSING_GITHUB_TOKEN_ERROR =
 	"FLEET_GITHUB_TOKEN (or GH_TOKEN) is required for non-dry-run implementer casts";
 
-export { MISSING_REVIEWER_GITHUB_TOKEN_ERROR };
+export { MISSING_REVIEWER_GITHUB_TOKEN_ERROR, MISSING_REVIEWER_MODEL_AUTH_ERROR };
 
 export const MISSING_TEMPLATE_ERROR =
 	"FLEET_E2B_TEMPLATE is required for non-dry-run implementer casts (e.g. FLEET_E2B_TEMPLATE=pi-fleet-node22)";
@@ -263,6 +265,19 @@ export function requireReviewerCast(params: CastParams): void {
 	}
 	if (!params.brief?.trim()) {
 		throw new Error("brief is required");
+	}
+	// A partial override (only one of provider/model set) risks silently
+	// pairing an overridden model with the *profile's* default provider (or
+	// vice versa) — e.g. a model that only exists under a different provider
+	// than profiles/reviewer/profile.yml's default, which can get silently
+	// dropped/rejected rather than erroring (observed live: "model override
+	// ... was ignored", terminal job still shows the profile default). Require
+	// both together so an override is always a well-formed, unambiguous pair.
+	if (Boolean(params.provider?.trim()) !== Boolean(params.model?.trim())) {
+		throw new Error(
+			"reviewer cast provider/model override must be set together (both or neither) — " +
+				"see docs/e2b-reviewer.md for why a partial override can be silently dropped",
+		);
 	}
 }
 
@@ -692,6 +707,23 @@ export async function castJob(
 		// treating it as "unconfigured, use the PAT".
 		const message = sanitizeSecrets(err instanceof Error ? err.message : String(err));
 		return updateJob(job.jobId, sanitizeJobPatch({ status: "failed", error: message }));
+	}
+
+	// profiles/reviewer/profile.yml defaults to provider=openai-codex, which
+	// needs an OAuth blob (PI_AGENT_AUTH_ENV), not an API key. Without one
+	// forwarded and without an explicit provider+model override (validated as
+	// a matched pair by requireReviewerCast), the cast is guaranteed to fail
+	// deep inside pi's launch after a sandbox is already billed — fail here
+	// instead (live evidence: jobs ab043369, 9e9c2a4f).
+	if (
+		job.profile === "reviewer" &&
+		!(job.provider && job.model) &&
+		!process.env[PI_AGENT_AUTH_ENV]?.trim()
+	) {
+		return updateJob(
+			job.jobId,
+			sanitizeJobPatch({ status: "failed", error: MISSING_REVIEWER_MODEL_AUTH_ERROR }),
+		);
 	}
 
 	try {

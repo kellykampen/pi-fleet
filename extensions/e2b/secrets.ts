@@ -72,6 +72,22 @@ export const PI_AGENT_AUTH_ENV = "PI_AGENT_AUTH_JSON_B64";
 /** Path the runner writes the decoded pi auth blob to inside the sandbox. */
 export const PI_AGENT_AUTH_PATH = "$HOME/.pi/agent/auth.json";
 
+/**
+ * profiles/reviewer/profile.yml defaults to provider=openai-codex, which pi
+ * authenticates via OAuth (PI_AGENT_AUTH_ENV), not an API key — so a reviewer
+ * cast with neither an explicit provider+model override nor a forwarded OAuth
+ * blob is guaranteed to fail deep inside pi's launch with an opaque "No API
+ * key found for <provider>" only after a sandbox is already billed (observed
+ * live: jobs ab043369, 9e9c2a4f). Caught here instead, before any sandbox is
+ * created — same "fail fast, never silently reach a doomed sandbox" pattern
+ * as MISSING_GITHUB_TOKEN_ERROR/MISSING_TEMPLATE_ERROR.
+ */
+export const MISSING_REVIEWER_MODEL_AUTH_ERROR =
+	`profiles/reviewer/profile.yml defaults to provider=openai-codex, which pi authenticates via OAuth, not an API key. ` +
+	`Either export ${PI_AGENT_AUTH_ENV} (base64 of ~/.pi/agent/auth.json) locally so it is forwarded into the sandbox, ` +
+	`or pass an explicit e2b_cast provider+model pair (both together — see requireReviewerCast) pointing at a provider ` +
+	`authenticated via one of the already-forwarded FLEET_WORKER_MODEL_KEYS (${FLEET_WORKER_MODEL_KEYS.join(", ")}).`;
+
 /** All env keys that may hold sensitive values; used for log sanitization. */
 export const SENSITIVE_ENV_KEYS = [
 	...GITHUB_REVIEWER_TOKEN_ENV_KEYS,
