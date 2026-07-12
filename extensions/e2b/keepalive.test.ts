@@ -340,3 +340,59 @@ test("refreshFromSandbox uses maxLifetimeMinutes (not timeoutMinutes) as the run
 		assert.notEqual(refreshed.status, "timeout");
 	});
 });
+
+test("castJob persists a per-cast maxLifetimeMinutes override and refreshFromSandbox enforces it", async () => {
+	await withTempStore(async () => {
+		process.env.E2B_API_KEY = "e2b_test_key";
+		process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+
+		const job = await castJob(
+			{
+				profile: "implementer",
+				brief: "implement FLT-8",
+				codeAccess: "clone",
+				repo: "owner/repo",
+				timeoutMinutes: 90,
+				maxLifetimeMinutes: 45,
+			},
+			{
+				createSandbox: async () => ({
+					sandboxId: "sandbox-custom-ceiling",
+					logTail: "sandbox started; runner backgrounded",
+				}),
+			},
+		);
+		stopKeepalive(job.jobId);
+
+		// Persisted on cast, not silently dropped.
+		assert.equal(job.maxLifetimeMinutes, 45);
+		const persisted = await readJob(job.jobId);
+		assert.equal(persisted.maxLifetimeMinutes, 45);
+
+		// 50 minutes elapsed: past the 45-minute per-cast ceiling, but under both
+		// the 90-minute timeoutMinutes window and the 180-minute fleet default —
+		// only a job that actually reads maxLifetimeMinutes off the record dies here.
+		await writeJob({
+			...persisted,
+			createdAt: new Date(Date.now() - 50 * 60 * 1000).toISOString(),
+		});
+
+		let killed = false;
+		const refreshed = await refreshFromSandbox(await readJob(job.jobId), {
+			connectSandbox: async () => ({
+				files: {
+					async read() {
+						throw new Error("not ready");
+					},
+				},
+				async kill() {
+					killed = true;
+				},
+			}),
+		});
+
+		assert.equal(killed, true);
+		assert.equal(refreshed.status, "timeout");
+		assert.match(refreshed.error ?? "", /max lifetime of 45 minutes/);
+	});
+});

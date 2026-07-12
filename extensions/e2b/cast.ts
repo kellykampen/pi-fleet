@@ -575,6 +575,7 @@ export async function castJob(
 		provider: params.provider,
 		model: params.model,
 		timeoutMinutes: params.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES,
+		maxLifetimeMinutes: params.maxLifetimeMinutes,
 		fleetRef: params.fleetRef,
 		dryRun,
 		createdAt: now,
