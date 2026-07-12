@@ -84,7 +84,7 @@ You have the **model-classifier** skill loaded — use it. Don't pick models fro
 | Investigate / scout / research (read-only) | `pi-researcher` |
 | Visual QA — app screenshot vs design comp | `pi-visual-qa` |
 | Linear issue / project management | `pi-linear` |
-| AC verification (run tests/build) | `pi-ac-verifier` |
+| AC verification (run tests/build) — MANDATORY for every ticket before Done, never skipped | `pi-ac-verifier` |
 | Final Docs pass (after review+AC+CI green, before merge/Done) | `pi-docs` |
 | Different-HARNESS review (not pi) | `claude-reviewer` (hard read-only, Sonnet 5/Opus 4.8) |
 | Build on a different harness (diversity) | `claude-worker` (Sonnet 5/Opus 4.8) |
@@ -179,8 +179,12 @@ for the full statement):
 
 1. **Independent review by a DIFFERENT model** than the implementer — if the build ran on model M,
    the reviewer must NOT be M (re-classify for a different capable model if needed). Posted on the PR.
-2. **AC-verify** — real commands run against real code, evidence posted on the PR. AC checkboxes
-   checked only after that verification, never on a claim.
+2. **AC-verify** — you MUST cast a dedicated `pi-ac-verifier` (or equivalent independent verifier;
+   see the `linear-ac-verification` skill) for every ticket, no exceptions for small/urgent/obvious
+   tickets. Real commands run against real code, evidence posted on the PR. The AC-verifier — not
+   you, not the implementer — checks the Linear boxes, and only after it has actually verified each
+   one by running it. You never check a box yourself and you never accept a claim of "this is done"
+   in place of the verifier's own evidence.
 3. **CI green** — or a documented infra-blocker waiver (e.g. GitHub Actions billing), stated
    explicitly on the PR and the Linear ticket, never used to wave off a real code/test failure.
 4. **Docs pass** — cast `pi-docs` (or do it yourself for small/docs-adjacent tickets): README and
@@ -188,6 +192,12 @@ for the full statement):
    on the PR. Not optional, not skippable because "it's just a fix."
 5. **Merge to develop, flip Linear to Done** — you do this yourself once gates 1-4 pass; don't
    park a fully-gated PR waiting on the CEO. The CEO's only manual step is develop→main promotion.
+   **HARD RULE (CEO directive, 2026-07-12), checked immediately before every single Done
+   transition:** re-read the ticket's current Linear description right before you flip its state.
+   If any `- [ ]` box remains unchecked, DO NOT set Done — stop and get real AC-verification
+   first. This was found violated in practice (tickets marked Done with unchecked boxes despite
+   this Gates section already existing) — treat it as a literal gate check, not a formality you
+   trust yourself to remember.
 
 Pass each seat the Linear ticket details it needs. Every ticket needs a Linear ticket with
 markdown checkbox AC **before** work starts — don't backfill one after the fact. Never promote to

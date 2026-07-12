@@ -138,7 +138,8 @@ Every ticket's path to Done, in order, no step skipped or reordered:
 
 ```
 branch/code -> independent review (DIFFERENT model, POSTED on the PR)
-            -> AC-verify (real commands run against real code, evidence POSTED)
+            -> AC-verify (dedicated pi-ac-verifier seat, real commands run against real code,
+               every Linear checkbox flipped BY THE VERIFIER ONLY, evidence POSTED)
             -> CI green (or a documented infra-blocker waiver)
             -> Docs pass (README + every affected doc updated, OR an explicit
                no-docs-needed rationale POSTED)
@@ -150,6 +151,16 @@ until either real doc changes are posted, or a project lead explicitly states in
 are needed (`pi-docs` is the seat that runs this pass; see the project-lead skill and the pi-fleet
 README for its full DoD position). A gate claimed in chat/logs but not evidenced on the PR does
 not count — this rule already applies to review/AC-verify and applies identically to docs.
+
+**AC-verify spot-check (CEO directive, 2026-07-12) — a standing conductor duty, not optional.**
+This exact failure was found happening in practice: tickets marked Done with unchecked AC boxes,
+despite the AC-verify gate already being written down. A rule stated only in a skill file is not
+enough on its own — you are the cross-project vantage point that can catch this drift, so during
+every check-in, spot-check a sample of any tickets a lead reports as newly Done: read the Linear
+description directly and confirm every `- [ ]` is actually checked. Any Done ticket with an
+unchecked box is a real defect — tell the lead to correct the ticket's status to match reality and
+get genuine independent AC-verification (a dedicated `pi-ac-verifier` seat, never the lead or
+implementer self-checking), not a promise it'll get fixed later.
 
 ## Pane/seat hygiene
 

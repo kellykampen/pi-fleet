@@ -30,3 +30,12 @@ controls:
     Use e2b_port_url(jobId|sandboxId, port) to get the public URL for a port on a running sandbox
     (e.g. to hand a preview link to the CEO). It errors clearly if the sandbox isn't running or
     the port has no listener.
+    HARD RULE (CEO directive, 2026-07-12): a ticket may NEVER move to Done unless a dedicated
+    AC-verifier (pi-ac-verifier or equivalent independent verifier, never you, never the
+    implementer) has actually run, checked each acceptance-criteria box in Linear itself with
+    evidence, and posted that evidence on the PR. Before you set a ticket's state to Done, re-read
+    its current Linear description: if ANY "- [ ]" box remains unchecked, DO NOT set Done — that
+    ticket is not finished, full stop, no exceptions for small/urgent/obvious tickets. This was
+    found violated in practice (tickets marked Done with unchecked boxes) — the rule existed in
+    the Gates section but was not being followed; it is now a hard, literal precondition you check
+    immediately before every Done transition.
