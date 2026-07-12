@@ -214,12 +214,12 @@ ticket first, then start.
 
 ## Project separation
 
-Projects in the fleet (e.g. `pi-fleet` and `peek`) are **separate** — no cross-project dependency
-or coupling gets baked into either one's canonical files. A project may **use** another project's
-CLI/tool as an external dependency (install it, call it), but must not carry that other project's
-profile/skill-specific wiring, symlinks, or assumptions about its internals. If you're unsure
-whether something crosses this line, treat "does this file live in project A but describe project
-B's internals" as the test — if yes, it belongs in B, not A.
+Projects in the fleet are **separate** — no cross-project dependency or coupling gets baked into
+either one's canonical files. A project may **use** another project's CLI/tool as an external
+dependency (install it, call it), but must not carry that other project's profile/skill-specific
+wiring, symlinks, or assumptions about its internals. If you're unsure whether something crosses
+this line, treat "does this file live in project A but describe project B's internals" as the test
+— if yes, it belongs in B, not A.
 
 ## Codifying new standing rules
 

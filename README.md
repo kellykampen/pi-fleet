@@ -92,7 +92,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  [env model args] -
 | **`pi-designer`** | GPT-5.6 Terra (`openai-codex`) · high | read, grep, find, ls, write, edit, bash | Design / architecture / API + planning docs (taste model). Hands build to `pi-implementer`. For **claude.ai design import/update**, use `claude-designer` instead. |
 | **`claude-designer`** | Claude Code (`--agent claude`) | `mcp__claude_design__*` + Read/Grep/Glob/Edit/Write/Bash(git,pnpm,npm) | Reads/updates **claude.ai design** projects via the `claude_design` MCP and implements them. Runs **Claude Code, not pi** — claude_design's OAuth is gated to Claude Code's blessed client (pi's generic MCP OAuth is turned down). One-time `/design-login` if tools 401. |
 | **`pi-planner`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Breaks a feature into a Linear project + ≤3-pt issues with checkbox AC + blockers. |
-| **`pi-spike-breakdown`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Turns a Linear **spike** into a Linear project + ≤3-pt issues: reads the spike + context, finds the gaps (architecture/technical/dependency/product), **interviews the CEO** (`claude-conductor` relays the interview-linear questions via AskUserQuestion; fallback = direct AskUserQuestion or structured Linear comments — no peek dependency), then applies `issue-breakdown`. Reads Linear + repo; no repo `write`/`edit`. |
+| **`pi-spike-breakdown`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Turns a Linear **spike** into a Linear project + ≤3-pt issues: reads the spike + context, finds the gaps (architecture/technical/dependency/product), **interviews the CEO** (`claude-conductor` relays the interview-linear questions via AskUserQuestion; fallback = direct AskUserQuestion or structured Linear comments), then applies `issue-breakdown`. Reads Linear + repo; no repo `write`/`edit`. |
 | **`pi-security-reviewer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. Strong reasoning default. |
 | **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Cross-project router — assigns **project leads**, watches portfolio health, escalates to the CEO. Does not cast workers. |
 | **`claude-conductor`** | Claude Code (`--remote-control`) | *(no allowlist — same tool surface as `claude`)* | Thin wrapper that launches Claude Code with `--remote-control` so the CEO can reach the Conductor from the Claude Code **mobile app**. Every other Claude seat has `remoteControlAtStartup=false`; this is the one session that opts back in. Session name defaults to `claude-conductor`, override with `CONDUCTOR_NAME`. `FLEET_YOLO=1` gates `--dangerously-skip-permissions`, same convention as the other wrappers. |
@@ -145,7 +145,7 @@ make sure they're on `PATH`:
 | --- | --- |
 | `pi-reviewer`, `pi-researcher`, `pi-security-reviewer` | *nothing* — read-only seats |
 | `pi-implementer`, `pi-designer`, `pi-ac-verifier` | `git`, `gh`, and the target project's toolchain (`node` + `pnpm`/`npm`) |
-| `pi-planner`, `pi-spike-breakdown`, `pi-linear` | [`linear-cli`](https://github.com/schpet/linear-cli) *(+ a `LINEAR_API_KEY`)*. `pi-spike-breakdown`'s interview channel is pi-fleet-native (**no peek dependency**): a running `claude-conductor` relays the interview-linear questions to the CEO via AskUserQuestion (fallback = direct AskUserQuestion or structured Linear comments). |
+| `pi-planner`, `pi-spike-breakdown`, `pi-linear` | [`linear-cli`](https://github.com/schpet/linear-cli) *(+ a `LINEAR_API_KEY`)*. `pi-spike-breakdown`'s interview channel is pi-fleet-native: a running `claude-conductor` relays the interview-linear questions to the CEO via AskUserQuestion (fallback = direct AskUserQuestion or structured Linear comments). |
 | `pi-visual-qa` | `node` + Playwright (`npx playwright install`); a way to run the app under test |
 | `pi-conductor`, `pi-project-lead` | [`cmux`](https://cmux.io) (casts workers into panes), `git`, `gh`, `linear-cli` |
 | `pi-project-lead` **E2B remote casts** | the `e2b` CLI (`npm i` in `extensions/e2b`) + `E2B_API_KEY` + `FLEET_GITHUB_TOKEN` — see [E2B section](#e2b-remote-implementers-v0) |
@@ -308,56 +308,6 @@ pi-fleet/
 
 The security boundary is the wrapper's `--tools` line — a read-only seat simply omits
 `write`/`edit`/`bash`. Skills and prompts are instructions, not a boundary.
-
----
-
-## Fleet legibility (`peek`)
-
-Every worker wrapper sources `bin/lib/peek-env.sh` before it execs `outfitter`/`claude`, so a
-cast worker registers correctly with `peek` — the tiny serverless CLI that makes the fleet's
-hierarchy visible (`peek`, `peek watch`) without capturing panes. The helper exports four vars into
-the worker's own process env:
-
-| Var | Value |
-| --- | --- |
-| `PEEK_ID` | Fresh per worker process (defaults to a `worker-<uuid>` id) |
-| `PEEK_ROLE` | `worker`, unless already set |
-| `PEEK_PARENT` | The caster's id — see below |
-| `PEEK_WORKSPACE` | `CMUX_WORKSPACE_ID`, unless `PEEK_WORKSPACE` is already set |
-
-**Parent linkage is the subtle part.** A cast worker runs in a brand-new cmux pane/shell, which does
-**not** inherit the casting project lead's process env. So the project lead's cast command must
-forward its own id explicitly:
-
-```bash
-cmux send --workspace "${CMUX_WORKSPACE_ID}" --surface surface:<N> \
-  "cd <worktree> && PEEK_PARENT=\"$PEEK_ID\" pi-implementer"
-```
-
-`peek-env.sh` then does the rest: if `PEEK_PARENT` isn't already set, it treats whatever `PEEK_ID`
-(or `PEEK_ORCH_ID`) it inherited as the caster's id, promotes that to `PEEK_PARENT`, and *only then*
-mints the worker's own fresh `PEEK_ID` — so the parent link is never lost to a premature overwrite.
-`skills/project-lead/SKILL.md`'s "How to cast" steps have this `PEEK_PARENT` forwarding built in.
-
-That forwarding only works if `$PEEK_ID` is actually set in the lead's own shell — so
-`bin/pi-project-lead` and `bin/pi-conductor` each establish their **own** identity at startup too,
-via a *different* helper than the worker one (role semantics stay orchestrator/conductor, never
-`worker`):
-
-| Wrapper | Helper | `PEEK_ROLE` | `PEEK_ID` |
-| --- | --- | --- | --- |
-| `pi-project-lead` | `bin/lib/peek-lead-env.sh` | `orchestrator` (unless already set) | fresh `lead-<uuid>` (unless already set) |
-| `pi-conductor` | `bin/lib/peek-conductor-env.sh` | `conductor` (unless already set) | fixed `conductor` (unless already set) — cwd-agnostic per `peek`'s own "special case" |
-
-Both wrappers export their identity **before** anything else runs, so it's inherited by every bash
-tool call the session makes for its whole lifetime — including the `cmux send` cast command above.
-If a lead is ever started in a way that bypasses its wrapper (so `$PEEK_ID` stays unset), the cast
-command forwards `PEEK_PARENT=""` and the worker degrades to a parentless-but-valid registration
-rather than erroring — `bin/pi-fleet-eval-peekenv` covers this degradation case explicitly so it's a
-known, tested behavior rather than a silent gap.
-
-Verify the whole contract — worker, lead, and conductor identity, plus the full cast chain and the
-degradation case — with `bin/pi-fleet-eval-peekenv` (see [evals/README.md](evals/README.md)).
 
 ---
 

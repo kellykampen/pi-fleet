@@ -52,8 +52,6 @@ grep -qiE 'Spike'            $CONTRACT && ok "spike label filtering documented" 
 grep -qi  'interview'        $CONTRACT && ok "interview mechanism documented"          || no "interview mechanism documented"
 grep -qi  'claude-conductor' $CONTRACT && ok "claude-conductor relay channel documented" || no "claude-conductor relay channel documented"
 grep -qi  'AskUserQuestion'  $CONTRACT && ok "AskUserQuestion channel documented"      || no "AskUserQuestion channel documented"
-# Correction (CEO): pi-fleet-native channel only — the peek/PEK needs-input dependency must be gone.
-grep -qiE 'peek|PEK-'        $CONTRACT && no "peek/PEK dependency must be removed"      || ok "no peek/PEK dependency"
 grep -qE  '3 ?pt|<=3|≤3'     $CONTRACT && ok "<=3-point rule documented"               || no "<=3-point rule documented"
 grep -q   -- '- \[ \]'       $CONTRACT && ok "checkbox AC documented"                  || no "checkbox AC documented"
 grep -qi  'blocker'          $CONTRACT && ok "blockers/dependencies documented"        || no "blockers/dependencies documented"
