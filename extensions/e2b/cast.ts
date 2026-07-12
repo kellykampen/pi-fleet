@@ -1,6 +1,7 @@
 import {
 	findJobByIdOrSandboxId,
 	newJobId,
+	readJob,
 	updateJob,
 	writeJob,
 } from "./jobs.js";
@@ -13,6 +14,8 @@ import {
 	sanitizeSecrets,
 } from "./secrets.js";
 import {
+	DEFAULT_KEEPALIVE_INTERVAL_MINUTES,
+	DEFAULT_MAX_LIFETIME_MINUTES,
 	DEFAULT_TIMEOUT_MINUTES,
 	isTerminal,
 	type CastParams,
@@ -65,6 +68,8 @@ interface SandboxLike {
 	};
 	sandboxId?: string;
 	kill?(): Promise<void>;
+	/** Extends the sandbox's own auto-kill deadline; drives the keepalive. */
+	setTimeout?(timeoutMs: number): Promise<void>;
 }
 
 export interface SandboxStartResult {
@@ -91,7 +96,7 @@ export type RawSandboxFactory = (
 	opts: { timeoutMs: number; apiKey: string },
 ) => Promise<RunnableSandbox>;
 
-export interface CastDependencies {
+export interface CastDependencies extends KeepaliveDependencies {
 	createSandbox?: (job: FleetJob) => Promise<SandboxStartResult>;
 }
 
@@ -101,6 +106,103 @@ export interface RefreshDependencies {
 
 export interface ReconnectDependencies extends RefreshDependencies {
 	now?: () => Date;
+}
+
+export interface KeepaliveDependencies extends RefreshDependencies {
+	now?: () => Date;
+	intervalMs?: number;
+	setIntervalFn?: (fn: () => unknown, ms: number) => unknown;
+	clearIntervalFn?: (handle: unknown) => void;
+}
+
+const activeKeepalives = new Map<
+	string,
+	{ handle: unknown; clear: (handle: unknown) => void }
+>();
+
+/** Stops a job's keepalive interval, if one is active. Idempotent. */
+export function stopKeepalive(jobId: string): void {
+	const entry = activeKeepalives.get(jobId);
+	if (!entry) return;
+	entry.clear(entry.handle);
+	activeKeepalives.delete(jobId);
+}
+
+/**
+ * One keepalive cycle: re-extends the sandbox's own TTL by timeoutMinutes so
+ * it survives while the job is still active, bounded by maxLifetimeMinutes.
+ * Self-stops once the job store shows a terminal status, is missing, or the
+ * ceiling is reached — refreshFromSandbox's own poll then handles the kill.
+ */
+async function keepaliveTick(
+	jobId: string,
+	deps: KeepaliveDependencies,
+): Promise<void> {
+	let job: FleetJob;
+	try {
+		job = await readJob(jobId);
+	} catch {
+		stopKeepalive(jobId);
+		return;
+	}
+
+	if (!job.sandboxId || job.dryRun || isTerminal(job.status)) {
+		stopKeepalive(jobId);
+		return;
+	}
+
+	const now = deps.now ?? (() => new Date());
+	const created = Date.parse(job.createdAt);
+	const maxLifetimeMs =
+		(job.maxLifetimeMinutes ?? DEFAULT_MAX_LIFETIME_MINUTES) * 60 * 1000;
+	if (Number.isFinite(created) && now().getTime() - created >= maxLifetimeMs) {
+		stopKeepalive(jobId);
+		return;
+	}
+
+	try {
+		const sandbox = deps.connectSandbox
+			? await deps.connectSandbox(job.sandboxId)
+			: await connectSandboxDefault(job.sandboxId);
+		await sandbox.setTimeout?.(job.timeoutMinutes * 60 * 1000);
+		await updateJob(
+			job.jobId,
+			sanitizeJobPatch({ lastExtendedAt: now().toISOString() }),
+		);
+	} catch (err) {
+		// Best-effort: a transient reconnect/extend failure shouldn't kill the
+		// keepalive loop or the job — just note it and try again next tick.
+		const message = sanitizeSecrets(
+			err instanceof Error ? err.message : String(err),
+		);
+		await updateJob(
+			job.jobId,
+			sanitizeJobPatch({
+				logTail: `${job.logTail || ""}\n[keepalive] ${message}`.slice(-4000),
+			}),
+		).catch(() => {});
+	}
+}
+
+/** Starts (or restarts) a keepalive interval for jobId. Fire-and-forget. */
+export function startKeepalive(
+	jobId: string,
+	deps: KeepaliveDependencies = {},
+): void {
+	stopKeepalive(jobId);
+	const intervalMs =
+		deps.intervalMs ?? DEFAULT_KEEPALIVE_INTERVAL_MINUTES * 60 * 1000;
+	const setIntervalFn =
+		deps.setIntervalFn ??
+		((fn: () => unknown, ms: number) => setInterval(fn, ms));
+	const clearIntervalFn =
+		deps.clearIntervalFn ??
+		((handle: unknown) => clearInterval(handle as NodeJS.Timeout));
+
+	const handle = setIntervalFn(() => keepaliveTick(jobId, deps), intervalMs);
+	// Don't let a live keepalive keep the host process alive on its own.
+	(handle as { unref?: () => void })?.unref?.();
+	activeKeepalives.set(jobId, { handle, clear: clearIntervalFn });
 }
 
 export function requireImplementerCast(params: CastParams): void {
@@ -392,6 +494,7 @@ export async function refreshFromSandbox(
 				} catch {
 					// ignore best-effort kill
 				}
+				stopKeepalive(job.jobId);
 			}
 			return updateJob(
 				job.jobId,
@@ -411,18 +514,21 @@ export async function refreshFromSandbox(
 		}
 
 		const created = Date.parse(job.createdAt);
-		const limitMs = job.timeoutMinutes * 60 * 1000;
+		const maxLifetimeMinutes =
+			job.maxLifetimeMinutes ?? DEFAULT_MAX_LIFETIME_MINUTES;
+		const limitMs = maxLifetimeMinutes * 60 * 1000;
 		if (Number.isFinite(created) && Date.now() - created > limitMs) {
 			try {
 				await sandbox.kill?.();
 			} catch {
 				// ignore
 			}
+			stopKeepalive(job.jobId);
 			return updateJob(
 				job.jobId,
 				sanitizeJobPatch({
 					status: "timeout",
-					error: `Exceeded timeout of ${job.timeoutMinutes} minutes`,
+					error: `Exceeded max lifetime of ${maxLifetimeMinutes} minutes`,
 					logTail,
 				}),
 			);
@@ -469,6 +575,7 @@ export async function castJob(
 		provider: params.provider,
 		model: params.model,
 		timeoutMinutes: params.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES,
+		maxLifetimeMinutes: params.maxLifetimeMinutes,
 		fleetRef: params.fleetRef,
 		dryRun,
 		createdAt: now,
@@ -503,10 +610,12 @@ export async function castJob(
 		const { sandboxId, logTail } = await (
 			deps.createSandbox ?? tryCreateSandbox
 		)(job);
-		return updateJob(
+		const started = await updateJob(
 			job.jobId,
 			sanitizeJobPatch({ status: "running", sandboxId, logTail }),
 		);
+		startKeepalive(job.jobId, deps);
+		return started;
 	} catch (err) {
 		const message = sanitizeSecrets(describeSandboxError(err));
 		return updateJob(
@@ -519,6 +628,7 @@ export async function castJob(
 export async function cancelSandbox(
 	job: FleetJob,
 ): Promise<string | undefined> {
+	stopKeepalive(job.jobId);
 	if (!job.sandboxId || !process.env.E2B_API_KEY?.trim()) return undefined;
 	try {
 		const sandbox = await connectSandboxDefault(job.sandboxId);

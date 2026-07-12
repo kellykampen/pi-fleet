@@ -45,6 +45,10 @@ export interface FleetJob {
 	createdAt: string;
 	updatedAt: string;
 	finishedAt?: string;
+	/** Ceiling on total job lifetime regardless of keepalive extensions. */
+	maxLifetimeMinutes?: number;
+	/** Timestamp of the last successful keepalive sandbox-timeout extension. */
+	lastExtendedAt?: string;
 }
 
 export interface CastParams {
@@ -61,6 +65,7 @@ export interface CastParams {
 	timeoutMinutes?: number;
 	fleetRef?: string;
 	dryRun?: boolean;
+	maxLifetimeMinutes?: number;
 }
 
 /**
@@ -89,6 +94,15 @@ export interface JobStore {
 }
 
 export const DEFAULT_TIMEOUT_MINUTES = 90;
+/**
+ * Overall job-lifetime ceiling enforced by refreshFromSandbox, independent of
+ * timeoutMinutes. Keepalive periodically re-extends the sandbox's own TTL
+ * (sized at timeoutMinutes) so it survives past that window while the job is
+ * still active; this ceiling still bounds runaway jobs.
+ */
+export const DEFAULT_MAX_LIFETIME_MINUTES = 180;
+/** How often castJob's keepalive re-extends the sandbox timeout. */
+export const DEFAULT_KEEPALIVE_INTERVAL_MINUTES = 20;
 export const TERMINAL_STATUSES: JobStatus[] = [
 	"succeeded",
 	"failed",

@@ -55,6 +55,8 @@ export const jobFields = {
 	createdAt: v.string(),
 	updatedAt: v.string(),
 	finishedAt: v.optional(v.string()),
+	maxLifetimeMinutes: v.optional(v.number()),
+	lastExtendedAt: v.optional(v.string()),
 };
 
 export default defineSchema({

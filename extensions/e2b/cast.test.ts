@@ -98,12 +98,14 @@ test("a cast without an explicit timeout uses the 90-minute hard-timeout default
 	}
 });
 
-test("refreshFromSandbox kills the sandbox and marks the job timeout when result.json never appears", async () => {
+test("refreshFromSandbox kills the sandbox and marks the job timeout when result.json never appears past the max-lifetime ceiling", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
 	process.env.FLEET_JOBS_DIR = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 
-	// createdAt is 200 minutes ago — well past the 90 minute hard timeout.
+	// createdAt is 200 minutes ago — well past a 90 minute max-lifetime ceiling
+	// (pinned explicitly here; the fleet-wide default is 180m so keepalive can
+	// extend jobs past the 90m timeoutMinutes sandbox-TTL window — see FLT-8).
 	const created = new Date(Date.now() - 200 * 60 * 1000).toISOString();
 	const job: FleetJob = await writeJob({
 		jobId: "job-timeout",
@@ -113,6 +115,7 @@ test("refreshFromSandbox kills the sandbox and marks the job timeout when result
 		codeAccess: "clone",
 		repo: "owner/repo",
 		timeoutMinutes: 90,
+		maxLifetimeMinutes: 90,
 		dryRun: false,
 		sandboxId: "sandbox-timeout",
 		createdAt: created,
@@ -137,11 +140,11 @@ test("refreshFromSandbox kills the sandbox and marks the job timeout when result
 
 		assert.equal(killed, true);
 		assert.equal(refreshed.status, "timeout");
-		assert.match(refreshed.error ?? "", /timeout of 90 minutes/);
+		assert.match(refreshed.error ?? "", /max lifetime of 90 minutes/);
 
 		const persisted = await readJob("job-timeout");
 		assert.equal(persisted.status, "timeout");
-		assert.match(persisted.error ?? "", /timeout of 90 minutes/);
+		assert.match(persisted.error ?? "", /max lifetime of 90 minutes/);
 	} finally {
 		await rm(jobsDir, { recursive: true, force: true });
 	}
