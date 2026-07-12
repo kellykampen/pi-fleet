@@ -7,6 +7,12 @@
  * is stored in the local job record.
  */
 import { REPO_SOURCE_ARCHIVE_PATH } from "./archive.js";
+import {
+	GITHUB_APP_PRIVATE_KEY_ENV,
+	type FetchLike,
+	mintInstallationToken,
+	resolveGithubAppConfig,
+} from "./githubApp.js";
 import type { FleetJob } from "./types.js";
 
 export const MISSING_FLEET_REPO_URL_ERROR =
@@ -54,6 +60,7 @@ export const SENSITIVE_ENV_KEYS = [
 	...GITHUB_TOKEN_ENV_KEYS,
 	"E2B_API_KEY",
 	PI_AGENT_AUTH_ENV,
+	GITHUB_APP_PRIVATE_KEY_ENV,
 	...FLEET_WORKER_MODEL_KEYS,
 ];
 
@@ -104,10 +111,22 @@ export function resolveGithubToken(): string | undefined {
 	return undefined;
 }
 
+export interface CollectWorkerEnvOptions {
+	/**
+	 * Pre-resolved token to forward as FLEET_GITHUB_TOKEN (e.g. a freshly
+	 * minted GitHub App installation token — see {@link resolveInjectedGithubToken}).
+	 * Takes precedence over the raw FLEET_GITHUB_TOKEN/GH_TOKEN env value so a
+	 * sandbox never receives the long-lived PAT when an App token was minted.
+	 */
+	githubToken?: string;
+}
+
 /** Collect the secrets that should be injected into the E2B sandbox env. */
-export function collectWorkerEnv(): Record<string, string> {
+export function collectWorkerEnv(
+	opts: CollectWorkerEnvOptions = {},
+): Record<string, string> {
 	const envs: Record<string, string> = {};
-	const gh = resolveGithubToken();
+	const gh = opts.githubToken ?? resolveGithubToken();
 	if (gh) envs.FLEET_GITHUB_TOKEN = gh;
 	for (const key of FLEET_WORKER_MODEL_KEYS) {
 		const v = process.env[key]?.trim();
@@ -116,6 +135,42 @@ export function collectWorkerEnv(): Record<string, string> {
 	const piAuth = process.env[PI_AGENT_AUTH_ENV]?.trim();
 	if (piAuth) envs[PI_AGENT_AUTH_ENV] = piAuth;
 	return envs;
+}
+
+/**
+ * True when a usable GitHub credential source is configured: either a fully
+ * configured GitHub App, or the legacy FLEET_GITHUB_TOKEN/GH_TOKEN PAT.
+ * Throws when the GitHub App is only partially configured (see
+ * {@link resolveGithubAppConfig}) — that state must never silently fall back
+ * to the PAT, since it masks a broken App setup as "working as before".
+ */
+export function githubCredentialSourceConfigured(): boolean {
+	if (resolveGithubAppConfig()) return true;
+	return githubTokenPresent();
+}
+
+export interface ResolveInjectedGithubTokenOptions {
+	fetchImpl?: FetchLike;
+}
+
+/**
+ * Resolves the token to inject into the sandbox as FLEET_GITHUB_TOKEN: a
+ * freshly minted, short-lived GitHub App installation token when an App is
+ * configured (the private key itself never leaves this call), otherwise the
+ * legacy FLEET_GITHUB_TOKEN/GH_TOKEN PAT. Returns undefined when neither is
+ * configured.
+ */
+export async function resolveInjectedGithubToken(
+	opts: ResolveInjectedGithubTokenOptions = {},
+): Promise<string | undefined> {
+	const appConfig = resolveGithubAppConfig();
+	if (appConfig) {
+		const { token } = await mintInstallationToken(appConfig, {
+			fetchImpl: opts.fetchImpl,
+		});
+		return token;
+	}
+	return resolveGithubToken();
 }
 
 /** Return a copy of `text` with any known secret values redacted. */
@@ -137,7 +192,9 @@ export function sanitizeSecrets(text: string): string {
 	sanitized = sanitized
 		.replace(/github_pat_[A-Za-z0-9_]{30,}/g, "***")
 		.replace(/ghp_[A-Za-z0-9]{30,}/g, "***")
-		.replace(/gho_[A-Za-z0-9]{30,}/g, "***");
+		.replace(/gho_[A-Za-z0-9]{30,}/g, "***")
+		// ghs_ = GitHub App installation access token (FLT-6).
+		.replace(/ghs_[A-Za-z0-9]{30,}/g, "***");
 
 	return sanitized;
 }

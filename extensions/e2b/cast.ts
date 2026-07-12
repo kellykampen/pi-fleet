@@ -1,4 +1,5 @@
 import { buildRepoSourceArchive, REPO_SOURCE_ARCHIVE_PATH } from "./archive.js";
+import type { FetchLike } from "./githubApp.js";
 import {
 	findJobByIdOrSandboxId,
 	newJobId,
@@ -10,8 +11,9 @@ import { connectE2BSandbox, createE2BSandbox } from "./sdk.js";
 import {
 	buildRunnerScript,
 	collectWorkerEnv,
-	githubTokenPresent,
+	githubCredentialSourceConfigured,
 	resolveFleetRepoUrl,
+	resolveInjectedGithubToken,
 	sanitizeSecrets,
 } from "./secrets.js";
 import {
@@ -99,6 +101,12 @@ export type RawSandboxFactory = (
 
 export interface CastDependencies extends KeepaliveDependencies {
 	createSandbox?: (job: FleetJob) => Promise<SandboxStartResult>;
+	/** Injectable fetch for minting GitHub App installation tokens (FLT-6); tests only. */
+	fetchImpl?: FetchLike;
+}
+
+export interface TryCreateSandboxOptions {
+	fetchImpl?: FetchLike;
 }
 
 export interface RefreshDependencies {
@@ -238,6 +246,7 @@ async function connectSandboxDefault(sandboxId: string): Promise<SandboxLike> {
 export async function tryCreateSandbox(
 	job: FleetJob,
 	createRawSandbox?: RawSandboxFactory,
+	opts: TryCreateSandboxOptions = {},
 ): Promise<SandboxStartResult> {
 	const apiKey = process.env.E2B_API_KEY?.trim();
 	if (!apiKey) {
@@ -307,11 +316,15 @@ export async function tryCreateSandbox(
 			user: "root",
 		});
 
+		// Mint (or resolve) the GitHub credential right before it's injected, so
+		// an App-minted token stays as short-lived as possible and a sandbox
+		// never receives the long-lived PAT when an App is configured (FLT-6).
+		const githubToken = await resolveInjectedGithubToken({ fetchImpl: opts.fetchImpl });
 		await sandbox.commands.run(
 			"bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",
 			{
 				timeoutMs: 60_000,
-				envs: collectWorkerEnv(),
+				envs: collectWorkerEnv({ githubToken }),
 			},
 		);
 	} catch (err) {
@@ -606,19 +619,27 @@ export async function castJob(
 		);
 	}
 
-	if (!githubTokenPresent()) {
-		return updateJob(
-			job.jobId,
-			sanitizeJobPatch({
-				status: "failed",
-				error: MISSING_GITHUB_TOKEN_ERROR,
-			}),
-		);
+	try {
+		if (!githubCredentialSourceConfigured()) {
+			return updateJob(
+				job.jobId,
+				sanitizeJobPatch({
+					status: "failed",
+					error: MISSING_GITHUB_TOKEN_ERROR,
+				}),
+			);
+		}
+	} catch (err) {
+		// A partially configured GitHub App (see githubCredentialSourceConfigured)
+		// must fail here — before any sandbox is created — never fall through to
+		// treating it as "unconfigured, use the PAT".
+		const message = sanitizeSecrets(err instanceof Error ? err.message : String(err));
+		return updateJob(job.jobId, sanitizeJobPatch({ status: "failed", error: message }));
 	}
 
 	try {
 		const { sandboxId, logTail } = await (
-			deps.createSandbox ?? tryCreateSandbox
+			deps.createSandbox ?? ((j: FleetJob) => tryCreateSandbox(j, undefined, { fetchImpl: deps.fetchImpl }))
 		)(job);
 		const started = await updateJob(
 			job.jobId,
