@@ -148,7 +148,7 @@ make sure they're on `PATH`:
 | `pi-planner`, `pi-spike-breakdown`, `pi-linear` | [`linear-cli`](https://github.com/schpet/linear-cli) *(+ a `LINEAR_API_KEY`)*. `pi-spike-breakdown`'s interview channel is pi-fleet-native: a running `claude-conductor` relays the interview-linear questions to the CEO via AskUserQuestion (fallback = direct AskUserQuestion or structured Linear comments). |
 | `pi-visual-qa` | `node` + Playwright (`npx playwright install`); a way to run the app under test |
 | `pi-conductor`, `pi-project-lead` | [`cmux`](https://cmux.io) (casts workers into panes), `git`, `gh`, `linear-cli` |
-| `pi-project-lead` **E2B remote casts** | the `e2b` CLI (`npm i` in `extensions/e2b`) + `E2B_API_KEY` + `FLEET_GITHUB_TOKEN` — see [E2B section](#e2b-remote-implementers-v0) |
+| `pi-project-lead` **E2B remote casts** | the `e2b` CLI (`npm i` in `extensions/e2b`) + `E2B_API_KEY` + a GitHub App (recommended) or `FLEET_GITHUB_TOKEN` — see [E2B section](#e2b-remote-implementers-v0) |
 | `pi-remotion` | `node`/`npm` + [Remotion](https://www.remotion.dev) (`npx remotion`) |
 | `pi-personal-assistant` | your own CLIs on `PATH`: `finch` (X), `gog` (Google), `imsg` (iMessage), `wacli` (WhatsApp), `obsidian-cli`, `ntn` (Notion), `linear-cli`, `gh`/`git`. **Not bundled** — supply your own; the profile only orchestrates them under a draft→approve→execute gate. |
 | `pi-docs` | `git`, `gh` (to read the PR diff) |
@@ -376,7 +376,15 @@ a local worktree. Planning and design live in Linear: E2B remote workers v0 proj
 Required environment variables for non-dry-run casts:
 
 - `E2B_API_KEY` — creates/connects the sandbox.
-- `FLEET_GITHUB_TOKEN` (preferred) or `GH_TOKEN` — injected into the sandbox for push/PR operations (and, for `codeAccess: "pr"`/`"branch"`, for the sandbox's own `gh repo clone` too — see [codeAccess](#e2b-remote-implementers-v0) above; `codeAccess: "clone"` needs no read scope for that step). Its repository scope is the access boundary for each cast's `repo`; pi-fleet does not maintain an approved-repository allowlist.
+- A GitHub credential source for push/PR operations — **either** a GitHub App
+  (recommended, FLT-6; see [step 3](#e2b-remote-implementers-v0) below) **or**
+  `FLEET_GITHUB_TOKEN`/`GH_TOKEN` (legacy PAT fallback). Whichever source is
+  active is injected into the sandbox (and, for `codeAccess: "pr"`/`"branch"`,
+  used for the sandbox's own `gh repo clone` too — see
+  [codeAccess](#e2b-remote-implementers-v0) above; `codeAccess: "clone"` needs
+  no read scope for that step). Its repository scope is the access boundary
+  for each cast's `repo`; pi-fleet does not maintain an approved-repository
+  allowlist.
 - One or more fleet-worker model keys for the selected allowed provider, typically `OPENAI_API_KEY` for openai-codex-backed workers.
 
 1. **E2B account + API key**
@@ -391,7 +399,45 @@ Required environment variables for non-dry-run casts:
    (cd extensions/e2b && npm install)
    ```
 
-3. **GitHub token for the sandbox** (short-lived / fine-grained PAT for v0):
+3. **GitHub credential for the sandbox** — a GitHub App is the recommended source
+   (FLT-6): every non-dry-run cast mints a fresh, short-lived installation access
+   token and injects only that token into the sandbox — the App's private key never
+   leaves the `pi-project-lead` host process, and the sandbox never sees a
+   long-lived personal token. A fine-grained PAT remains supported as a fallback
+   for setups that haven't configured an App yet.
+
+   **Option A — GitHub App (recommended)**
+
+   1. Create a GitHub App (GitHub → Settings → Developer settings → GitHub Apps →
+      New GitHub App). Repository permissions:
+      - **Contents**: Read and write
+      - **Pull requests**: Read and write
+      - **Metadata**: Read-only (implied)
+      (Same floor as the PAT below — GitHub's fine-grained model only offers Contents
+      as a combined read/write tier, so this is required even for `codeAccess: "clone"`,
+      where the sandbox itself never reads with this token; it's still needed for the
+      push/PR step every codeAccess mode ends with.)
+   2. Generate a private key for the App (Settings → General → "Generate a private
+      key") and download the `.pem` file.
+   3. Install the App on the target repo(s) (or org, scoped to specific repos) and
+      note the **installation ID** (visible in the installation's settings URL:
+      `.../settings/installations/<installation_id>`) and the App's **App ID**
+      (shown on the App's settings page).
+   4. Set:
+      ```bash
+      export FLEET_GITHUB_APP_ID=123456
+      export FLEET_GITHUB_APP_INSTALLATION_ID=987654
+      export FLEET_GITHUB_APP_PRIVATE_KEY_PATH=/path/to/app-private-key.pem
+      # or, to inline the PEM instead of a file path:
+      # export FLEET_GITHUB_APP_PRIVATE_KEY="$(cat /path/to/app-private-key.pem)"
+      ```
+      All three of `FLEET_GITHUB_APP_ID`, `FLEET_GITHUB_APP_INSTALLATION_ID`, and
+      `FLEET_GITHUB_APP_PRIVATE_KEY`/`FLEET_GITHUB_APP_PRIVATE_KEY_PATH` must be set
+      together — the fleet fails fast with a clear error before creating any
+      sandbox if the App is only partially configured (it never silently falls
+      back to a PAT in that case, since that would mask a broken setup).
+
+   **Option B — fine-grained PAT (fallback, used only when no App env vars are set)**
 
    ```bash
    export FLEET_GITHUB_TOKEN=github_pat_...   # preferred
@@ -401,11 +447,18 @@ Required environment variables for non-dry-run casts:
    Minimum scopes for private repos + PR open/push (fine-grained):
    - Repository access: the target repo(s) only
    - Permissions: **Contents** read/write, **Pull requests** read/write, **Metadata** read
-     (GitHub's fine-grained permissions only offer Contents as a combined read/write tier, so this
-     is the floor even for `codeAccess: "clone"`, where the sandbox itself never reads with this
-     token — it's still needed for the push/PR step every codeAccess mode ends with)
    - Short expiration; rotate/revoke after each cast or work batch when possible. Do **not** use your unlimited classic PAT long-term.
-   - Next evolution: GitHub App installation tokens per job (see design doc).
+
+   **Security notes:**
+   - The App's private key is read from disk (or env) once per process and used
+     only to sign a short-lived JWT locally; it is never sent to GitHub, never
+     written into the sandbox, and never logged (it's included in the
+     extension's secret-redaction list alongside every token type).
+   - Installation tokens minted from the App (`ghs_...`) are scoped to the App's
+     installed repositories and expire on GitHub's own schedule (about an hour);
+     one is minted fresh per cast rather than reused across jobs.
+   - When both an App and a PAT are configured, the App always takes precedence —
+     the sandbox never receives the PAT in that case.
 4. **Fleet-worker model keys** (separate from your personal CEO laptop keys when possible):
 
    ```bash
@@ -475,7 +528,8 @@ lands at `/work/repo`, but *how* it gets there depends on `codeAccess`:
   history from the host's local checkout is not carried over, only its content at that ref.
   `baseBranch`, when given, selects which local ref to archive (default: `HEAD`, i.e. whatever the
   host currently has checked out); it must already exist locally, since nothing is fetched.
-  `FLEET_GITHUB_TOKEN`/`GH_TOKEN` is still injected and used exactly as before for the later
+  The resolved GitHub credential (a minted App installation token when configured, otherwise
+  `FLEET_GITHUB_TOKEN`/`GH_TOKEN`) is still injected and used exactly as before for the later
   push/PR step (via `gh pr create` and the same `insteadOf` URL rewrite) — only the initial
   read/population step changes.
 

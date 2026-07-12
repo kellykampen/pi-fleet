@@ -1,20 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { REPO_SOURCE_ARCHIVE_PATH } from "./archive.ts";
 import {
+	GITHUB_APP_ID_ENV,
+	GITHUB_APP_INSTALLATION_ID_ENV,
+	GITHUB_APP_PRIVATE_KEY_ENV,
+} from "./githubApp.ts";
+import {
 	buildResultFinalizer,
 	buildRunnerScript,
 	collectWorkerEnv,
 	FLEET_WORKER_MODEL_KEYS,
+	githubCredentialSourceConfigured,
 	MISSING_FLEET_REPO_URL_ERROR,
 	normalizeRepoSlug,
 	PI_AGENT_AUTH_ENV,
 	resolveFleetRepoUrl,
+	resolveInjectedGithubToken,
 	sanitizeSecrets,
 	TARGET_REPO_ACCESS_ERROR_HINT,
 } from "./secrets.ts";
@@ -40,6 +48,9 @@ function clearSensitiveEnv() {
 	delete process.env.FLEET_REPO_URL;
 	delete process.env.FLEET_E2B_TEMPLATE;
 	delete process.env[PI_AGENT_AUTH_ENV];
+	delete process.env[GITHUB_APP_ID_ENV];
+	delete process.env[GITHUB_APP_INSTALLATION_ID_ENV];
+	delete process.env[GITHUB_APP_PRIVATE_KEY_ENV];
 	for (const key of FLEET_WORKER_MODEL_KEYS) delete process.env[key];
 }
 
@@ -81,6 +92,15 @@ test("collectWorkerEnv forwards the pi agent auth blob when present", () => {
 	delete process.env[PI_AGENT_AUTH_ENV];
 	assert.equal(PI_AGENT_AUTH_ENV in collectWorkerEnv(), false);
 });
+
+// Throwaway RSA keypair generated fresh in-process — never a real App secret.
+function generateTestRsaPrivateKey(): string {
+	return generateKeyPairSync("rsa", {
+		modulusLength: 2048,
+		publicKeyEncoding: { type: "spki", format: "pem" },
+		privateKeyEncoding: { type: "pkcs1", format: "pem" },
+	}).privateKey;
+}
 
 function implementerJob(overrides: Partial<FleetJob> = {}): FleetJob {
 	const now = new Date().toISOString();
@@ -630,6 +650,97 @@ test("sanitizeSecrets redacts exact env values and common GitHub token shapes", 
 	assert.equal(sanitized.includes(process.env.FLEET_GITHUB_TOKEN), false);
 	assert.equal(sanitized.includes(process.env.OPENROUTER_API_KEY), false);
 	assert.equal(sanitized, "token=*** provider=*** fallback=***");
+});
+
+test("sanitizeSecrets redacts a GitHub App installation token shape (ghs_...) as a conservative fallback (FLT-6)", () => {
+	const sanitized = sanitizeSecrets(
+		"minted token=ghs_installationTokenValue1234567890abcd done",
+	);
+	assert.equal(sanitized, "minted token=*** done");
+});
+
+test("sanitizeSecrets redacts the GitHub App private key value when it leaks into text (FLT-6)", () => {
+	process.env[GITHUB_APP_ID_ENV] = "123";
+	process.env[GITHUB_APP_PRIVATE_KEY_ENV] =
+		"-----BEGIN RSA PRIVATE KEY-----\nsuper-secret-key-material\n-----END RSA PRIVATE KEY-----";
+
+	const sanitized = sanitizeSecrets(
+		`err: ${process.env[GITHUB_APP_PRIVATE_KEY_ENV]} while minting`,
+	);
+
+	assert.equal(sanitized.includes("super-secret-key-material"), false);
+	assert.match(sanitized, /^err: \*\*\* while minting$/);
+});
+
+test("collectWorkerEnv uses an explicitly supplied githubToken instead of the raw PAT env value (FLT-6)", () => {
+	process.env.GH_TOKEN = "ghp_rawPatMustNotBeForwarded1234567890abcd";
+
+	const envs = collectWorkerEnv({ githubToken: "ghs_mintedAppInstallationToken" });
+
+	assert.equal(envs.FLEET_GITHUB_TOKEN, "ghs_mintedAppInstallationToken");
+	assert.equal(
+		Object.values(envs).includes(process.env.GH_TOKEN as string),
+		false,
+	);
+});
+
+test("collectWorkerEnv falls back to the raw PAT env value when no githubToken override is supplied", () => {
+	process.env.GH_TOKEN = "ghp_fallbackPat1234567890abcdefghijkl";
+
+	const envs = collectWorkerEnv();
+
+	assert.equal(envs.FLEET_GITHUB_TOKEN, process.env.GH_TOKEN);
+});
+
+test("githubCredentialSourceConfigured is false when neither a PAT nor a GitHub App is configured (FLT-6)", () => {
+	assert.equal(githubCredentialSourceConfigured(), false);
+});
+
+test("githubCredentialSourceConfigured is true when only FLEET_GITHUB_TOKEN/GH_TOKEN is set (FLT-6)", () => {
+	process.env.GH_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+	assert.equal(githubCredentialSourceConfigured(), true);
+});
+
+test("githubCredentialSourceConfigured is true when the GitHub App is fully configured (FLT-6)", () => {
+	process.env[GITHUB_APP_ID_ENV] = "123";
+	process.env[GITHUB_APP_INSTALLATION_ID_ENV] = "456";
+	process.env[GITHUB_APP_PRIVATE_KEY_ENV] = "-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----";
+	assert.equal(githubCredentialSourceConfigured(), true);
+});
+
+test("githubCredentialSourceConfigured throws a clear error when the GitHub App is only partially configured, even if a PAT is also set (FLT-6)", () => {
+	process.env.GH_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+	process.env[GITHUB_APP_ID_ENV] = "123";
+	// installationId and private key deliberately left unset — misconfiguration
+	// must be a hard error, never silently masked by a valid PAT fallback.
+
+	assert.throws(() => githubCredentialSourceConfigured(), /partially configured/i);
+});
+
+test("resolveInjectedGithubToken mints a GitHub App installation token instead of returning the raw PAT when the App is configured (FLT-6)", async () => {
+	process.env.GH_TOKEN = "ghp_rawPatMustNotBeForwarded1234567890abcd";
+	process.env[GITHUB_APP_ID_ENV] = "123";
+	process.env[GITHUB_APP_INSTALLATION_ID_ENV] = "456";
+	process.env[GITHUB_APP_PRIVATE_KEY_ENV] = generateTestRsaPrivateKey();
+
+	const token = await resolveInjectedGithubToken({
+		fetchImpl: (async () =>
+			new Response(JSON.stringify({ token: "ghs_mintedToken", expires_at: "2026-01-01T00:00:00Z" }), {
+				status: 201,
+			})) as typeof fetch,
+	});
+
+	assert.equal(token, "ghs_mintedToken");
+});
+
+test("resolveInjectedGithubToken falls back to the raw PAT when no GitHub App is configured", async () => {
+	process.env.GH_TOKEN = "ghp_fallbackPat1234567890abcdefghijkl";
+	const token = await resolveInjectedGithubToken();
+	assert.equal(token, process.env.GH_TOKEN);
+});
+
+test("resolveInjectedGithubToken returns undefined when neither a PAT nor a GitHub App is configured", async () => {
+	assert.equal(await resolveInjectedGithubToken(), undefined);
 });
 
 test("non-dry-run cast fails clearly before sandbox creation when GitHub token is missing", async () => {
