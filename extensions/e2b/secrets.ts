@@ -790,6 +790,19 @@ fetch_pr() {
 }
 fetch_pr
 
+# profile.yml declares extensions as \`../extensions/<x>\` (siblings of the
+# profiles dir); pi resolves that relative to its own cwd, not the profile's
+# location (see the symlink comment above). The other runner (implementer)
+# gets this for free because it cd's into /work/repo before launching its
+# worker — two path segments below /, matching /work/extensions. A reviewer
+# cast has no /work/repo to cd into, so without an explicit cd here pi
+# inherits the sandbox's default cwd (one segment below /), and
+# \`../extensions/linear.ts\` resolves to /extensions/linear.ts — which
+# doesn't exist — failing with "Failed to load extension /extensions/linear.ts".
+# /work/review stands in for /work/repo as that second path segment.
+mkdir -p /work/review
+cd /work/review
+
 : > "$REVIEW_OUTPUT"
 if command -v pi-reviewer >/dev/null 2>&1 || [ -x /work/pi-fleet/bin/pi-reviewer ]; then
   PI_REVIEW=$(command -v pi-reviewer || echo /work/pi-fleet/bin/pi-reviewer)

@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path, { join } from "node:path";
 
 import { REPO_SOURCE_ARCHIVE_PATH } from "./archive.ts";
 import {
@@ -1238,6 +1238,35 @@ test("buildReviewerRunnerScript invokes pi-reviewer (not pi-implementer) and anc
 	assert.doesNotMatch(script, /pi-implementer/);
 	assert.match(script, /default_profile: reviewer/);
 	assert.match(script, /- path: \/work\/pi-fleet\/profiles/);
+});
+
+test("buildReviewerRunnerScript cd's into a /work subdirectory before invoking pi-reviewer, so profile.yml's ../extensions/linear.ts resolves to the symlinked /work/extensions (regression: sandbox previously ran pi-reviewer from a shallower cwd, resolving to the nonexistent /extensions/linear.ts)", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildReviewerRunnerScript(reviewerJob());
+
+	const cdMatch = script.match(/^cd (\/work\/\S+)$/m);
+	assert.ok(cdMatch, "expected an explicit `cd /work/<subdir>` before invoking pi-reviewer");
+	const reviewerCwd = cdMatch![1];
+
+	// The actual invariant that broke: pi resolves a profile's `../extensions/x`
+	// relative to its own cwd (not the profile file's location — see the
+	// symlink comment in buildRunnerScript/buildReviewerRunnerScript), and the
+	// runner only ever symlinks pi-fleet's extensions to /work/extensions. So
+	// resolving "../extensions/linear.ts" against whatever cwd we cd into must
+	// land exactly on /work/extensions/linear.ts, or pi-reviewer fails to load
+	// its Linear extension with "Failed to load extension ...".
+	assert.equal(
+		path.join(reviewerCwd, "..", "extensions", "linear.ts"),
+		"/work/extensions/linear.ts",
+	);
+
+	// Ordering: the cd must land before pi-reviewer is invoked, not after.
+	const cdIdx = script.indexOf(`cd ${reviewerCwd}`);
+	const invokeIdx = script.indexOf('"$PI_REVIEW"');
+	assert.ok(cdIdx !== -1 && cdIdx < invokeIdx);
+
+	// mkdir -p must precede the cd, or a fresh sandbox has nothing to cd into.
+	assert.match(script, new RegExp(`mkdir -p ${reviewerCwd.replace(/\//g, "\\/")}\\ncd ${reviewerCwd.replace(/\//g, "\\/")}`));
 });
 
 test("buildReviewerRunnerScript logs each read-only gh call to the evidence file", () => {
