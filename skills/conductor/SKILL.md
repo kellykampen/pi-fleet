@@ -90,12 +90,15 @@ pi-fleet.
 **Usage cadence:** run `check-model-usage` on a ~30-minute cadence (more often only if a project
 lead reports a usage-related blocker). Act on its status, don't just log it:
 
-- **OVER_PACE** — a provider/model is burning quota faster than its reset window supports. Steer
-  new casts for that provider/model toward a cheaper allowed alternative (consult
-  `model-classifier`); flag it in the next standup so leads stop routing to it.
-- **EXHAUSTED** — a provider/model has no quota left. Treat it as **banned** immediately (same
-  severity as the model-classifier's hard roster lock) until it's confirmed recovered; route
-  every project lead away from it now, don't wait for the next standup.
+- **OVER_PACE — requires explicit CEO approval before that provider/model takes any new load
+  (CEO directive, 2026-07-12).** Do not unilaterally decide to keep routing new casts to an
+  over-pace model just because it isn't exhausted yet — surface it and get a yes. Once approved,
+  you may still steer *new* casts toward a fresher alternative where the task allows it (consult
+  `model-classifier`) — approval to continue doesn't mean stop looking for headroom, it means
+  continuing isn't a unilateral call.
+- **EXHAUSTED** — a provider/model has no quota left. This one doesn't need a fresh approval ask —
+  it's an automatic hard stop by definition (there's nothing left to use); route every project
+  lead away from it now, don't wait for the next standup.
 
 **Temporary roster overrides:** the CEO can declare a time-boxed override (e.g. "all
 worker/reviewer/AC/QA seats -> Opus 4.8 until 19:00" because Codex is over-pace and Claude has
@@ -124,13 +127,23 @@ a shared machine — serialize them, don't fire-and-forget:
   conductor is to make sure every lead knows the current threshold/state, not to run builds
   yourself.
 
-## Roster lock (hard constraint, portfolio-wide)
+## Model roster (no name-based ban — CEO directive, 2026-07-12)
 
-Only these are permitted for worker/reviewer/AC/QA seats: **`claude-worker`/`claude-reviewer`**
-on Sonnet 5 or Opus 4.8, or **`pi`** on `gpt-5.5`/`gpt-5.6`. **Banned, always:** Grok/xAI,
-Kimi/`claudekimi`, GLM/`claudeglm`, Gemini/`agy`. A temporary CEO override (see above) can widen
-or narrow which of the *allowed* models is preferred for a window — it never lifts the ban list.
-The full scored rubric lives in the `model-classifier` skill; this is the hard floor under it.
+**There is no longer a fixed allow-list of models.** All models (Claude, `pi` on `gpt-5.5`/
+`gpt-5.6`, Grok/xAI, Kimi/`claudekimi`, GLM/`claudeglm`, Gemini/`agy`) are permitted for
+worker/reviewer/AC/QA seats **unless that specific model is currently EXHAUSTED**, per the usage
+section above. This replaces the previous hard roster lock (Claude + Codex/gpt-5.5-5.6 only,
+Grok/Kimi/GLM/Gemini banned always) — that ban is lifted.
+
+**What still gates model choice:**
+- **EXHAUSTED** models are an automatic hard stop (nothing left to use, no approval needed to
+  avoid them — there's nothing to decide).
+- **OVER_PACE** models require explicit CEO approval before taking new load — see the usage
+  section above. This is the real gate now: not "is this model on an allow-list" but "is this
+  model currently paced sustainably, and if not, did the CEO approve continuing."
+- The `model-classifier` skill's full scored rubric (cost/intelligence/taste) is what actually
+  picks the best model for a given task now that there's no artificial name-based floor
+  underneath it — consult it for every cast where the model is a real choice, the same as before.
 
 ## Docs-as-final-DoD-gate (canonical pipeline)
 

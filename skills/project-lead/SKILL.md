@@ -99,24 +99,27 @@ when the classifier says something else fits better. The wrappers forward `--pro
 and also accept role/generic env defaults (`PI_<ROLE>_MODEL`, `PI_MODEL`); explicit CLI flags win.
 So `pi-implementer --provider X --model Y` just works.
 
-**3) Translate the classifier's model name → Pi flags, then cast — inside the roster lock:**
-**Roster lock (hard constraint, see the conductor skill's copy for the full statement): only
-`claude-worker`/`claude-reviewer` on Sonnet 5 or Opus 4.8, or `pi` on `gpt-5.5`/`gpt-5.6`, are
-permitted for worker/reviewer/AC/QA seats. Banned, always: Grok/xAI, Kimi/`claudekimi`,
-GLM/`claudeglm`, Gemini/`agy`.** If `model-classifier`'s rubric would route you to a banned
-model, follow its own hard-roster-lock override instead — don't cast the banned model because the
-table below used to list it.
+**3) Translate the classifier's model name → Pi flags, then cast:**
+**No name-based roster lock anymore (CEO directive, 2026-07-12; see the conductor skill's full
+statement) — every model `model-classifier` can name is castable, gated only by EXHAUSTED (hard
+stop) or OVER_PACE (needs explicit CEO approval, ask the conductor before adding new load to it),
+not by which provider it happens to be.**
 
-| model-classifier says (within the roster lock) | Pi flags |
+| model-classifier says | Pi flags |
 | --- | --- |
 | GPT-5.6 Sol (hard coding) | `--provider openai-codex --model gpt-5.6-sol` |
 | GPT-5.6 Terra (taste/design) | `--provider openai-codex --model gpt-5.6-terra` |
 | GPT-5.6 Luna (generalist) | `--provider openai-codex --model gpt-5.6-luna` |
 | GPT-5.5 (Codex) | `--provider openai-codex --model gpt-5.5` |
 | Claude Sonnet 5 / Opus 4.8 | not a pi model → cast `claude-worker`/`claude-reviewer` (Claude Code, `--dangerously-skip-permissions`) |
+| GLM-5.2 | `claudeglm` (or `--provider` equivalent per the harness in use) |
+| Kimi K2.7 Code | `claudekimi` (or `--provider` equivalent) |
+| Gemini (via agy) | `agy` |
+| Grok 4.5 | xAI direct or OpenRouter, per whatever's configured |
 
-Anything else the classifier names (Grok, Gemini, Kimi, GLM) is **banned** — re-classify for the
-nearest allowed alternative above instead of casting it.
+Before casting any of the previously-banned names (GLM, Kimi, Gemini/agy, Grok), check its current
+pace via the conductor's latest usage relay — EXHAUSTED means don't, OVER_PACE means ask first,
+otherwise it's fair game the same as Claude or Codex.
 
 **Cast example:** `cd <worktree> && pi-implementer --provider openai-codex --model gpt-5.6-sol`
 (then send the brief, capture results). Use the verb **cast** for spinning up a worker seat.
@@ -149,8 +152,10 @@ build/test work.
 
 **Usage cadence:** the conductor runs `check-model-usage` on a ~30-minute cadence and relays
 OVER_PACE/EXHAUSTED status to you. Treat EXHAUSTED as an immediate ban on that provider/model for
-new casts — re-classify via `model-classifier` and route to an allowed alternative. Treat
-OVER_PACE as a steer-away-from signal for new casts, not an immediate hard stop.
+new casts — re-classify via `model-classifier` and route to an alternative. Treat OVER_PACE as
+requiring explicit CEO approval before that provider/model takes any new load (CEO directive,
+2026-07-12) — don't decide on your own to keep routing new casts to it; that call comes from the
+conductor/CEO, not from you noticing it's not fully exhausted yet.
 
 **Temporary roster overrides:** when the CEO/conductor declares one (e.g. "worker/reviewer/AC/QA
 seats -> Opus 4.8 until 19:00"), it overrides your normal `model-classifier` pick for the covered
