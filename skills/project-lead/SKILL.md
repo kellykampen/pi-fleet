@@ -179,25 +179,32 @@ for the full statement):
 
 1. **Independent review by a DIFFERENT model** than the implementer — if the build ran on model M,
    the reviewer must NOT be M (re-classify for a different capable model if needed). Posted on the PR.
-2. **AC-verify** — you MUST cast a dedicated `pi-ac-verifier` (or equivalent independent verifier;
-   see the `linear-ac-verification` skill) for every ticket, no exceptions for small/urgent/obvious
-   tickets. Real commands run against real code, evidence posted on the PR. The AC-verifier — not
-   you, not the implementer — checks the Linear boxes, and only after it has actually verified each
-   one by running it. You never check a box yourself and you never accept a claim of "this is done"
-   in place of the verifier's own evidence.
+2. **AC-verify — a PRE-merge gate, not a post-merge check (CEO directive, 2026-07-12).** You MUST
+   cast a dedicated `pi-ac-verifier` (or equivalent independent verifier; see the
+   `linear-ac-verification` skill) for every ticket, no exceptions for small/urgent/obvious tickets,
+   and it must run and PASS **before** the PR merges — verified against the PR's actual head commit,
+   not `origin/develop`. **If AC is not genuinely met, the PR does not merge.** Send it back for
+   fixes on the same branch and re-verify the new head commit; don't merge now on a promise to
+   check later. The AC-verifier — not you, not the implementer — checks the Linear boxes, only
+   after it has actually verified each one by running it. You never check a box yourself and you
+   never accept a claim of "this is done" in place of the verifier's own evidence.
+   **Why pre-merge specifically:** Linear's GitHub integration auto-flips a ticket to Done the
+   instant its linked PR merges — this is automatic and outside your control. If AC-verify runs
+   *after* merge, there's a real window where Linear already says Done before verification even
+   finishes, let alone catches a gap. This was found happening in practice (a real ticket showed
+   Done before its post-merge AC check completed) — pre-merge gating is what removes the race.
 3. **CI green** — or a documented infra-blocker waiver (e.g. GitHub Actions billing), stated
    explicitly on the PR and the Linear ticket, never used to wave off a real code/test failure.
 4. **Docs pass** — cast `pi-docs` (or do it yourself for small/docs-adjacent tickets): README and
    every affected doc updated to match the change, OR an explicit no-docs-needed rationale posted
    on the PR. Not optional, not skippable because "it's just a fix."
-5. **Merge to develop, flip Linear to Done** — you do this yourself once gates 1-4 pass; don't
-   park a fully-gated PR waiting on the CEO. The CEO's only manual step is develop→main promotion.
-   **HARD RULE (CEO directive, 2026-07-12), checked immediately before every single Done
-   transition:** re-read the ticket's current Linear description right before you flip its state.
-   If any `- [ ]` box remains unchecked, DO NOT set Done — stop and get real AC-verification
-   first. This was found violated in practice (tickets marked Done with unchecked boxes despite
-   this Gates section already existing) — treat it as a literal gate check, not a formality you
-   trust yourself to remember.
+5. **Merge to develop** — you do this yourself once gates 1-4 all genuinely pass; don't park a
+   fully-gated PR waiting on the CEO. The CEO's only manual step is develop→main promotion. Because
+   AC was already verified pre-merge (gate 2), Linear's auto-transition to Done on merge is now
+   trustworthy — you generally don't need to manually flip it. Do one final sanity re-read of the
+   ticket right after merge to confirm it landed in the expected state; if you ever find a ticket
+   auto-marked Done with an unchecked box (a sign gate 2 was skipped or raced), that's a real defect
+   — stop, don't wave it through, and get genuine AC-verification before trusting the Done state.
 
 Pass each seat the Linear ticket details it needs. Every ticket needs a Linear ticket with
 markdown checkbox AC **before** work starts — don't backfill one after the fact. Never promote to

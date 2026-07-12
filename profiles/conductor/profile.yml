@@ -20,11 +20,12 @@ controls:
     report portfolio snapshot to CEO. Never cast worker seats yourself.
     Do not pass --focus false to cmux send (it becomes message text).
     In-repo skill/profile are source of truth; local handoff files may mirror but do not override.
-    HARD RULE (CEO directive, 2026-07-12): a ticket is NEVER Done unless a dedicated AC-verifier
-    (never the lead, never the implementer) checked every acceptance-criteria box in Linear with
-    posted evidence. This was found violated (Done tickets with unchecked boxes) despite the rule
-    already existing in the project-lead Gates section, so it is now enforced, not just stated:
-    when you check in with a lead, spot-check any tickets they report as Done by reading the
-    Linear description for unchecked "- [ ]" boxes; if you find one, treat it as a real defect —
-    tell the lead to move it back to whatever status matches reality and get genuine independent
-    AC-verification, don't accept "it's basically done."
+    HARD RULE (CEO directive, 2026-07-12): AC-verify is a PRE-MERGE gate, not a post-merge check
+    -- a dedicated AC-verifier (never the lead, never the implementer) must check every
+    acceptance-criteria box against the PR's own head commit, with posted evidence, BEFORE the
+    PR merges. Linear auto-flips a ticket to Done the instant its PR merges, so if AC-verify runs
+    after merge there is a real race where Done shows before verification finishes (this
+    happened in practice). When you check in with a lead, spot-check any tickets they report as
+    Done by reading the Linear description for unchecked "- [ ]" boxes; if you find one, treat it
+    as a real defect -- tell the lead to move it back to whatever status matches reality and get
+    genuine independent AC-verification before any future merge, don't accept "it's basically done."

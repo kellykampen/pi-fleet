@@ -138,19 +138,27 @@ Every ticket's path to Done, in order, no step skipped or reordered:
 
 ```
 branch/code -> independent review (DIFFERENT model, POSTED on the PR)
-            -> AC-verify (dedicated pi-ac-verifier seat, real commands run against real code,
-               every Linear checkbox flipped BY THE VERIFIER ONLY, evidence POSTED)
+            -> AC-verify — PRE-MERGE GATE (dedicated pi-ac-verifier seat, verified against
+               the PR's own head commit, real commands run against real code, every Linear
+               checkbox flipped BY THE VERIFIER ONLY, evidence POSTED). FAIL = do not merge.
             -> CI green (or a documented infra-blocker waiver)
             -> Docs pass (README + every affected doc updated, OR an explicit
                no-docs-needed rationale POSTED)
-            -> merge to develop, Linear flipped to Done
+            -> merge to develop -> Linear auto-transitions to Done (GitHub integration)
 ```
 
-The **Docs pass** is not optional decoration — a PR is not green-lit, merged, or marked Done
-until either real doc changes are posted, or a project lead explicitly states in writing why none
-are needed (`pi-docs` is the seat that runs this pass; see the project-lead skill and the pi-fleet
-README for its full DoD position). A gate claimed in chat/logs but not evidenced on the PR does
-not count — this rule already applies to review/AC-verify and applies identically to docs.
+**AC-verify must complete and PASS before merge, never after (CEO directive, 2026-07-12).**
+Linear's GitHub integration auto-flips a ticket to Done the instant its linked PR merges — that
+happens automatically, outside anyone's control. Running AC-verify *after* merge creates a real
+race where Linear already shows Done before verification even finished, let alone caught a gap
+(this happened in practice). Gating the merge on a genuine pre-merge PASS is what makes "PR
+merged" and "Linear says Done" trustworthy at the same moment.
+
+The **Docs pass** is not optional decoration — a PR is not green-lit or merged until either real
+doc changes are posted, or a project lead explicitly states in writing why none are needed
+(`pi-docs` is the seat that runs this pass; see the project-lead skill and the pi-fleet README for
+its full DoD position). A gate claimed in chat/logs but not evidenced on the PR does not count —
+this rule already applies to review/AC-verify and applies identically to docs.
 
 **AC-verify spot-check (CEO directive, 2026-07-12) — a standing conductor duty, not optional.**
 This exact failure was found happening in practice: tickets marked Done with unchecked AC boxes,
