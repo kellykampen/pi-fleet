@@ -20,16 +20,12 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 test("loadE2BSdk survives the jiti host loader that crashed a raw e2b import", async () => {
 	const jiti = createJiti(join(HERE, "sdk.ts"), { moduleCache: false });
 
-	// Baseline: a raw import of e2b through jiti reproduces the opaque crash the
-	// lead hit. This asserts the hazard is real, so the fix below is meaningful.
-	await assert.rejects(
-		() => jiti.import("e2b"),
-		/reading '?version'?/,
-		"expected the raw jiti e2b import to reproduce the opaque version crash",
-	);
-
-	// The fix: loadE2BSdk (run through jiti, exactly as the extension is loaded)
-	// loads e2b's CJS build natively and exposes the real Sandbox API.
+	// loadE2BSdk, run through jiti exactly as the extension is loaded, must load
+	// e2b's CJS build natively and expose the real Sandbox API. Reverting it to a
+	// plain `import("e2b")` reintroduces the FLT-4 crash and fails this assertion,
+	// because that import goes through jiti's transform. (We deliberately don't
+	// assert on the raw-import crash text — that couples the test to an e2b
+	// internal that can change across versions.)
 	const sdkModule = (await jiti.import(join(HERE, "sdk.ts"))) as {
 		loadE2BSdk: typeof loadE2BSdk;
 		resolveSandboxApi: typeof resolveSandboxApi;
