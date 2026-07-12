@@ -376,7 +376,7 @@ a local worktree. Planning and design live in Linear: E2B remote workers v0 proj
 Required environment variables for non-dry-run casts:
 
 - `E2B_API_KEY` — creates/connects the sandbox.
-- `FLEET_GITHUB_TOKEN` (preferred) or `GH_TOKEN` — injected into the sandbox for clone/push/PR operations. Its repository scope is the access boundary for each cast's `repo`; pi-fleet does not maintain an approved-repository allowlist.
+- `FLEET_GITHUB_TOKEN` (preferred) or `GH_TOKEN` — injected into the sandbox for push/PR operations (and, for `codeAccess: "pr"`/`"branch"`, for the sandbox's own `gh repo clone` too — see [codeAccess](#e2b-remote-implementers-v0) above; `codeAccess: "clone"` needs no read scope for that step). Its repository scope is the access boundary for each cast's `repo`; pi-fleet does not maintain an approved-repository allowlist.
 - One or more fleet-worker model keys for the selected allowed provider, typically `OPENAI_API_KEY` for openai-codex-backed workers.
 
 1. **E2B account + API key**
@@ -401,6 +401,9 @@ Required environment variables for non-dry-run casts:
    Minimum scopes for private repos + PR open/push (fine-grained):
    - Repository access: the target repo(s) only
    - Permissions: **Contents** read/write, **Pull requests** read/write, **Metadata** read
+     (GitHub's fine-grained permissions only offer Contents as a combined read/write tier, so this
+     is the floor even for `codeAccess: "clone"`, where the sandbox itself never reads with this
+     token — it's still needed for the push/PR step every codeAccess mode ends with)
    - Short expiration; rotate/revoke after each cast or work batch when possible. Do **not** use your unlimited classic PAT long-term.
    - Next evolution: GitHub App installation tokens per job (see design doc).
 4. **Fleet-worker model keys** (separate from your personal CEO laptop keys when possible):
@@ -451,10 +454,30 @@ Required environment variables for non-dry-run casts:
    Record the published `FLEET_E2B_TEMPLATE` value as a comment on Linear issue FLT-1.
 
 `FLEET_REPO_URL` is infrastructure configuration: it is cloned to `/work/pi-fleet` for the fleet
-wrappers and profiles. It does **not** select the target repository. Every cast clones its `repo`
-parameter to `/work/repo`; access is determined solely by the scope of `FLEET_GITHUB_TOKEN` or
-`GH_TOKEN`. If that clone fails, the job becomes `failed` with a sanitized error explaining that
-the token may lack access (without persisting the token or raw authenticated URL).
+wrappers and profiles. It does **not** select the target repository; every cast's `repo` parameter
+lands at `/work/repo`, but *how* it gets there depends on `codeAccess`:
+
+- **`codeAccess: "pr"` / `"branch"`** — the sandbox itself runs `gh repo clone` against the target
+  (then `gh pr checkout <n>` or `git fetch`+`checkout <branch>`), so access is determined solely by
+  the scope of `FLEET_GITHUB_TOKEN`/`GH_TOKEN` injected into the sandbox. If that clone fails, the
+  job becomes `failed` with a sanitized error explaining that the token may lack access (without
+  persisting the token or raw authenticated URL).
+- **`codeAccess: "clone"`** — the sandbox never clones the target itself, so it needs **no git
+  read credentials at all** for this step (FLT-9). Instead, the host (the `pi-project-lead` process,
+  which is already running from a local checkout of the target repo) packages that checkout with
+  `git archive <ref>` — falling back to a plain `tar` of the working tree when the directory isn't
+  a usable git checkout for that ref (no local git binary, not a repo, or the ref doesn't exist
+  locally; this never fetches from a remote) — and uploads the resulting gzip tarball into the
+  sandbox *before* the runner starts. The runner unpacks it into `/work/repo`, `git init`s a fresh
+  repo from the extracted tree, adds the target as its `origin` remote, and commits that snapshot
+  as a baseline before checking out the new working branch. Because this path skips `git archive`'s
+  ref/history plumbing, the sandbox-side repo starts from a single fresh commit — full source
+  history from the host's local checkout is not carried over, only its content at that ref.
+  `baseBranch`, when given, selects which local ref to archive (default: `HEAD`, i.e. whatever the
+  host currently has checked out); it must already exist locally, since nothing is fetched.
+  `FLEET_GITHUB_TOKEN`/`GH_TOKEN` is still injected and used exactly as before for the later
+  push/PR step (via `gh pr create` and the same `insteadOf` URL rewrite) — only the initial
+  read/population step changes.
 
 Without `E2B_API_KEY`, `e2b_cast` still works in **dry-run** mode (local job record only) so you can
 exercise the project-lead flow offline.

@@ -6,6 +6,7 @@
  * persisted or logged by this extension. Remote output is sanitized before it
  * is stored in the local job record.
  */
+import { REPO_SOURCE_ARCHIVE_PATH } from "./archive.js";
 import type { FleetJob } from "./types.js";
 
 export const MISSING_FLEET_REPO_URL_ERROR =
@@ -168,6 +169,8 @@ RESULT="$WORK/result.json"
 NEEDS_INPUT_FILE="$WORK/needs-input.json"
 if [ "\${TARGET_REPO_CLONE_FAILED:-0}" = "1" ]; then
   STATUS=failed
+elif [ "\${SOURCE_ARCHIVE_EXTRACT_FAILED:-0}" = "1" ]; then
+  STATUS=failed
 elif [ "\${BRANCH_CHECKOUT_FAILED:-0}" = "1" ]; then
   STATUS=failed
 elif [ -f "$NEEDS_INPUT_FILE" ]; then
@@ -207,6 +210,12 @@ if os.environ.get("TARGET_REPO_CLONE_FAILED") == "1":
     error = (
         f"Target repository clone failed for {target_repo}: "
         "${TARGET_REPO_ACCESS_ERROR_HINT}"
+    )
+elif os.environ.get("SOURCE_ARCHIVE_EXTRACT_FAILED") == "1":
+    target_repo = os.environ.get("TARGET_REPO", "unknown")
+    error = (
+        f"Failed to extract the uploaded source archive for {target_repo} "
+        "(sandbox-side tar/base64 unpack error)."
     )
 elif os.environ.get("BRANCH_CHECKOUT_FAILED") == "1":
     branch_name = os.environ.get("BRANCH_NAME", "unknown")
@@ -255,7 +264,6 @@ export STATUS`;
 export function buildRunnerScript(job: FleetJob): string {
 	const fleetRepo = resolveFleetRepoUrl();
 	const fleetRef = job.fleetRef || "develop";
-	const baseBranch = job.baseBranch || "main";
 	const provider = job.provider || "";
 	const model = job.model || "";
 	const modelFlags =
@@ -288,10 +296,21 @@ export function buildRunnerScript(job: FleetJob): string {
 			"checkout_branch",
 		].join("\n");
 	} else {
+		// codeAccess === "clone": FLT-9 — the sandbox never gets read credentials
+		// for the target repo. The host uploads a git-archive/tar snapshot of its
+		// own local checkout (see archive.ts) to REPO_SOURCE_ARCHIVE_PATH before
+		// the runner starts; here we just unpack it and reconstruct a minimal git
+		// repo (fresh init + a baseline commit) so the rest of the flow — new
+		// branch, then push/PR via the still-injected FLEET_GITHUB_TOKEN — works
+		// exactly as it does for a real clone.
 		const newBranch = job.branch || `fleet/${job.jobId.slice(0, 8)}`;
 		checkout = [
-			`clone_target --depth 1 --branch ${shellQuote(baseBranch)}`,
+			"extract_source_archive",
 			"cd /work/repo",
+			"git init -q",
+			`git remote add origin ${shellQuote(`https://github.com/${repo}.git`)}`,
+			"git add -A",
+			'git -c user.email="fleet@pi-fleet.local" -c user.name="pi-fleet" commit -q -m "fleet: source snapshot for codeAccess=clone" --allow-empty',
 			`git checkout -b ${shellQuote(newBranch)}`,
 		].join("\n");
 	}
@@ -394,6 +413,31 @@ checkout_branch() {
   if [ "$EXIT" -ne 0 ]; then
     export EXIT BRANCH_CHECKOUT_FAILED=1
     echo "Branch '$BRANCH_NAME' not found in $TARGET_REPO (or not accessible with current credentials)."
+    finalize_result
+    echo "fleet e2b job $JOB_ID finished status=$STATUS"
+    exit "$EXIT"
+  fi
+}
+
+# codeAccess=clone: unpack the source archive the host already uploaded to
+# ${REPO_SOURCE_ARCHIVE_PATH} (see archive.ts) instead of the sandbox itself
+# cloning the target with credentials. Mirrors clone_target: convert a failed
+# extraction into a terminal result right here rather than falling through.
+extract_source_archive() {
+  set +e
+  mkdir -p /work/repo
+  # \`< file\` (not \`base64 -d file\`) so this decodes identically under GNU and
+  # BSD base64 (BSD's has no positional-file argument, only \`-i\`/stdin — passing
+  # the path directly silently decodes nothing on macOS). pipefail is scoped to
+  # this subshell so EXIT reflects either leg of the pipe failing, not just tar's
+  # (which can otherwise exit 0 on truncated/empty input and mask a real failure).
+  (set -o pipefail; base64 -d < ${REPO_SOURCE_ARCHIVE_PATH} | tar -xzf - -C /work/repo)
+  EXIT=$?
+  set -e
+  rm -f ${REPO_SOURCE_ARCHIVE_PATH}
+  if [ "$EXIT" -ne 0 ]; then
+    export EXIT SOURCE_ARCHIVE_EXTRACT_FAILED=1
+    echo "Failed to extract uploaded source archive for $TARGET_REPO"
     finalize_result
     echo "fleet e2b job $JOB_ID finished status=$STATUS"
     exit "$EXIT"
