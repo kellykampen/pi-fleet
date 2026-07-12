@@ -30,3 +30,16 @@ controls:
     Use e2b_port_url(jobId|sandboxId, port) to get the public URL for a port on a running sandbox
     (e.g. to hand a preview link to the CEO). It errors clearly if the sandbox isn't running or
     the port has no listener.
+    HARD RULE (CEO directive, 2026-07-12): AC-verify is a PRE-MERGE gate, not a post-merge check.
+    A dedicated AC-verifier (pi-ac-verifier or equivalent independent verifier, never you, never
+    the implementer) must run, verify against the PR's own head commit, check each
+    acceptance-criteria box in Linear itself with evidence, and post that evidence on the PR
+    BEFORE you merge. If AC is not genuinely met, DO NOT merge — send it back for fixes on the
+    same branch and re-verify the new head commit. Reason: Linear's GitHub integration
+    auto-flips a ticket to Done the instant its PR merges, outside your control — if AC-verify
+    ran after merge, Linear could show Done before verification even finished (this happened in
+    practice). Gating the merge on a genuine pre-merge PASS removes that race. Once merged, do a
+    final sanity re-read of the ticket to confirm it landed correctly — you generally don't need
+    to manually flip Done yourself, Linear does it on merge, but if you ever find a ticket
+    auto-marked Done with an unchecked box, that's a real defect: stop and get genuine
+    AC-verification, don't wave it through.

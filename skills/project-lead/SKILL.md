@@ -84,7 +84,7 @@ You have the **model-classifier** skill loaded — use it. Don't pick models fro
 | Investigate / scout / research (read-only) | `pi-researcher` |
 | Visual QA — app screenshot vs design comp | `pi-visual-qa` |
 | Linear issue / project management | `pi-linear` |
-| AC verification (run tests/build) | `pi-ac-verifier` |
+| AC verification (run tests/build) — MANDATORY for every ticket before Done, never skipped | `pi-ac-verifier` |
 | Final Docs pass (after review+AC+CI green, before merge/Done) | `pi-docs` |
 | Different-HARNESS review (not pi) | `claude-reviewer` (hard read-only, Sonnet 5/Opus 4.8) |
 | Build on a different harness (diversity) | `claude-worker` (Sonnet 5/Opus 4.8) |
@@ -99,24 +99,27 @@ when the classifier says something else fits better. The wrappers forward `--pro
 and also accept role/generic env defaults (`PI_<ROLE>_MODEL`, `PI_MODEL`); explicit CLI flags win.
 So `pi-implementer --provider X --model Y` just works.
 
-**3) Translate the classifier's model name → Pi flags, then cast — inside the roster lock:**
-**Roster lock (hard constraint, see the conductor skill's copy for the full statement): only
-`claude-worker`/`claude-reviewer` on Sonnet 5 or Opus 4.8, or `pi` on `gpt-5.5`/`gpt-5.6`, are
-permitted for worker/reviewer/AC/QA seats. Banned, always: Grok/xAI, Kimi/`claudekimi`,
-GLM/`claudeglm`, Gemini/`agy`.** If `model-classifier`'s rubric would route you to a banned
-model, follow its own hard-roster-lock override instead — don't cast the banned model because the
-table below used to list it.
+**3) Translate the classifier's model name → Pi flags, then cast:**
+**No name-based roster lock anymore (CEO directive, 2026-07-12; see the conductor skill's full
+statement) — every model `model-classifier` can name is castable, gated only by EXHAUSTED (hard
+stop) or OVER_PACE (needs explicit CEO approval, ask the conductor before adding new load to it),
+not by which provider it happens to be.**
 
-| model-classifier says (within the roster lock) | Pi flags |
+| model-classifier says | Pi flags |
 | --- | --- |
 | GPT-5.6 Sol (hard coding) | `--provider openai-codex --model gpt-5.6-sol` |
 | GPT-5.6 Terra (taste/design) | `--provider openai-codex --model gpt-5.6-terra` |
 | GPT-5.6 Luna (generalist) | `--provider openai-codex --model gpt-5.6-luna` |
 | GPT-5.5 (Codex) | `--provider openai-codex --model gpt-5.5` |
 | Claude Sonnet 5 / Opus 4.8 | not a pi model → cast `claude-worker`/`claude-reviewer` (Claude Code, `--dangerously-skip-permissions`) |
+| GLM-5.2 | `claudeglm` (or `--provider` equivalent per the harness in use) |
+| Kimi K2.7 Code | `claudekimi` (or `--provider` equivalent) |
+| Gemini (via agy) | `agy` |
+| Grok 4.5 | xAI direct or OpenRouter, per whatever's configured |
 
-Anything else the classifier names (Grok, Gemini, Kimi, GLM) is **banned** — re-classify for the
-nearest allowed alternative above instead of casting it.
+Before casting any of the previously-banned names (GLM, Kimi, Gemini/agy, Grok), check its current
+pace via the conductor's latest usage relay — EXHAUSTED means don't, OVER_PACE means ask first,
+otherwise it's fair game the same as Claude or Codex.
 
 **Cast example:** `cd <worktree> && pi-implementer --provider openai-codex --model gpt-5.6-sol`
 (then send the brief, capture results). Use the verb **cast** for spinning up a worker seat.
@@ -149,8 +152,10 @@ build/test work.
 
 **Usage cadence:** the conductor runs `check-model-usage` on a ~30-minute cadence and relays
 OVER_PACE/EXHAUSTED status to you. Treat EXHAUSTED as an immediate ban on that provider/model for
-new casts — re-classify via `model-classifier` and route to an allowed alternative. Treat
-OVER_PACE as a steer-away-from signal for new casts, not an immediate hard stop.
+new casts — re-classify via `model-classifier` and route to an alternative. Treat OVER_PACE as
+requiring explicit CEO approval before that provider/model takes any new load (CEO directive,
+2026-07-12) — don't decide on your own to keep routing new casts to it; that call comes from the
+conductor/CEO, not from you noticing it's not fully exhausted yet.
 
 **Temporary roster overrides:** when the CEO/conductor declares one (e.g. "worker/reviewer/AC/QA
 seats -> Opus 4.8 until 19:00"), it overrides your normal `model-classifier` pick for the covered
@@ -174,20 +179,53 @@ early either.
 
 ## Gates (non-negotiable)
 
+**HARD RULE (CEO directive, 2026-07-12):** "When a PR is merged, that ticket is considered done.
+That's standard software development flow... every check, all the QC, all QA, all the AC check
+and QA visual checks, etc, all needs to be done before the PR is approved and it's merged." Every
+gate below is a **pre-merge** gate — approving and merging a PR is the action that certifies all
+of them already passed, not a step you take while one is still pending or promised "after."
+
 Canonical order — no step skipped or reordered (see the conductor skill's "Docs-as-final-DoD-gate"
 for the full statement):
 
 1. **Independent review by a DIFFERENT model** than the implementer — if the build ran on model M,
    the reviewer must NOT be M (re-classify for a different capable model if needed). Posted on the PR.
-2. **AC-verify** — real commands run against real code, evidence posted on the PR. AC checkboxes
-   checked only after that verification, never on a claim.
-3. **CI green** — or a documented infra-blocker waiver (e.g. GitHub Actions billing), stated
+2. **AC-verify — a PRE-merge gate, not a post-merge check.** You MUST cast a dedicated
+   `pi-ac-verifier` (or equivalent independent verifier; see the `linear-ac-verification` skill)
+   for every ticket, no exceptions for small/urgent/obvious tickets, and it must run and PASS
+   **before** the PR merges — verified against the PR's actual head commit, not `origin/develop`.
+   **If AC is not genuinely met, the PR does not merge.** Send it back for fixes on the same
+   branch and re-verify the new head commit; don't merge now on a promise to check later. The
+   AC-verifier — not you, not the implementer — checks the Linear boxes, only after it has
+   actually verified each one by running it. You never check a box yourself and you never accept
+   a claim of "this is done" in place of the verifier's own evidence.
+   **Why pre-merge specifically:** Linear's GitHub integration auto-flips a ticket to Done the
+   instant its linked PR merges — this is automatic and outside your control. If AC-verify runs
+   *after* merge, there's a real window where Linear already says Done before verification even
+   finishes, let alone catches a gap. This was found happening in practice (a real ticket showed
+   Done before its post-merge AC check completed) — pre-merge gating is what removes the race.
+3. **Visual-QA — PRE-merge, for any ticket that touches UI.** If the change adds/modifies
+   anything user-visible (a component, a page, a flow), cast a dedicated visual-QA seat
+   (`pi-visual-qa` or equivalent) to compare a real running-app screenshot against the design comp
+   **before** the PR merges — not as an optional nicety a lead adds when it occurs to them, but as
+   a standing requirement for UI tickets exactly like AC-verify is for all tickets. A PASS or
+   PASS-WITH-DOCUMENTED-FOLLOWUP is required; a genuine BLOCKED finding means fixes land on the
+   same branch and get re-checked, same as a failed AC-verify. Skip only for tickets that
+   genuinely touch no UI (backend-only, CLI-only, docs-only) — state that explicitly, don't just
+   silently omit it.
+4. **CI green** — or a documented infra-blocker waiver (e.g. GitHub Actions billing), stated
    explicitly on the PR and the Linear ticket, never used to wave off a real code/test failure.
-4. **Docs pass** — cast `pi-docs` (or do it yourself for small/docs-adjacent tickets): README and
+5. **Docs pass** — cast `pi-docs` (or do it yourself for small/docs-adjacent tickets): README and
    every affected doc updated to match the change, OR an explicit no-docs-needed rationale posted
    on the PR. Not optional, not skippable because "it's just a fix."
-5. **Merge to develop, flip Linear to Done** — you do this yourself once gates 1-4 pass; don't
-   park a fully-gated PR waiting on the CEO. The CEO's only manual step is develop→main promotion.
+6. **Merge to develop** — you do this yourself once gates 1-5 all genuinely pass; don't park a
+   fully-gated PR waiting on the CEO. The CEO's only manual step is develop→main promotion. Because
+   AC (and visual-QA, where applicable) were already verified pre-merge, Linear's auto-transition
+   to Done on merge is now trustworthy — you generally don't need to manually flip it. Do one final
+   sanity re-read of the ticket right after merge to confirm it landed in the expected state; if
+   you ever find a ticket auto-marked Done with an unchecked box or a UI change with no visual-QA
+   evidence on the PR, that's a real defect — stop, don't wave it through, and get genuine
+   verification before trusting the Done state.
 
 Pass each seat the Linear ticket details it needs. Every ticket needs a Linear ticket with
 markdown checkbox AC **before** work starts — don't backfill one after the fact. Never promote to
