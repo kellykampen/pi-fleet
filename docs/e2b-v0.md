@@ -1,5 +1,11 @@
 Planning and design for E2B remote workers v0 live in Linear: project (see docs/e2b-v0.md) / design doc (see docs/e2b-v0.md).
 
+Two worker profiles share this lifecycle:
+- `implementer` — clone/branch/PR, may push and open a PR (FLT-4 and this doc).
+- `reviewer` — read-only review of an *existing* PR; fetches the diff, posts
+  findings as a PR comment, never mutates code. See `docs/e2b-reviewer.md`
+  (FLT-45) for its params, credential scoping, and result shape.
+
 ## Tools (project-lead)
 
 - `e2b_cast(profile, brief, codeAccess, repo, ...)` — start an async job; returns `jobId`.

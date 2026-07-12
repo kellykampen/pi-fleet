@@ -5,7 +5,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { castJob, refreshFromSandbox, tryCreateSandbox } from "./cast.ts";
+import {
+	castJob,
+	MISSING_REVIEWER_GITHUB_TOKEN_ERROR,
+	reconnectSandbox,
+	refreshFromSandbox,
+	requireReviewerCast,
+	tryCreateSandbox,
+} from "./cast.ts";
 import {
 	GITHUB_APP_ID_ENV,
 	GITHUB_APP_INSTALLATION_ID_ENV,
@@ -18,6 +25,7 @@ const ORIGINAL_ENV = { ...process.env };
 
 function clearSensitiveEnv() {
 	delete process.env.FLEET_GITHUB_TOKEN;
+	delete process.env.FLEET_GITHUB_REVIEWER_TOKEN;
 	delete process.env.GH_TOKEN;
 	delete process.env.E2B_API_KEY;
 	delete process.env[GITHUB_APP_ID_ENV];
@@ -323,4 +331,263 @@ test("tryCreateSandbox injects a minted GitHub App installation token — not th
 	assert.ok(envsCall, "expected the backgrounded run command to receive envs");
 	const envs = JSON.parse(envsCall!.slice("envs:".length));
 	assert.equal(envs.FLEET_GITHUB_TOKEN, "ghs_mintedAppToken");
+});
+
+// --- FLT-45: reviewer-profile cast path -------------------------------------
+
+test("requireReviewerCast rejects anything but a PR-targeted reviewer cast", () => {
+	assert.throws(
+		() =>
+			requireReviewerCast({
+				profile: "implementer",
+				brief: "review it",
+				codeAccess: "pr",
+				repo: "owner/repo",
+				prNumber: 1,
+			}),
+		/expected profile "reviewer"/,
+	);
+	assert.throws(
+		() =>
+			requireReviewerCast({
+				profile: "reviewer",
+				brief: "review it",
+				codeAccess: "clone",
+				repo: "owner/repo",
+			}),
+		/requires codeAccess "pr"/,
+	);
+	assert.throws(
+		() =>
+			requireReviewerCast({
+				profile: "reviewer",
+				brief: "review it",
+				codeAccess: "pr",
+				repo: "owner/repo",
+			}),
+		/prNumber is required/,
+	);
+	assert.throws(
+		() =>
+			requireReviewerCast({
+				profile: "reviewer",
+				brief: "review it",
+				codeAccess: "pr",
+				prNumber: 1,
+			} as never),
+		/repo is required/,
+	);
+	assert.doesNotThrow(() =>
+		requireReviewerCast({
+			profile: "reviewer",
+			brief: "review it",
+			codeAccess: "pr",
+			repo: "owner/repo",
+			prNumber: 1,
+		}),
+	);
+});
+
+test("non-dry-run reviewer cast dispatches to a running job distinct from an implementer cast", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
+
+	try {
+		const job = await castJob(
+			{
+				profile: "reviewer",
+				brief: "Focus on auth and input validation.",
+				codeAccess: "pr",
+				repo: "owner/repo",
+				prNumber: 42,
+			},
+			{
+				createSandbox: async () => ({
+					sandboxId: "sandbox-reviewer-abc123",
+					logTail: "sandbox started; runner backgrounded",
+				}),
+			},
+		);
+
+		assert.equal(job.profile, "reviewer");
+		assert.equal(job.status, "running");
+		assert.equal(job.sandboxId, "sandbox-reviewer-abc123");
+
+		const persisted = await readJob(job.jobId);
+		assert.equal(persisted.profile, "reviewer");
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+test("non-dry-run reviewer cast fails clearly before sandbox creation when no GitHub token (implementer or reviewer-scoped) is present", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	let sandboxCreated = false;
+
+	try {
+		const job = await castJob(
+			{
+				profile: "reviewer",
+				brief: "review it",
+				codeAccess: "pr",
+				repo: "owner/repo",
+				prNumber: 1,
+			},
+			{
+				createSandbox: async () => {
+					sandboxCreated = true;
+					return { sandboxId: "sandbox", logTail: "started" };
+				},
+			},
+		);
+
+		assert.equal(sandboxCreated, false);
+		assert.equal(job.status, "failed");
+		assert.equal(job.error, MISSING_REVIEWER_GITHUB_TOKEN_ERROR);
+
+		const persisted = await readJob(job.jobId);
+		assert.equal(persisted.status, "failed");
+		assert.equal(persisted.error, MISSING_REVIEWER_GITHUB_TOKEN_ERROR);
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+test("a reviewer cast succeeds with only FLEET_GITHUB_REVIEWER_TOKEN set (no implementer push token required)", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerOnlyToken1234567890abcdefgh";
+
+	try {
+		const job = await castJob(
+			{
+				profile: "reviewer",
+				brief: "review it",
+				codeAccess: "pr",
+				repo: "owner/repo",
+				prNumber: 1,
+			},
+			{
+				createSandbox: async () => ({
+					sandboxId: "sandbox-reviewer-token-only",
+					logTail: "started",
+				}),
+			},
+		);
+
+		assert.equal(job.status, "running");
+		assert.equal(job.error, undefined);
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+test("refreshFromSandbox merges verdict/findingsSummary/reviewUrl/readOnlyEvidence from a reviewer job's remote result", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.E2B_API_KEY = "e2b_test_key";
+
+	const now = new Date().toISOString();
+	const job: FleetJob = await writeJob({
+		jobId: "job-review-refresh",
+		profile: "reviewer",
+		status: "running",
+		brief: "review it",
+		codeAccess: "pr",
+		repo: "owner/repo",
+		prNumber: 42,
+		timeoutMinutes: 90,
+		dryRun: false,
+		sandboxId: "sandbox-review-refresh",
+		createdAt: now,
+		updatedAt: now,
+	});
+
+	try {
+		const refreshed = await refreshFromSandbox(job, {
+			connectSandbox: async () => ({
+				files: {
+					async read(path: string) {
+						if (path === "/work/result.json") {
+							return JSON.stringify({
+								status: "succeeded",
+								profile: "reviewer",
+								verdict: "REQUEST-CHANGES",
+								findingsSummary: "VERDICT: REQUEST-CHANGES\nMissing null check at foo.ts:12.",
+								reviewUrl: "https://github.com/owner/repo/pull/42#issuecomment-9",
+								readOnlyEvidence: [
+									"gh pr view 42 --repo owner/repo --json ... (read-only)",
+									"gh pr diff 42 --repo owner/repo (read-only)",
+								],
+							});
+						}
+						return "";
+					},
+				},
+			}),
+		});
+
+		assert.equal(refreshed.status, "succeeded");
+		assert.equal(refreshed.verdict, "REQUEST-CHANGES");
+		assert.match(refreshed.findingsSummary ?? "", /Missing null check/);
+		assert.equal(
+			refreshed.reviewUrl,
+			"https://github.com/owner/repo/pull/42#issuecomment-9",
+		);
+		assert.deepEqual(refreshed.readOnlyEvidence, [
+			"gh pr view 42 --repo owner/repo --json ... (read-only)",
+			"gh pr diff 42 --repo owner/repo (read-only)",
+		]);
+
+		const persisted = await readJob("job-review-refresh");
+		assert.equal(persisted.verdict, "REQUEST-CHANGES");
+		assert.equal(persisted.reviewUrl, refreshed.reviewUrl);
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+test("reconnectSandbox rehydrates a reviewer job's profile and verdict from a live sandbox, not a hardcoded implementer default", async () => {
+	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
+	process.env.FLEET_JOBS_DIR = jobsDir;
+
+	try {
+		const job = await reconnectSandbox("sbx-review-reconnect", {
+			connectSandbox: async () => ({
+				files: {
+					async read(path: string) {
+						if (path === "/work/result.json") {
+							return JSON.stringify({
+								jobId: "job-review-reconnect",
+								profile: "reviewer",
+								status: "succeeded",
+								prNumber: 7,
+								verdict: "APPROVE",
+								findingsSummary: "VERDICT: APPROVE\nNo issues found.",
+								reviewUrl: "https://github.com/owner/repo/pull/7#issuecomment-3",
+								readOnlyEvidence: ["gh pr view 7 --repo owner/repo (read-only)"],
+							});
+						}
+						throw new Error("no log yet");
+					},
+				},
+			}),
+		});
+
+		assert.equal(job.profile, "reviewer");
+		assert.equal(job.status, "succeeded");
+		assert.equal(job.prNumber, 7);
+		assert.equal(job.verdict, "APPROVE");
+		assert.equal(job.reviewUrl, "https://github.com/owner/repo/pull/7#issuecomment-3");
+		assert.deepEqual(job.readOnlyEvidence, [
+			"gh pr view 7 --repo owner/repo (read-only)",
+		]);
+	} finally {
+		await rm(jobsDir, { recursive: true, force: true });
+	}
 });

@@ -9,9 +9,11 @@ import {
 } from "./jobs.js";
 import { connectE2BSandbox, createE2BSandbox } from "./sdk.js";
 import {
+	buildReviewerRunnerScript,
 	buildRunnerScript,
 	collectWorkerEnv,
 	githubCredentialSourceConfigured,
+	MISSING_REVIEWER_GITHUB_TOKEN_ERROR,
 	resolveFleetRepoUrl,
 	resolveInjectedGithubToken,
 	sanitizeSecrets,
@@ -27,6 +29,8 @@ import {
 
 export const MISSING_GITHUB_TOKEN_ERROR =
 	"FLEET_GITHUB_TOKEN (or GH_TOKEN) is required for non-dry-run implementer casts";
+
+export { MISSING_REVIEWER_GITHUB_TOKEN_ERROR };
 
 export const MISSING_TEMPLATE_ERROR =
 	"FLEET_E2B_TEMPLATE is required for non-dry-run implementer casts (e.g. FLEET_E2B_TEMPLATE=pi-fleet-node22)";
@@ -239,6 +243,37 @@ export function requireImplementerCast(params: CastParams): void {
 	}
 }
 
+/**
+ * A reviewer cast always targets an existing PR — there's no clone/branch
+ * checkout path (FLT-45: distinct from implementer's clone→work→PR flow, and
+ * deliberately never touches the target repo's working tree).
+ */
+export function requireReviewerCast(params: CastParams): void {
+	if (params.profile !== "reviewer") {
+		throw new Error(`expected profile "reviewer" (got ${params.profile})`);
+	}
+	if (params.codeAccess !== "pr") {
+		throw new Error('reviewer cast requires codeAccess "pr"');
+	}
+	if (!params.repo?.trim()) {
+		throw new Error("repo is required for reviewer casts");
+	}
+	if (params.prNumber == null) {
+		throw new Error("prNumber is required for reviewer casts");
+	}
+	if (!params.brief?.trim()) {
+		throw new Error("brief is required");
+	}
+}
+
+function requireValidCast(params: CastParams): void {
+	if (params.profile === "reviewer") {
+		requireReviewerCast(params);
+		return;
+	}
+	requireImplementerCast(params);
+}
+
 async function connectSandboxDefault(sandboxId: string): Promise<SandboxLike> {
 	return connectE2BSandbox<SandboxLike>(sandboxId);
 }
@@ -303,12 +338,18 @@ export async function tryCreateSandbox(
 		// sandbox `gh repo clone` the target with read credentials (FLT-9). Must
 		// land before run-job.sh is backgrounded, since the runner's
 		// extract_source_archive step expects it present the moment it starts.
-		if (job.codeAccess === "clone") {
+		// Reviewer casts never touch the target repo's working tree at all
+		// (codeAccess is always "pr", read-only PR fetch — FLT-45), so this only
+		// ever applies to implementer casts.
+		if (job.profile !== "reviewer" && job.codeAccess === "clone") {
 			const archive = await buildRepoSourceArchive({ ref: job.baseBranch });
 			await sandbox.files.write(REPO_SOURCE_ARCHIVE_PATH, archive.base64);
 		}
 
-		const runner = buildRunnerScript(job);
+		const runner =
+			job.profile === "reviewer"
+				? buildReviewerRunnerScript(job)
+				: buildRunnerScript(job);
 		await sandbox.files.write("/work/run-job.sh", runner);
 
 		await sandbox.commands.run("chmod +x /work/run-job.sh", {
@@ -319,7 +360,12 @@ export async function tryCreateSandbox(
 		// Mint (or resolve) the GitHub credential right before it's injected, so
 		// an App-minted token stays as short-lived as possible and a sandbox
 		// never receives the long-lived PAT when an App is configured (FLT-6).
-		const githubToken = await resolveInjectedGithubToken({ fetchImpl: opts.fetchImpl });
+		// profile-aware: falls back to the reviewer-scoped PAT precedence
+		// (FLT-45) when no GitHub App is configured.
+		const githubToken = await resolveInjectedGithubToken({
+			fetchImpl: opts.fetchImpl,
+			profile: job.profile,
+		});
 		await sandbox.commands.run(
 			"bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",
 			{
@@ -432,7 +478,7 @@ export async function reconnectSandbox(
 			: "running";
 	const job: FleetJob = {
 		jobId: remoteJobId,
-		profile: "implementer",
+		profile: remote.profile === "reviewer" ? "reviewer" : "implementer",
 		status,
 		brief:
 			typeof remote.brief === "string"
@@ -460,6 +506,10 @@ export async function reconnectSandbox(
 		blockers: remote.blockers,
 		questions: remote.questions,
 		artifacts: remote.artifacts,
+		verdict: remote.verdict,
+		findingsSummary: remote.findingsSummary,
+		reviewUrl: remote.reviewUrl,
+		readOnlyEvidence: remote.readOnlyEvidence,
 		error: remote.error,
 		logTail,
 		createdAt: remoteCreatedAt,
@@ -530,6 +580,10 @@ export async function refreshFromSandbox(
 					blockers: remote.blockers ?? job.blockers,
 					questions: remote.questions ?? job.questions,
 					artifacts: remote.artifacts ?? job.artifacts,
+					verdict: remote.verdict ?? job.verdict,
+					findingsSummary: remote.findingsSummary ?? job.findingsSummary,
+					reviewUrl: remote.reviewUrl ?? job.reviewUrl,
+					readOnlyEvidence: remote.readOnlyEvidence ?? job.readOnlyEvidence,
 					error: remote.error ?? job.error,
 					logTail,
 				}),
@@ -581,12 +635,12 @@ export async function castJob(
 	params: CastParams,
 	deps: CastDependencies = {},
 ): Promise<FleetJob> {
-	requireImplementerCast(params);
+	requireValidCast(params);
 	const dryRun = Boolean(params.dryRun) || !process.env.E2B_API_KEY?.trim();
 	const now = new Date().toISOString();
 	const job: FleetJob = {
 		jobId: newJobId(),
-		profile: "implementer",
+		profile: params.profile,
 		status: "queued",
 		ticketId: params.ticketId,
 		brief: params.brief.trim(),
@@ -620,12 +674,15 @@ export async function castJob(
 	}
 
 	try {
-		if (!githubCredentialSourceConfigured()) {
+		if (!githubCredentialSourceConfigured(job.profile)) {
 			return updateJob(
 				job.jobId,
 				sanitizeJobPatch({
 					status: "failed",
-					error: MISSING_GITHUB_TOKEN_ERROR,
+					error:
+						job.profile === "reviewer"
+							? MISSING_REVIEWER_GITHUB_TOKEN_ERROR
+							: MISSING_GITHUB_TOKEN_ERROR,
 				}),
 			);
 		}

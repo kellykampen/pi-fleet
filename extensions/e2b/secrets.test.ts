@@ -14,14 +14,18 @@ import {
 } from "./githubApp.ts";
 import {
 	buildResultFinalizer,
+	buildReviewerResultFinalizer,
+	buildReviewerRunnerScript,
 	buildRunnerScript,
 	collectWorkerEnv,
 	FLEET_WORKER_MODEL_KEYS,
 	githubCredentialSourceConfigured,
+	githubReviewerTokenPresent,
 	MISSING_FLEET_REPO_URL_ERROR,
 	normalizeRepoSlug,
 	PI_AGENT_AUTH_ENV,
 	resolveFleetRepoUrl,
+	resolveGithubReviewerToken,
 	resolveInjectedGithubToken,
 	sanitizeSecrets,
 	TARGET_REPO_ACCESS_ERROR_HINT,
@@ -43,6 +47,7 @@ const ORIGINAL_ENV = { ...process.env };
 
 function clearSensitiveEnv() {
 	delete process.env.FLEET_GITHUB_TOKEN;
+	delete process.env.FLEET_GITHUB_REVIEWER_TOKEN;
 	delete process.env.GH_TOKEN;
 	delete process.env.E2B_API_KEY;
 	delete process.env.FLEET_REPO_URL;
@@ -417,6 +422,15 @@ test("buildResultFinalizer surfaces a clear, sanitized error for a failed source
  */
 function runFinalizer(work: string, env: Record<string, string>): void {
 	const finalizer = buildResultFinalizer();
+	execFileSync("bash", ["-c", `set -euo pipefail\n${finalizer}`], {
+		env: { ...process.env, WORK: work, ...env },
+		stdio: "pipe",
+	});
+}
+
+/** Reviewer counterpart of runFinalizer — exercises buildReviewerResultFinalizer. */
+function runReviewerFinalizer(work: string, env: Record<string, string>): void {
+	const finalizer = buildReviewerResultFinalizer();
 	execFileSync("bash", ["-c", `set -euo pipefail\n${finalizer}`], {
 		env: { ...process.env, WORK: work, ...env },
 		stdio: "pipe",
@@ -1099,5 +1113,258 @@ test("refreshFromSandbox sanitizes remote result fields and log tails before per
 		assert.equal(persistedRaw.includes(process.env.OPENAI_API_KEY), false);
 	} finally {
 		await rm(jobsDir, { recursive: true, force: true });
+	}
+});
+
+// --- FLT-45: reviewer-profile cast path -------------------------------------
+
+function reviewerJob(overrides: Partial<FleetJob> = {}): FleetJob {
+	const now = new Date().toISOString();
+	return {
+		jobId: "job-review-12345678",
+		profile: "reviewer",
+		status: "queued",
+		brief: "Focus on auth and input validation.",
+		codeAccess: "pr",
+		repo: "owner/repo",
+		prNumber: 42,
+		timeoutMinutes: 90,
+		dryRun: false,
+		createdAt: now,
+		updatedAt: now,
+		...overrides,
+	};
+}
+
+test("resolveGithubReviewerToken prefers FLEET_GITHUB_REVIEWER_TOKEN over the implementer's push token", () => {
+	process.env.FLEET_GITHUB_TOKEN = "ghp_implementerPushToken1234567890abcdef";
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerScopedToken1234567890abcdef";
+
+	assert.equal(resolveGithubReviewerToken(), process.env.FLEET_GITHUB_REVIEWER_TOKEN);
+	assert.equal(githubReviewerTokenPresent(), true);
+});
+
+test("resolveGithubReviewerToken falls back to the implementer's GitHub token keys when unset", () => {
+	delete process.env.FLEET_GITHUB_REVIEWER_TOKEN;
+	process.env.GH_TOKEN = "ghp_fallbackToken1234567890abcdefghijkl";
+
+	assert.equal(resolveGithubReviewerToken(), process.env.GH_TOKEN);
+	assert.equal(githubReviewerTokenPresent(), true);
+});
+
+test("githubReviewerTokenPresent is false when no GitHub token env var is set", () => {
+	assert.equal(githubReviewerTokenPresent(), false);
+	assert.equal(resolveGithubReviewerToken(), undefined);
+});
+
+test("resolveInjectedGithubToken resolves the reviewer-scoped token for profile=reviewer when no GitHub App is configured", async () => {
+	process.env.FLEET_GITHUB_TOKEN = "ghp_implementerPushToken1234567890abcdef";
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerScopedToken1234567890abcdef";
+
+	assert.equal(
+		await resolveInjectedGithubToken({ profile: "reviewer" }),
+		"ghp_reviewerScopedToken1234567890abcdef",
+	);
+	assert.equal(
+		await resolveInjectedGithubToken({ profile: "implementer" }),
+		"ghp_implementerPushToken1234567890abcdef",
+	);
+});
+
+test("collectWorkerEnv ships the reviewer-resolved token under the canonical FLEET_GITHUB_TOKEN name", async () => {
+	process.env.FLEET_GITHUB_TOKEN = "ghp_implementerPushToken1234567890abcdef";
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerScopedToken1234567890abcdef";
+	process.env.OPENAI_API_KEY = "sk-worker-openai";
+
+	const githubToken = await resolveInjectedGithubToken({ profile: "reviewer" });
+	assert.deepEqual(collectWorkerEnv({ githubToken }), {
+		FLEET_GITHUB_TOKEN: "ghp_reviewerScopedToken1234567890abcdef",
+		OPENAI_API_KEY: "sk-worker-openai",
+	});
+});
+
+test("githubCredentialSourceConfigured checks the reviewer-scoped token for profile=reviewer, independent of the implementer's token", () => {
+	assert.equal(githubCredentialSourceConfigured("reviewer"), false);
+	assert.equal(githubCredentialSourceConfigured("implementer"), false);
+
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerScopedToken1234567890abcdef";
+	assert.equal(githubCredentialSourceConfigured("reviewer"), true);
+	// The reviewer-scoped token alone must not satisfy the implementer's check.
+	assert.equal(githubCredentialSourceConfigured("implementer"), false);
+});
+
+test("buildReviewerRunnerScript never embeds token values", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN =
+		"github_pat_thisSecretMustNotAppearInTheReviewerScript12345";
+	const script = buildReviewerRunnerScript(reviewerJob());
+
+	assert.equal(
+		script.includes(process.env.FLEET_GITHUB_REVIEWER_TOKEN),
+		false,
+	);
+	assert.match(script, /FLEET_GITHUB_TOKEN/);
+});
+
+test("buildReviewerRunnerScript fetches the PR read-only and never runs a code-mutating command", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildReviewerRunnerScript(reviewerJob({ repo: "owner/private-app", prNumber: 7 }));
+
+	assert.match(script, /export TARGET_REPO='owner\/private-app'/);
+	assert.match(script, /export PR_NUMBER='7'/);
+	assert.match(script, /gh pr view "\$PR_NUMBER" --repo "\$TARGET_REPO"/);
+	assert.match(script, /gh pr diff "\$PR_NUMBER" --repo "\$TARGET_REPO" > \/work\/pr-diff\.patch/);
+	assert.match(script, /gh pr comment "\$PR_NUMBER" --repo "\$TARGET_REPO" --body-file/);
+
+	// The distinguishing guarantee of a reviewer cast: no command that could
+	// mutate the target repo or the PR's merge state ever appears. Cloning the
+	// pi-fleet *tooling* repo (for bin/pi-reviewer + profiles/skills) is fine —
+	// it's never the reviewed target repo, which this script never clones,
+	// checks out, pushes to, or commits into.
+	assert.doesNotMatch(script, /git push/);
+	assert.doesNotMatch(script, /git commit/);
+	assert.doesNotMatch(script, /git checkout/);
+	assert.doesNotMatch(script, /gh pr merge/);
+	assert.doesNotMatch(script, /gh pr review/);
+	assert.doesNotMatch(script, /gh repo clone/);
+	assert.doesNotMatch(script, /git clone.*private-app/);
+});
+
+test("buildReviewerRunnerScript invokes pi-reviewer (not pi-implementer) and anchors its profile", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildReviewerRunnerScript(reviewerJob());
+
+	assert.match(script, /"\$PI_REVIEW".*-p "\$\(cat \/work\/brief\.md\)"/);
+	assert.doesNotMatch(script, /pi-implementer/);
+	assert.match(script, /default_profile: reviewer/);
+	assert.match(script, /- path: \/work\/pi-fleet\/profiles/);
+});
+
+test("buildReviewerRunnerScript logs each read-only gh call to the evidence file", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildReviewerRunnerScript(reviewerJob());
+
+	assert.match(script, />> "\$EVIDENCE"/);
+	assert.match(script, /gh pr view .* \(read-only\)/);
+	assert.match(script, /gh pr diff .* \(read-only\)/);
+	assert.match(script, /gh pr comment .* \(comment only, no approve\/request-changes authority\)/);
+});
+
+test("buildReviewerRunnerScript logs the same job-lifecycle lines the implementer runner uses, so reconnect's log-based jobId fallback still matches", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildReviewerRunnerScript(reviewerJob());
+
+	assert.match(script, /^echo "fleet e2b job \$JOB_ID starting"$/m);
+	assert.match(script, /echo "fleet e2b job \$JOB_ID finished status=\$STATUS"/);
+});
+
+test("buildReviewerResultFinalizer writes a succeeded result with verdict/findings/reviewUrl/evidence", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		await writeFile(join(work, "review-output.txt"), "VERDICT: APPROVE\nLooks good.");
+		await writeFile(
+			join(work, "readonly-evidence.log"),
+			"gh pr view 42 --repo owner/repo (read-only)\ngh pr diff 42 --repo owner/repo (read-only)\n",
+		);
+
+		runReviewerFinalizer(work, {
+			JOB_ID: "job-review-ok",
+			EXIT: "0",
+			TARGET_REPO: "owner/repo",
+			PR_NUMBER: "42",
+			VERDICT: "APPROVE",
+			REVIEW_URL: "https://github.com/owner/repo/pull/42#issuecomment-1",
+			REVIEW_OUTPUT: join(work, "review-output.txt"),
+			EVIDENCE: join(work, "readonly-evidence.log"),
+		});
+
+		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.equal(result.status, "succeeded");
+		assert.equal(result.profile, "reviewer");
+		assert.equal(result.jobId, "job-review-ok");
+		assert.equal(result.prNumber, 42);
+		assert.equal(result.verdict, "APPROVE");
+		assert.match(result.findingsSummary, /VERDICT: APPROVE/);
+		assert.equal(result.reviewUrl, "https://github.com/owner/repo/pull/42#issuecomment-1");
+		assert.deepEqual(result.readOnlyEvidence, [
+			"gh pr view 42 --repo owner/repo (read-only)",
+			"gh pr diff 42 --repo owner/repo (read-only)",
+		]);
+		assert.equal(result.error, null);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
+test("buildReviewerResultFinalizer surfaces a clear error when the PR fetch fails, without a token-access-hint token leak", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		const token = "github_pat_reviewerFetchFailureSecret_abcdefghijklmno";
+		process.env.FLEET_GITHUB_REVIEWER_TOKEN = token;
+		runReviewerFinalizer(work, {
+			JOB_ID: "job-review-fetch-failed",
+			EXIT: "1",
+			TARGET_REPO: "owner/private-app",
+			PR_NUMBER: "99",
+			PR_FETCH_FAILED: "1",
+		});
+
+		const raw = await readFile(join(work, "result.json"), "utf8");
+		const result = JSON.parse(raw);
+		assert.equal(result.status, "failed");
+		assert.equal(result.verdict, "UNKNOWN");
+		assert.match(result.error, /Failed to fetch PR #99/);
+		assert.match(result.error, /owner\/private-app/);
+		assert.equal(raw.includes(token), false);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
+test("buildReviewerResultFinalizer marks the job failed when the review succeeded but posting the comment failed", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		await writeFile(join(work, "review-output.txt"), "VERDICT: REQUEST-CHANGES\nMissing null check.");
+
+		runReviewerFinalizer(work, {
+			JOB_ID: "job-review-comment-failed",
+			EXIT: "0",
+			TARGET_REPO: "owner/repo",
+			PR_NUMBER: "5",
+			VERDICT: "REQUEST-CHANGES",
+			COMMENT_POST_FAILED: "1",
+			REVIEW_OUTPUT: join(work, "review-output.txt"),
+		});
+
+		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.equal(result.status, "failed");
+		// The review itself is still reported even though posting it failed —
+		// useful diagnostic, not silently dropped.
+		assert.equal(result.verdict, "REQUEST-CHANGES");
+		assert.match(result.findingsSummary, /Missing null check/);
+		assert.match(result.error, /failed to post the.*comment/);
+		assert.equal(result.reviewUrl, null);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
+test("buildReviewerResultFinalizer falls back to a generic exit-code error and UNKNOWN verdict when pi-reviewer itself fails", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		runReviewerFinalizer(work, {
+			JOB_ID: "job-review-bad-exit",
+			EXIT: "1",
+			TARGET_REPO: "owner/repo",
+			PR_NUMBER: "3",
+		});
+
+		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.equal(result.status, "failed");
+		assert.equal(result.verdict, "UNKNOWN");
+		assert.match(result.error, /pi-reviewer exited 1/);
+		assert.equal(result.findingsSummary, null);
+	} finally {
+		await rm(work, { recursive: true, force: true });
 	}
 });

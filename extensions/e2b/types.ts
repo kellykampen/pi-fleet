@@ -9,7 +9,10 @@ export type JobStatus =
 
 export type CodeAccess = "none" | "clone" | "pr" | "branch";
 
-export type FleetProfile = "implementer";
+export type FleetProfile = "implementer" | "reviewer";
+
+/** Review verdict emitted by a reviewer-profile cast (FLT-45). */
+export type ReviewVerdict = "APPROVE" | "REQUEST-CHANGES" | "UNKNOWN";
 
 export interface CommandRun {
 	cmd: string;
@@ -49,6 +52,17 @@ export interface FleetJob {
 	maxLifetimeMinutes?: number;
 	/** Timestamp of the last successful keepalive sandbox-timeout extension. */
 	lastExtendedAt?: string;
+	/** profile=reviewer only: APPROVE / REQUEST-CHANGES / UNKNOWN. */
+	verdict?: ReviewVerdict;
+	/** profile=reviewer only: the reviewer's findings, as posted to the PR. */
+	findingsSummary?: string;
+	/** profile=reviewer only: URL of the posted PR comment/review. */
+	reviewUrl?: string;
+	/**
+	 * profile=reviewer only: the exact read-only commands the sandbox ran
+	 * (gh pr view/diff/comment), proving no code-mutating command was issued.
+	 */
+	readOnlyEvidence?: string[];
 }
 
 export interface CastParams {

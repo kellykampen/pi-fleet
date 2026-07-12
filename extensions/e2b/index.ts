@@ -32,26 +32,36 @@ export default function (pi: ExtensionAPI) {
 			name: "e2b_cast",
 			label: "E2B: cast remote worker",
 			description:
-				"Start an async E2B job for a worker profile (v0: implementer only). Returns jobId immediately. Uses local job store + E2B sandbox. Prefer dryRun when testing without E2B_API_KEY.",
-			promptSnippet: "e2b_cast: async remote implementer cast → jobId",
+				"Start an async E2B job for a worker profile: implementer (clone/branch/PR, may push + open a PR) or reviewer (read-only PR review — fetches an existing PR's diff and posts findings as a comment; never mutates code). Returns jobId immediately. Uses local job store + E2B sandbox. Prefer dryRun when testing without E2B_API_KEY. See docs/e2b-reviewer.md for reviewer credential scoping.",
+			promptSnippet: "e2b_cast: async remote implementer/reviewer cast → jobId",
 			parameters: Type.Object({
-				profile: Type.Literal("implementer", {
-					description: 'Worker profile. v0 only supports "implementer".',
-				}),
+				profile: Type.Union(
+					[Type.Literal("implementer"), Type.Literal("reviewer")],
+					{
+						description:
+							'Worker profile. "implementer" clones/branches/PRs and may push + open a PR. "reviewer" is read-only: requires codeAccess "pr" and prNumber, never mutates code, and posts its findings as a PR comment.',
+					},
+				),
 				brief: Type.String({
 					description:
-						"Full brief for the worker (ticket AC, constraints, done-means).",
+						"Full brief for the worker (ticket AC, constraints, done-means; for reviewer, what to focus the review on).",
 				}),
 				codeAccess: Type.Union(
 					[Type.Literal("clone"), Type.Literal("pr"), Type.Literal("branch")],
-					{ description: "How the sandbox gets code." },
+					{
+						description:
+							'How the sandbox gets code. reviewer casts require "pr".',
+					},
 				),
 				repo: Type.String({ description: "GitHub repo owner/name or URL." }),
 				baseBranch: Type.Optional(
 					Type.String({ description: "Base branch for clone (default main)." }),
 				),
 				prNumber: Type.Optional(
-					Type.Number({ description: "PR number when codeAccess=pr." }),
+					Type.Number({
+						description:
+							"PR number when codeAccess=pr. Required for profile=reviewer.",
+					}),
 				),
 				branch: Type.Optional(
 					Type.String({

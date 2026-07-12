@@ -35,6 +35,23 @@ export function resolveFleetRepoUrl(): string {
 
 export const GITHUB_TOKEN_ENV_KEYS = ["FLEET_GITHUB_TOKEN", "GH_TOKEN"] as const;
 
+export const MISSING_REVIEWER_GITHUB_TOKEN_ERROR =
+	"FLEET_GITHUB_REVIEWER_TOKEN (or FLEET_GITHUB_TOKEN/GH_TOKEN) is required for non-dry-run reviewer casts";
+
+/**
+ * Reviewer casts prefer a dedicated, narrower-scoped token
+ * (FLEET_GITHUB_REVIEWER_TOKEN — e.g. "Pull requests: write" only, no
+ * "Contents: write") so reviewer credentials can be documented and rotated
+ * separately from the implementer's push/PR-open token (FLT-45 AC). Falling
+ * back to the implementer keys keeps a reviewer cast usable with zero extra
+ * setup; the runner itself never runs a code-mutating command regardless of
+ * which token is resolved, so this is defense in depth, not the only guard.
+ */
+export const GITHUB_REVIEWER_TOKEN_ENV_KEYS = [
+	"FLEET_GITHUB_REVIEWER_TOKEN",
+	...GITHUB_TOKEN_ENV_KEYS,
+] as const;
+
 export const FLEET_WORKER_MODEL_KEYS = [
 	"OPENAI_API_KEY",
 	"OPENROUTER_API_KEY",
@@ -57,7 +74,7 @@ export const PI_AGENT_AUTH_PATH = "$HOME/.pi/agent/auth.json";
 
 /** All env keys that may hold sensitive values; used for log sanitization. */
 export const SENSITIVE_ENV_KEYS = [
-	...GITHUB_TOKEN_ENV_KEYS,
+	...GITHUB_REVIEWER_TOKEN_ENV_KEYS,
 	"E2B_API_KEY",
 	PI_AGENT_AUTH_ENV,
 	GITHUB_APP_PRIVATE_KEY_ENV,
@@ -111,6 +128,20 @@ export function resolveGithubToken(): string | undefined {
 	return undefined;
 }
 
+export function githubReviewerTokenPresent(): boolean {
+	return GITHUB_REVIEWER_TOKEN_ENV_KEYS.some((key) =>
+		Boolean(process.env[key]?.trim()),
+	);
+}
+
+export function resolveGithubReviewerToken(): string | undefined {
+	for (const key of GITHUB_REVIEWER_TOKEN_ENV_KEYS) {
+		const v = process.env[key]?.trim();
+		if (v) return v;
+	}
+	return undefined;
+}
+
 export interface CollectWorkerEnvOptions {
 	/**
 	 * Pre-resolved token to forward as FLEET_GITHUB_TOKEN (e.g. a freshly
@@ -138,26 +169,36 @@ export function collectWorkerEnv(
 }
 
 /**
- * True when a usable GitHub credential source is configured: either a fully
- * configured GitHub App, or the legacy FLEET_GITHUB_TOKEN/GH_TOKEN PAT.
- * Throws when the GitHub App is only partially configured (see
- * {@link resolveGithubAppConfig}) — that state must never silently fall back
- * to the PAT, since it masks a broken App setup as "working as before".
+ * True when a usable GitHub credential source is configured for `profile`:
+ * either a fully configured GitHub App (shared across profiles — its
+ * installation token's permissions are set on the App itself, not per
+ * fleet-side profile), or the profile's legacy PAT — the reviewer-scoped
+ * GITHUB_REVIEWER_TOKEN_ENV_KEYS precedence for "reviewer", the implementer's
+ * GITHUB_TOKEN_ENV_KEYS otherwise (FLT-45 keeps these documented separately
+ * in docs/e2b-reviewer.md even though both share the App tier). Throws when
+ * the GitHub App is only partially configured (see {@link resolveGithubAppConfig}) —
+ * that state must never silently fall back to the PAT, since it masks a
+ * broken App setup as "working as before".
  */
-export function githubCredentialSourceConfigured(): boolean {
+export function githubCredentialSourceConfigured(
+	profile: FleetJob["profile"] = "implementer",
+): boolean {
 	if (resolveGithubAppConfig()) return true;
-	return githubTokenPresent();
+	return profile === "reviewer" ? githubReviewerTokenPresent() : githubTokenPresent();
 }
 
 export interface ResolveInjectedGithubTokenOptions {
 	fetchImpl?: FetchLike;
+	profile?: FleetJob["profile"];
 }
 
 /**
  * Resolves the token to inject into the sandbox as FLEET_GITHUB_TOKEN: a
  * freshly minted, short-lived GitHub App installation token when an App is
- * configured (the private key itself never leaves this call), otherwise the
- * legacy FLEET_GITHUB_TOKEN/GH_TOKEN PAT. Returns undefined when neither is
+ * configured (the private key itself never leaves this call — shared across
+ * profiles, see {@link githubCredentialSourceConfigured}), otherwise the
+ * profile's legacy PAT (reviewer-scoped for "reviewer", implementer's
+ * FLEET_GITHUB_TOKEN/GH_TOKEN otherwise). Returns undefined when neither is
  * configured.
  */
 export async function resolveInjectedGithubToken(
@@ -170,7 +211,7 @@ export async function resolveInjectedGithubToken(
 		});
 		return token;
 	}
-	return resolveGithubToken();
+	return opts.profile === "reviewer" ? resolveGithubReviewerToken() : resolveGithubToken();
 }
 
 /** Return a copy of `text` with any known secret values redacted. */
@@ -519,6 +560,270 @@ export SHA=$(git -C /work/repo rev-parse HEAD 2>/dev/null || true)
 export PR_URL=$(gh pr view --json url -q .url 2>/dev/null || true)
 export EXIT
 
+finalize_result
+
+echo "fleet e2b job $JOB_ID finished status=$STATUS"
+exit "$EXIT"
+`;
+}
+
+/**
+ * Emit the bash that turns a reviewer job's PR-fetch/comment outcome into
+ * `$WORK/result.json` (FLT-45 — the reviewer-profile counterpart of
+ * {@link buildResultFinalizer}). Unlike the implementer finalizer, there is no
+ * agent-authored result.json to preserve: pi-reviewer has no write tool, so it
+ * can never write one itself. Precedence: PR_FETCH_FAILED wins (nothing else
+ * ran), then COMMENT_POST_FAILED (the review happened but never reached the
+ * PR), then the reviewer process's own exit code.
+ */
+export function buildReviewerResultFinalizer(): string {
+	return `WORK="\${WORK:-/work}"
+RESULT="$WORK/result.json"
+if [ "\${PR_FETCH_FAILED:-0}" = "1" ]; then
+  STATUS=failed
+elif [ "\${COMMENT_POST_FAILED:-0}" = "1" ]; then
+  STATUS=failed
+elif [ "\${EXIT:-1}" -eq 0 ]; then
+  STATUS=succeeded
+else
+  STATUS=failed
+fi
+export STATUS RESULT
+python3 - <<'PY'
+import datetime, json, os
+
+status = os.environ.get("STATUS", "failed")
+exit_code = os.environ.get("EXIT", "1")
+job_id = os.environ.get("JOB_ID")
+pr_number_raw = os.environ.get("PR_NUMBER")
+target_repo = os.environ.get("TARGET_REPO", "unknown")
+verdict = os.environ.get("VERDICT") or "UNKNOWN"
+review_url = os.environ.get("REVIEW_URL") or None
+
+findings_summary = None
+review_output = os.environ.get("REVIEW_OUTPUT", "")
+if review_output and os.path.exists(review_output):
+    try:
+        with open(review_output, encoding="utf-8") as fh:
+            findings_summary = fh.read().strip()[:4000] or None
+    except Exception:
+        findings_summary = None
+
+read_only_evidence = []
+evidence_path = os.environ.get("EVIDENCE", "")
+if evidence_path and os.path.exists(evidence_path):
+    try:
+        with open(evidence_path, encoding="utf-8") as fh:
+            read_only_evidence = [line.strip() for line in fh if line.strip()]
+    except Exception:
+        read_only_evidence = []
+
+try:
+    pr_number = int(pr_number_raw) if pr_number_raw is not None else None
+except ValueError:
+    pr_number = None
+
+error = None
+if os.environ.get("PR_FETCH_FAILED") == "1":
+    error = (
+        f"Failed to fetch PR #{pr_number_raw} for {target_repo}: "
+        "${TARGET_REPO_ACCESS_ERROR_HINT}"
+    )
+elif os.environ.get("COMMENT_POST_FAILED") == "1":
+    error = (
+        f"Reviewer completed (verdict={verdict}) but failed to post the "
+        f"comment to PR #{pr_number_raw} for {target_repo}."
+    )
+elif status == "failed":
+    error = f"pi-reviewer exited {exit_code}"
+
+result = {
+    "jobId": job_id,
+    "profile": "reviewer",
+    "status": status,
+    "prNumber": pr_number,
+    "verdict": verdict,
+    "findingsSummary": findings_summary,
+    "reviewUrl": review_url,
+    "readOnlyEvidence": read_only_evidence or None,
+    "error": error,
+    "finishedAt": datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.%fZ"
+    ),
+}
+with open(os.environ["RESULT"], "w", encoding="utf-8") as fh:
+    json.dump(result, fh, indent=2)
+    fh.write("\\n")
+PY
+STATUS=$(python3 - <<'PY'
+import json, os
+
+fallback = os.environ.get("STATUS", "unknown")
+try:
+    with open(os.environ["RESULT"], encoding="utf-8") as fh:
+        data = json.load(fh)
+    print(data.get("status") or fallback)
+except Exception:
+    print(fallback)
+PY
+)
+export STATUS`;
+}
+
+/**
+ * Build the remote runner script for a reviewer-profile cast (FLT-45):
+ * read-only fetch of an existing PR's metadata + diff via `gh pr
+ * view`/`gh pr diff`, hand them to pi-reviewer (no write/edit/bash tools —
+ * enforced by bin/pi-reviewer's --tools flag, unchanged here), then post its
+ * findings as a PR comment via `gh pr comment`. Deliberately never runs a
+ * code-mutating command — no clone, no checkout, no git push/commit, no `gh pr
+ * merge`/`gh pr review --approve`/`--request-changes` (a formal review carries
+ * merge-blocking authority a bot shouldn't hold; a comment keeps the human as
+ * the actual merge decision-maker). Every gh call that touches the sandbox or
+ * the remote PR is appended to $WORK/readonly-evidence.log so the terminal
+ * result can prove the read-only guarantee, not just assert it.
+ */
+export function buildReviewerRunnerScript(job: FleetJob): string {
+	const fleetRepo = resolveFleetRepoUrl();
+	const fleetRef = job.fleetRef || "develop";
+	const provider = job.provider || "";
+	const model = job.model || "";
+	const modelFlags =
+		provider && model
+			? ` --provider ${shellQuote(provider)} --model ${shellQuote(model)}`
+			: provider
+				? ` --provider ${shellQuote(provider)}`
+				: model
+					? ` --model ${shellQuote(model)}`
+					: "";
+
+	const repo = normalizeRepoSlug(job.repo || "");
+	const prNumber = Number(job.prNumber);
+
+	return `#!/usr/bin/env bash
+set -euo pipefail
+export JOB_ID=${shellQuote(job.jobId)}
+export TARGET_REPO=${shellQuote(repo)}
+export PR_NUMBER=${shellQuote(String(prNumber))}
+WORK=/work
+RESULT="$WORK/result.json"
+LOG="$WORK/job.log"
+EVIDENCE="$WORK/readonly-evidence.log"
+export REVIEW_OUTPUT="$WORK/review-output.txt"
+export EVIDENCE
+mkdir -p /work
+: > "$EVIDENCE"
+exec > >(tee -a "$LOG") 2>&1
+echo "fleet e2b job $JOB_ID starting"
+
+cat > /work/brief.md <<'FLEET_REVIEWER_PREAMBLE_EOF'
+You are an INDEPENDENT, READ-ONLY reviewer of an EXISTING pull request. You have
+no write/edit/bash tools and cannot modify any file or run any command. Read the
+PR metadata at /work/pr-meta.json and the PR diff at /work/pr-diff.patch with
+your read tool, then reply in exactly this format:
+VERDICT: APPROVE
+or
+VERDICT: REQUEST-CHANGES
+followed by your findings (blocking issues first, each with a concrete reason).
+FLEET_REVIEWER_PREAMBLE_EOF
+
+cat >> /work/brief.md <<'FLEET_BRIEF_EOF'
+
+${job.brief}
+FLEET_BRIEF_EOF
+
+# pi-fleet pin (bin/pi-reviewer + profiles/reviewer + skills/code-review)
+git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet \\
+  || git clone --depth 1 ${shellQuote(fleetRepo)} /work/pi-fleet
+export PATH="/work/pi-fleet/bin:$PATH"
+
+mkdir -p "$HOME/.outfitter"
+cat > "$HOME/.outfitter/settings.yml" <<'FLEET_OUTFITTER_EOF'
+default_profile: reviewer
+profile_sources:
+  - path: /work/pi-fleet/profiles
+FLEET_OUTFITTER_EOF
+
+ln -sfn /work/pi-fleet/extensions /work/extensions
+ln -sfn /work/pi-fleet/skills /work/skills
+
+# gh auth only — see docs/e2b-reviewer.md for token scoping guidance. The
+# runner below never issues a code-mutating command regardless of what scope
+# the resolved token actually carries (defense in depth, not the only guard).
+if [ -n "\${FLEET_GITHUB_TOKEN:-}" ]; then
+  export GH_TOKEN="$FLEET_GITHUB_TOKEN"
+fi
+
+if [ -n "\${${PI_AGENT_AUTH_ENV}:-}" ]; then
+  mkdir -p "$HOME/.pi/agent"
+  printf '%s' "\${${PI_AGENT_AUTH_ENV}}" | base64 -d > "${PI_AGENT_AUTH_PATH}"
+  chmod 600 "${PI_AGENT_AUTH_PATH}"
+fi
+
+finalize_result() {
+${buildReviewerResultFinalizer()}
+}
+
+# Read-only PR fetch: no clone, no checkout, nothing that could mutate the
+# target repo. A failed fetch is a terminal result immediately, mirroring
+# clone_target in the implementer runner (FLT-4/FLT-32).
+fetch_pr() {
+  set +e
+  gh pr view "$PR_NUMBER" --repo "$TARGET_REPO" \\
+    --json number,title,url,headRefName,baseRefName,author,body \\
+    > /work/pr-meta.json
+  EXIT=$?
+  if [ "$EXIT" -eq 0 ]; then
+    gh pr diff "$PR_NUMBER" --repo "$TARGET_REPO" > /work/pr-diff.patch
+    EXIT=$?
+  fi
+  set -e
+  if [ "$EXIT" -ne 0 ]; then
+    export EXIT PR_FETCH_FAILED=1
+    echo "Failed to fetch PR #$PR_NUMBER for $TARGET_REPO: ${TARGET_REPO_ACCESS_ERROR_HINT}"
+    finalize_result
+    echo "fleet e2b job $JOB_ID finished status=$STATUS"
+    exit "$EXIT"
+  fi
+  echo "gh pr view $PR_NUMBER --repo $TARGET_REPO --json ... (read-only)" >> "$EVIDENCE"
+  echo "gh pr diff $PR_NUMBER --repo $TARGET_REPO (read-only)" >> "$EVIDENCE"
+}
+fetch_pr
+
+: > "$REVIEW_OUTPUT"
+if command -v pi-reviewer >/dev/null 2>&1 || [ -x /work/pi-fleet/bin/pi-reviewer ]; then
+  PI_REVIEW=$(command -v pi-reviewer || echo /work/pi-fleet/bin/pi-reviewer)
+  set +e
+  "$PI_REVIEW"${modelFlags} -p "$(cat /work/brief.md)" | tee "$REVIEW_OUTPUT"
+  EXIT=$?
+  set -e
+else
+  echo "pi-reviewer not available in sandbox PATH — install pi + outfitter in the E2B template"
+  EXIT=127
+fi
+
+VERDICT=$(grep -m1 -oE 'VERDICT:[[:space:]]*(APPROVE|REQUEST-CHANGES)' "$REVIEW_OUTPUT" | sed -E 's/VERDICT:[[:space:]]*//' || true)
+[ -z "\${VERDICT:-}" ] && VERDICT=UNKNOWN
+export VERDICT
+
+# Post findings as a plain PR comment — deliberately never a formal approve/
+# request-changes review, which carries merge-blocking authority a bot
+# shouldn't hold on its own.
+if [ "$EXIT" -eq 0 ]; then
+  set +e
+  REVIEW_URL=$(gh pr comment "$PR_NUMBER" --repo "$TARGET_REPO" --body-file "$REVIEW_OUTPUT")
+  COMMENT_EXIT=$?
+  set -e
+  if [ "$COMMENT_EXIT" -ne 0 ]; then
+    export COMMENT_POST_FAILED=1
+    echo "Failed to post review comment to PR #$PR_NUMBER for $TARGET_REPO"
+  else
+    export REVIEW_URL
+    echo "gh pr comment $PR_NUMBER --repo $TARGET_REPO --body-file <review findings> (comment only, no approve/request-changes authority)" >> "$EVIDENCE"
+  fi
+fi
+
+export EXIT
 finalize_result
 
 echo "fleet e2b job $JOB_ID finished status=$STATUS"
