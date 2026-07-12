@@ -168,6 +168,8 @@ RESULT="$WORK/result.json"
 NEEDS_INPUT_FILE="$WORK/needs-input.json"
 if [ "\${TARGET_REPO_CLONE_FAILED:-0}" = "1" ]; then
   STATUS=failed
+elif [ "\${BRANCH_CHECKOUT_FAILED:-0}" = "1" ]; then
+  STATUS=failed
 elif [ -f "$NEEDS_INPUT_FILE" ]; then
   STATUS=needs_input
 elif [ "\${EXIT:-1}" -eq 0 ]; then
@@ -205,6 +207,13 @@ if os.environ.get("TARGET_REPO_CLONE_FAILED") == "1":
     error = (
         f"Target repository clone failed for {target_repo}: "
         "${TARGET_REPO_ACCESS_ERROR_HINT}"
+    )
+elif os.environ.get("BRANCH_CHECKOUT_FAILED") == "1":
+    branch_name = os.environ.get("BRANCH_NAME", "unknown")
+    target_repo = os.environ.get("TARGET_REPO", "unknown")
+    error = (
+        f"Branch '{branch_name}' not found in {target_repo} "
+        "(or not accessible with current credentials)."
     )
 elif status == "failed":
     error = f"pi-implementer exited {exit_code}"
@@ -275,8 +284,8 @@ export function buildRunnerScript(job: FleetJob): string {
 			// failures for branches that may not be the repo's default.
 			"clone_target",
 			"cd /work/repo",
-			`git fetch origin ${shellQuote(branch)}`,
-			`git checkout -b ${shellQuote(branch)} origin/${shellQuote(branch)} || git checkout ${shellQuote(branch)}`,
+			`export BRANCH_NAME=${shellQuote(branch)}`,
+			"checkout_branch",
 		].join("\n");
 	} else {
 		const newBranch = job.branch || `fleet/${job.jobId.slice(0, 8)}`;
@@ -365,6 +374,26 @@ clone_target() {
   if [ "$EXIT" -ne 0 ]; then
     export EXIT TARGET_REPO_CLONE_FAILED=1
     echo "Target repository clone failed for $TARGET_REPO: ${TARGET_REPO_ACCESS_ERROR_HINT}"
+    finalize_result
+    echo "fleet e2b job $JOB_ID finished status=$STATUS"
+    exit "$EXIT"
+  fi
+}
+
+# codeAccess=branch: a nonexistent/invalid branch must fail the job immediately
+# instead of falling through to pi-implementer (or worse, dying under \`set -e\`
+# without ever writing result.json, which left the cast polling result.json
+# until the sandbox's own timeout — see FLT-32). Mirrors clone_target: convert
+# the failure into a terminal result right here.
+checkout_branch() {
+  set +e
+  git fetch origin "$BRANCH_NAME" \\
+    && (git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME" || git checkout "$BRANCH_NAME")
+  EXIT=$?
+  set -e
+  if [ "$EXIT" -ne 0 ]; then
+    export EXIT BRANCH_CHECKOUT_FAILED=1
+    echo "Branch '$BRANCH_NAME' not found in $TARGET_REPO (or not accessible with current credentials)."
     finalize_result
     echo "fleet e2b job $JOB_ID finished status=$STATUS"
     exit "$EXIT"

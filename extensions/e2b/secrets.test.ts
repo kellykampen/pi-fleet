@@ -282,8 +282,28 @@ test("buildRunnerScript fetches and checks out the branch for codeAccess=branch"
 	);
 	assert.match(script, /clone_target\s*$/m);
 	assert.doesNotMatch(script, /clone_target --depth/);
-	assert.match(script, /git fetch origin 'feature\/x'/);
-	assert.match(script, /git checkout -b 'feature\/x' origin\/'feature\/x'/);
+	assert.match(script, /export BRANCH_NAME='feature\/x'/);
+	assert.match(script, /^checkout_branch$/m);
+	assert.match(script, /git fetch origin "\$BRANCH_NAME"/);
+	assert.match(script, /git checkout -b "\$BRANCH_NAME" "origin\/\$BRANCH_NAME"/);
+});
+
+test("buildRunnerScript wraps codeAccess=branch checkout so a bad branch fails fast instead of falling through to pi-implementer", () => {
+	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+	const script = buildRunnerScript(
+		implementerJob({ codeAccess: "branch", branch: "feature/does-not-exist" }),
+	);
+
+	// The fetch/checkout is wrapped the same way clone_target already handles a
+	// bad target repo: on failure, mark it, finalize a terminal result, and exit
+	// immediately — never fall through to running pi-implementer, which is what
+	// left the job hanging until the sandbox's own timeout.
+	assert.match(script, /checkout_branch\(\)\s*\{[\s\S]*?BRANCH_CHECKOUT_FAILED=1[\s\S]*?finalize_result[\s\S]*?exit "\$EXIT"[\s\S]*?\}/);
+	assert.match(script, /^checkout_branch$/m);
+
+	const checkoutFnIdx = script.indexOf("checkout_branch() {");
+	const implementerIdx = script.indexOf('"$PI_IMPL"');
+	assert.ok(checkoutFnIdx !== -1 && checkoutFnIdx < implementerIdx);
 });
 
 /**
@@ -411,6 +431,26 @@ test("buildResultFinalizer surfaces a clear sanitized target-repo access error",
 		);
 		assert.match(result.error, /token has repository access/i);
 		assert.equal(raw.includes(token), false);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
+test("buildResultFinalizer surfaces a clear error for a bad/nonexistent branch instead of masquerading as running", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		runFinalizer(work, {
+			JOB_ID: "job-bad-branch",
+			EXIT: "1",
+			TARGET_REPO: "owner/repo",
+			BRANCH_CHECKOUT_FAILED: "1",
+			BRANCH_NAME: "feature/does-not-exist",
+		});
+
+		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.equal(result.status, "failed");
+		assert.match(result.error, /feature\/does-not-exist/);
+		assert.match(result.error, /owner\/repo/);
 	} finally {
 		await rm(work, { recursive: true, force: true });
 	}
