@@ -3,6 +3,12 @@ Planning and design for E2B remote workers v0 live in Linear: project (see docs/
 ## Tools (project-lead)
 
 - `e2b_cast(profile, brief, codeAccess, repo, ...)` — start an async job; returns `jobId`.
+  While the job runs, a keepalive re-extends the sandbox's own timeout by `timeoutMinutes`
+  (default 90) on an interval, so the sandbox doesn't die just because a job is taking a
+  while. Each extension stamps the job's `lastExtendedAt`. The keepalive stops as soon as
+  the job reaches a terminal status (succeeded/failed/timeout/cancelled) or `maxLifetimeMinutes`
+  (default 180 — 3h) is reached, whichever comes first; `maxLifetimeMinutes` bounds total job
+  lifetime independent of how many times the sandbox has been extended.
 - `e2b_status(jobId?, sandboxId?)` — read a job's current status, probing the sandbox if running. Pass a raw `sandboxId` to reconnect after losing the local job record; the live result/log data rehydrates a local record where possible.
 - `e2b_wait(jobId, timeoutMinutes?, pollSeconds?)` — block until the job reaches a terminal status.
 - `e2b_cancel(jobId)` — kill the sandbox (if any) and mark the job cancelled.

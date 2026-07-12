@@ -13,6 +13,7 @@ import {
 import { readJob, updateJob } from "./jobs.js";
 import { resolvePortUrl } from "./ports.js";
 import {
+	DEFAULT_MAX_LIFETIME_MINUTES,
 	DEFAULT_TIMEOUT_MINUTES,
 	isTerminal,
 	type CastParams,
@@ -71,7 +72,12 @@ export default function (pi: ExtensionAPI) {
 				),
 				timeoutMinutes: Type.Optional(
 					Type.Number({
-						description: `Hard timeout minutes (default ${DEFAULT_TIMEOUT_MINUTES}).`,
+						description: `Hard timeout minutes (default ${DEFAULT_TIMEOUT_MINUTES}). A keepalive re-extends the sandbox by this amount on an interval while the job runs.`,
+					}),
+				),
+				maxLifetimeMinutes: Type.Optional(
+					Type.Number({
+						description: `Ceiling on total job lifetime regardless of keepalive extensions (default ${DEFAULT_MAX_LIFETIME_MINUTES}).`,
 					}),
 				),
 				fleetRef: Type.Optional(
