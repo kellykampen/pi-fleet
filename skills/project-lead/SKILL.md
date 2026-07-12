@@ -208,6 +208,9 @@ for the full statement):
    silently omit it.
 4. **CI green** — or a documented infra-blocker waiver (e.g. GitHub Actions billing), stated
    explicitly on the PR and the Linear ticket, never used to wave off a real code/test failure.
+   For PRs in **pi-fleet itself**, this includes `bin/pi-fleet-eval-banned-terms` — a required,
+   non-skippable gate (not just an available eval) that fails the merge if another project's name
+   has crept back into pi-fleet's tracked files (see `evals/README.md`).
 5. **Docs pass** — cast `pi-docs` (or do it yourself for small/docs-adjacent tickets): README and
    every affected doc updated to match the change, OR an explicit no-docs-needed rationale posted
    on the PR. Not optional, not skippable because "it's just a fix."

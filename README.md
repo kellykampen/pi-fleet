@@ -181,9 +181,10 @@ So each role exists in two forms:
 ### Machine setup + durability
 
 ```bash
-bin/pi-fleet-bootstrap   # symlink mcp.json, agents/, permission config into ~/.pi; re-apply patches
-bin/pi-fleet-repair      # idempotently re-apply the outfitter + pi-tui patches (run after any update)
-bin/pi-fleet-eval        # prove each seat's --tools allowlist really enforces read/write/bash
+bin/pi-fleet-bootstrap        # symlink mcp.json, agents/, permission config into ~/.pi; re-apply patches
+bin/pi-fleet-repair           # idempotently re-apply the outfitter + pi-tui patches (run after any update)
+bin/pi-fleet-eval             # prove each seat's --tools allowlist really enforces read/write/bash
+bin/pi-fleet-eval-banned-terms # REQUIRED pre-merge gate: no other project's name/prefix in pi-fleet
 ```
 
 Two patches (auto-reverted by `outfitter update` / `pi update`, so `pi-fleet-repair` re-applies them):

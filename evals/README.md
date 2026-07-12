@@ -82,6 +82,32 @@ so `remote-pi` can't hijack while the policy layer stays active. Expect `git sta
 
 Last verified: [`results/bash-policy-latest.txt`](./results/bash-policy-latest.txt).
 
+## Banned-terms guard (MANDATORY pre-merge gate)
+
+pi-fleet must never carry another project's canonical-file footprint (see "Project separation" in
+`skills/conductor/SKILL.md`). A sibling project's own wiring (helper scripts, env-var contract,
+ticket-prefix references) had previously crept into pi-fleet's wrappers/docs/evals and had to be
+reverted; this guard is what makes that a standing rule instead of a one-time cleanup: it fails
+fast and locally if any banned sibling-project name/prefix reappears anywhere in the tracked repo
+(scripts, docs, evals — everything `git grep` can see). See the guard script itself for the exact
+banned pattern.
+
+```bash
+bin/pi-fleet-eval-banned-terms   # writes evals/results/banned-terms-latest.txt
+```
+
+Deterministic, no agent, `git grep -niE '<banned pattern>'` under the hood — safe and fast to
+re-run anywhere, and cheap enough to run on every PR before merge. Non-zero exit on any hit,
+including the exact `file:line` match. The guard script and its own results file are the only
+self-exclusions (they must name the pattern to test for and report it).
+
+**This is a required gate, not an optional eval** — a project lead holding the DoD chain (see
+`skills/project-lead/SKILL.md`) runs this before every merge to develop, alongside review/AC-
+verify/CI. Add future banned sibling-project names/prefixes to `BANNED_PATTERN` in the script as
+they come up.
+
+Last verified: [`results/banned-terms-latest.txt`](./results/banned-terms-latest.txt).
+
 ## Model/provider override eval
 
 Every `bin/pi-*` wrapper accepts model/provider defaults from env before launching outfitter. This
