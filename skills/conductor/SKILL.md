@@ -141,18 +141,29 @@ branch/code -> independent review (DIFFERENT model, POSTED on the PR)
             -> AC-verify — PRE-MERGE GATE (dedicated pi-ac-verifier seat, verified against
                the PR's own head commit, real commands run against real code, every Linear
                checkbox flipped BY THE VERIFIER ONLY, evidence POSTED). FAIL = do not merge.
+            -> Visual-QA — PRE-MERGE GATE for any UI-touching ticket (screenshot vs the design
+               comp, independent seat, evidence POSTED). FAIL/no-check = do not merge.
             -> CI green (or a documented infra-blocker waiver)
             -> Docs pass (README + every affected doc updated, OR an explicit
                no-docs-needed rationale POSTED)
             -> merge to develop -> Linear auto-transitions to Done (GitHub integration)
 ```
 
-**AC-verify must complete and PASS before merge, never after (CEO directive, 2026-07-12).**
+**Every gate above completes and PASSES before the PR is approved/merged — none of them "after"
+(CEO directive, 2026-07-12).** "When a PR is merged, that ticket is considered done... every
+check, all the QC, all QA, all the AC check and QA visual checks, etc, all needs to be done before
+the PR is approved and it's merged." Approving/merging a PR is the act of certifying every gate
+already passed, not a step taken while one is still pending. This applies identically to AC-verify
+and to visual-QA — visual-QA was previously only added ad hoc when a lead happened to judge it
+necessary; it is now a standing requirement for any UI-touching ticket, the same way AC-verify is
+standing for every ticket.
+
 Linear's GitHub integration auto-flips a ticket to Done the instant its linked PR merges — that
-happens automatically, outside anyone's control. Running AC-verify *after* merge creates a real
-race where Linear already shows Done before verification even finished, let alone caught a gap
-(this happened in practice). Gating the merge on a genuine pre-merge PASS is what makes "PR
-merged" and "Linear says Done" trustworthy at the same moment.
+happens automatically, outside anyone's control. Running any gate *after* merge (as AC-verify
+originally did, before this correction) creates a real race where Linear already shows Done before
+verification even finished, let alone caught a gap (this happened in practice). Gating the merge
+on every genuine pre-merge PASS is what makes "PR merged" and "Linear says Done" trustworthy at
+the same moment.
 
 The **Docs pass** is not optional decoration — a PR is not green-lit or merged until either real
 doc changes are posted, or a project lead explicitly states in writing why none are needed

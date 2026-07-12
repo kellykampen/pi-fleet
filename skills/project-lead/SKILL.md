@@ -174,37 +174,53 @@ early either.
 
 ## Gates (non-negotiable)
 
+**HARD RULE (CEO directive, 2026-07-12):** "When a PR is merged, that ticket is considered done.
+That's standard software development flow... every check, all the QC, all QA, all the AC check
+and QA visual checks, etc, all needs to be done before the PR is approved and it's merged." Every
+gate below is a **pre-merge** gate — approving and merging a PR is the action that certifies all
+of them already passed, not a step you take while one is still pending or promised "after."
+
 Canonical order — no step skipped or reordered (see the conductor skill's "Docs-as-final-DoD-gate"
 for the full statement):
 
 1. **Independent review by a DIFFERENT model** than the implementer — if the build ran on model M,
    the reviewer must NOT be M (re-classify for a different capable model if needed). Posted on the PR.
-2. **AC-verify — a PRE-merge gate, not a post-merge check (CEO directive, 2026-07-12).** You MUST
-   cast a dedicated `pi-ac-verifier` (or equivalent independent verifier; see the
-   `linear-ac-verification` skill) for every ticket, no exceptions for small/urgent/obvious tickets,
-   and it must run and PASS **before** the PR merges — verified against the PR's actual head commit,
-   not `origin/develop`. **If AC is not genuinely met, the PR does not merge.** Send it back for
-   fixes on the same branch and re-verify the new head commit; don't merge now on a promise to
-   check later. The AC-verifier — not you, not the implementer — checks the Linear boxes, only
-   after it has actually verified each one by running it. You never check a box yourself and you
-   never accept a claim of "this is done" in place of the verifier's own evidence.
+2. **AC-verify — a PRE-merge gate, not a post-merge check.** You MUST cast a dedicated
+   `pi-ac-verifier` (or equivalent independent verifier; see the `linear-ac-verification` skill)
+   for every ticket, no exceptions for small/urgent/obvious tickets, and it must run and PASS
+   **before** the PR merges — verified against the PR's actual head commit, not `origin/develop`.
+   **If AC is not genuinely met, the PR does not merge.** Send it back for fixes on the same
+   branch and re-verify the new head commit; don't merge now on a promise to check later. The
+   AC-verifier — not you, not the implementer — checks the Linear boxes, only after it has
+   actually verified each one by running it. You never check a box yourself and you never accept
+   a claim of "this is done" in place of the verifier's own evidence.
    **Why pre-merge specifically:** Linear's GitHub integration auto-flips a ticket to Done the
    instant its linked PR merges — this is automatic and outside your control. If AC-verify runs
    *after* merge, there's a real window where Linear already says Done before verification even
    finishes, let alone catches a gap. This was found happening in practice (a real ticket showed
    Done before its post-merge AC check completed) — pre-merge gating is what removes the race.
-3. **CI green** — or a documented infra-blocker waiver (e.g. GitHub Actions billing), stated
+3. **Visual-QA — PRE-merge, for any ticket that touches UI.** If the change adds/modifies
+   anything user-visible (a component, a page, a flow), cast a dedicated visual-QA seat
+   (`pi-visual-qa` or equivalent) to compare a real running-app screenshot against the design comp
+   **before** the PR merges — not as an optional nicety a lead adds when it occurs to them, but as
+   a standing requirement for UI tickets exactly like AC-verify is for all tickets. A PASS or
+   PASS-WITH-DOCUMENTED-FOLLOWUP is required; a genuine BLOCKED finding means fixes land on the
+   same branch and get re-checked, same as a failed AC-verify. Skip only for tickets that
+   genuinely touch no UI (backend-only, CLI-only, docs-only) — state that explicitly, don't just
+   silently omit it.
+4. **CI green** — or a documented infra-blocker waiver (e.g. GitHub Actions billing), stated
    explicitly on the PR and the Linear ticket, never used to wave off a real code/test failure.
-4. **Docs pass** — cast `pi-docs` (or do it yourself for small/docs-adjacent tickets): README and
+5. **Docs pass** — cast `pi-docs` (or do it yourself for small/docs-adjacent tickets): README and
    every affected doc updated to match the change, OR an explicit no-docs-needed rationale posted
    on the PR. Not optional, not skippable because "it's just a fix."
-5. **Merge to develop** — you do this yourself once gates 1-4 all genuinely pass; don't park a
+6. **Merge to develop** — you do this yourself once gates 1-5 all genuinely pass; don't park a
    fully-gated PR waiting on the CEO. The CEO's only manual step is develop→main promotion. Because
-   AC was already verified pre-merge (gate 2), Linear's auto-transition to Done on merge is now
-   trustworthy — you generally don't need to manually flip it. Do one final sanity re-read of the
-   ticket right after merge to confirm it landed in the expected state; if you ever find a ticket
-   auto-marked Done with an unchecked box (a sign gate 2 was skipped or raced), that's a real defect
-   — stop, don't wave it through, and get genuine AC-verification before trusting the Done state.
+   AC (and visual-QA, where applicable) were already verified pre-merge, Linear's auto-transition
+   to Done on merge is now trustworthy — you generally don't need to manually flip it. Do one final
+   sanity re-read of the ticket right after merge to confirm it landed in the expected state; if
+   you ever find a ticket auto-marked Done with an unchecked box or a UI change with no visual-QA
+   evidence on the PR, that's a real defect — stop, don't wave it through, and get genuine
+   verification before trusting the Done state.
 
 Pass each seat the Linear ticket details it needs. Every ticket needs a Linear ticket with
 markdown checkbox AC **before** work starts — don't backfill one after the fact. Never promote to
