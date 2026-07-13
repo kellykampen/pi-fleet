@@ -71,3 +71,36 @@ test("parseFilterArgs maps --status/--project/--ticket to a JobFilter", () => {
 	);
 	assert.deepEqual(parseFilterArgs([]), {});
 });
+
+test("parseFilterArgs ignores --html", () => {
+	assert.deepEqual(parseFilterArgs(["--html", "--status", "running"]), {
+		status: "running",
+	});
+});
+
+test("parseFilterArgs rejects an invalid --status value", () => {
+	assert.throws(() => parseFilterArgs(["--status", "bogus"]), /--status/);
+});
+
+test("parseFilterArgs rejects a missing flag value", () => {
+	assert.throws(() => parseFilterArgs(["--status"]), /requires a value/);
+	assert.throws(
+		() => parseFilterArgs(["--status", "--project", "acme/web"]),
+		/requires a value/,
+	);
+});
+
+test("parseFilterArgs rejects an unknown flag", () => {
+	assert.throws(() => parseFilterArgs(["--bogus", "x"]), /Unknown flag/);
+});
+
+test("renderJobsText sanitizes control characters so a job can't break the table", () => {
+	const out = renderJobsText([
+		job({ jobId: "a", brief: "line1\nline2\tend\x1b[31mred\x1b[0m" }),
+	]);
+	// header + separator + exactly one row per job + blank + summary line.
+	assert.equal(out.split("\n").length, 5);
+	assert.doesNotMatch(out, /\t/);
+	assert.doesNotMatch(out, /\x1b/);
+	assert.match(out, /line1 line2 end \[31mred \[0m/);
+});

@@ -19,6 +19,7 @@ type FetchLike = (
 		method: string;
 		headers: Record<string, string>;
 		body: string;
+		signal?: AbortSignal;
 	},
 ) => Promise<{
 	ok: boolean;
@@ -31,7 +32,11 @@ export interface ConvexJobStoreOptions {
 	url?: string;
 	token?: string;
 	fetchImpl?: FetchLike;
+	/** Deadline for each Convex HTTP call, in ms. Default 15s. */
+	timeoutMs?: number;
 }
+
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 /** Convex adds `_id`/`_creationTime` to every document; strip them from jobs. */
 function stripSystemFields(row: Record<string, unknown>): FleetJob {
@@ -47,6 +52,7 @@ export class ConvexJobStore implements JobStore {
 	private readonly url: string;
 	private readonly token?: string;
 	private readonly fetchImpl: FetchLike;
+	private readonly timeoutMs: number;
 
 	constructor(options: ConvexJobStoreOptions = {}) {
 		const url = (options.url ?? process.env.FLEET_CONVEX_URL ?? "").trim();
@@ -58,6 +64,7 @@ export class ConvexJobStore implements JobStore {
 		this.url = url.replace(/\/+$/, "");
 		this.token = options.token ?? process.env.FLEET_CONVEX_TOKEN?.trim();
 		this.fetchImpl = options.fetchImpl ?? (globalThis.fetch as FetchLike);
+		this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	}
 
 	private async call(
@@ -70,11 +77,26 @@ export class ConvexJobStore implements JobStore {
 		};
 		if (this.token) headers.Authorization = `Bearer ${this.token}`;
 
-		const res = await this.fetchImpl(`${this.url}/api/${kind}`, {
-			method: "POST",
-			headers,
-			body: JSON.stringify({ path, args, format: "json" }),
-		});
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+		let res: Awaited<ReturnType<FetchLike>>;
+		try {
+			res = await this.fetchImpl(`${this.url}/api/${kind}`, {
+				method: "POST",
+				headers,
+				body: JSON.stringify({ path, args, format: "json" }),
+				signal: controller.signal,
+			});
+		} catch (err) {
+			if (err instanceof Error && err.name === "AbortError") {
+				throw new Error(
+					`Convex ${kind} ${path} timed out after ${this.timeoutMs}ms`,
+				);
+			}
+			throw err;
+		} finally {
+			clearTimeout(timer);
+		}
 
 		if (!res.ok) {
 			const detail = res.text ? await res.text() : "";

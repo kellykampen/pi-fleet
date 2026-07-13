@@ -128,3 +128,17 @@ export const TERMINAL_STATUSES: JobStatus[] = [
 export function isTerminal(status: JobStatus): boolean {
 	return TERMINAL_STATUSES.includes(status);
 }
+
+export const ALL_JOB_STATUSES: JobStatus[] = [
+	"queued",
+	"running",
+	"succeeded",
+	"failed",
+	"timeout",
+	"cancelled",
+	"needs_input",
+];
+
+export function isJobStatus(value: string): value is JobStatus {
+	return (ALL_JOB_STATUSES as string[]).includes(value);
+}

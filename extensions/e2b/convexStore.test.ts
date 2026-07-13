@@ -169,6 +169,23 @@ test("a Convex error response is surfaced, not swallowed", async () => {
 	await assert.rejects(() => store.get("job-1"), /boom/);
 });
 
+test("a hung request is aborted and surfaced as a timeout once the deadline elapses", async () => {
+	const hangingFetch = (_url: string, init: any) =>
+		new Promise<any>((_resolve, reject) => {
+			init.signal?.addEventListener("abort", () => {
+				const err = new Error("aborted");
+				err.name = "AbortError";
+				reject(err);
+			});
+		});
+	const store = new ConvexJobStore({
+		url: "https://x.convex.cloud",
+		fetchImpl: hangingFetch as any,
+		timeoutMs: 20,
+	});
+	await assert.rejects(() => store.get("job-1"), /timed out after 20ms/);
+});
+
 test("a non-2xx HTTP response is surfaced", async () => {
 	const store = new ConvexJobStore({
 		url: "https://x.convex.cloud",
