@@ -129,6 +129,17 @@ export type FetchLike = typeof fetch;
 export interface MintInstallationTokenOptions {
 	fetchImpl?: FetchLike;
 	now?: () => Date;
+	/**
+	 * Narrow the minted token to just these repository names (FLT-12 — the
+	 * "per-repo installation-token path"). The installation may have access to
+	 * many repos (an org-wide or multi-repo install); without this, every
+	 * minted token carries that *entire* access set even though a given cast
+	 * only ever touches one `repo`. Names only (no `owner/`), matching the
+	 * installation's own account — GitHub 422s if a name isn't among the
+	 * repos the installation can already see. Omit to mint with the
+	 * installation's full access (previous behavior).
+	 */
+	repositories?: string[];
 }
 
 /**
@@ -151,7 +162,11 @@ export async function mintInstallationToken(
 				Authorization: `Bearer ${jwt}`,
 				Accept: "application/vnd.github+json",
 				"X-GitHub-Api-Version": "2022-11-28",
+				...(opts.repositories?.length ? { "Content-Type": "application/json" } : {}),
 			},
+			...(opts.repositories?.length
+				? { body: JSON.stringify({ repositories: opts.repositories }) }
+				: {}),
 		},
 	);
 

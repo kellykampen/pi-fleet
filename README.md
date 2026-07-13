@@ -454,9 +454,12 @@ Required environment variables for non-dry-run casts:
      only to sign a short-lived JWT locally; it is never sent to GitHub, never
      written into the sandbox, and never logged (it's included in the
      extension's secret-redaction list alongside every token type).
-   - Installation tokens minted from the App (`ghs_...`) are scoped to the App's
-     installed repositories and expire on GitHub's own schedule (about an hour);
-     one is minted fresh per cast rather than reused across jobs.
+   - Installation tokens minted from the App (`ghs_...`) are further narrowed to
+     just the cast's own `repo` (FLT-12) — even when the installation itself has
+     access to many repos (an org-wide or multi-repo install), a given cast's
+     token can only ever reach the one repo it's actually working on. They also
+     expire on GitHub's own schedule (about an hour); one is minted fresh per
+     cast rather than reused across jobs.
    - When both an App and a PAT are configured, the App always takes precedence —
      the sandbox never receives the PAT in that case.
 4. **Fleet-worker model keys** (separate from your personal CEO laptop keys when possible):
@@ -535,6 +538,34 @@ lands at `/work/repo`, but *how* it gets there depends on `codeAccess`:
 
 Without `E2B_API_KEY`, `e2b_cast` still works in **dry-run** mode (local job record only) so you can
 exercise the project-lead flow offline.
+
+### Casting against any repo (FLT-12)
+
+`e2b_cast`'s `repo` parameter is per-cast and required — there is no fleet-wide default target repo,
+and it always overrides whatever repo a previous cast used. `FLEET_REPO_URL` never changes: it is
+always the pi-fleet tooling repo (cloned to `/work/pi-fleet` for wrappers/profiles), completely
+independent of which repo a given cast's `repo` names.
+
+To add a new repo to the set the fleet can actually reach:
+
+- **GitHub App (preferred)** — install the App on the additional repo (GitHub → the App's settings →
+  **Configure** → **Repository access** → add the repo, or switch the installation to "All
+  repositories" for org-wide reach) and note that the same `FLEET_GITHUB_APP_INSTALLATION_ID` covers
+  every repo the installation has access to; no fleet-side config changes with the new repo. Each cast
+  still only ever gets a token narrowed to its own `repo` (see the security notes above) — adding a
+  repo to the installation makes it *reachable*, not automatically *accessible* to every cast, since
+  the per-cast token only ever includes the repo that specific cast named.
+- **PAT fallback** — a classic PAT already covers every repo its owner can access; a fine-grained PAT
+  must have the new repo added explicitly under **Repository access** (GitHub → Settings → Developer
+  settings → Personal access tokens → the token → Repository access). Either way this is a single
+  shared credential with no per-cast narrowing, so widening it widens every cast's reach at once — the
+  GitHub App path is preferred specifically because it keeps that reach scoped down per cast instead.
+- **`codeAccess: "clone"`** needs no GitHub read access for its initial checkout at all (see above),
+  but does need the `pi-project-lead` process's own **local** working directory to already be a
+  checkout of the target repo (it archives `process.cwd()`) — so casting a second repo with
+  `codeAccess: "clone"` means running `pi-project-lead` from a local checkout of *that* repo, not
+  pi-fleet's. `codeAccess: "pr"`/`"branch"` have no such requirement — the sandbox clones the target
+  itself over the network — which makes them the simplest way to validate a brand-new repo end-to-end.
 
 ### Example (from a project-lead session)
 

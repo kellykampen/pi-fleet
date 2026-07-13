@@ -322,18 +322,24 @@ test("tryCreateSandbox injects a minted GitHub App installation token — not th
 		updatedAt: new Date().toISOString(),
 	};
 
+	let capturedBody: string | undefined;
 	await tryCreateSandbox(job, async () => sandbox, {
-		fetchImpl: (async () =>
-			new Response(
+		fetchImpl: (async (_url: string, init: RequestInit) => {
+			capturedBody = init.body as string | undefined;
+			return new Response(
 				JSON.stringify({ token: "ghs_mintedAppToken", expires_at: "2026-01-01T00:00:00Z" }),
 				{ status: 201 },
-			)) as typeof fetch,
+			);
+		}) as typeof fetch,
 	});
 
 	const envsCall = sandbox.calls.find((c) => c.startsWith("envs:"));
 	assert.ok(envsCall, "expected the backgrounded run command to receive envs");
 	const envs = JSON.parse(envsCall!.slice("envs:".length));
 	assert.equal(envs.FLEET_GITHUB_TOKEN, "ghs_mintedAppToken");
+	// FLT-12: the minted token is narrowed to this cast's own repo, not the
+	// installation's full access set.
+	assert.deepEqual(JSON.parse(capturedBody ?? "{}"), { repositories: ["repo"] });
 });
 
 // --- FLT-45: reviewer-profile cast path -------------------------------------

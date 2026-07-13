@@ -6,6 +6,11 @@ Two worker profiles share this lifecycle:
   findings as a PR comment, never mutates code. See `docs/e2b-reviewer.md`
   (FLT-45) for its params, credential scoping, and result shape.
 
+Every cast targets an arbitrary `repo` (owner/name or URL) passed per call — there is no fleet-wide
+default target repo, and `FLEET_REPO_URL` (the pi-fleet tooling repo) never doubles as one. See
+[README § Casting against any repo](../README.md#casting-against-any-repo-flt-12) (FLT-12) for how to
+add a new repo to the fleet's reachable set and the auth implications of doing so.
+
 ## Tools (project-lead)
 
 - `e2b_cast(profile, brief, codeAccess, repo, ...)` — start an async job; returns `jobId`.

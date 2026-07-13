@@ -747,6 +747,47 @@ test("resolveInjectedGithubToken mints a GitHub App installation token instead o
 	assert.equal(token, "ghs_mintedToken");
 });
 
+test("resolveInjectedGithubToken narrows the minted App token to the cast's target repo (FLT-12)", async () => {
+	process.env[GITHUB_APP_ID_ENV] = "123";
+	process.env[GITHUB_APP_INSTALLATION_ID_ENV] = "456";
+	process.env[GITHUB_APP_PRIVATE_KEY_ENV] = generateTestRsaPrivateKey();
+	let capturedBody: string | undefined;
+
+	await resolveInjectedGithubToken({
+		repo: "github.com/some-org/some-other-repo.git",
+		fetchImpl: (async (_url: string, init: RequestInit) => {
+			capturedBody = init.body as string | undefined;
+			return new Response(
+				JSON.stringify({ token: "ghs_mintedToken", expires_at: "2026-01-01T00:00:00Z" }),
+				{ status: 201 },
+			);
+		}) as typeof fetch,
+	});
+
+	assert.deepEqual(JSON.parse(capturedBody ?? "{}"), { repositories: ["some-other-repo"] });
+});
+
+test("resolveInjectedGithubToken mints with the installation's full access when repo is malformed, instead of failing the mint", async () => {
+	process.env[GITHUB_APP_ID_ENV] = "123";
+	process.env[GITHUB_APP_INSTALLATION_ID_ENV] = "456";
+	process.env[GITHUB_APP_PRIVATE_KEY_ENV] = generateTestRsaPrivateKey();
+	let capturedBody: string | undefined;
+
+	const token = await resolveInjectedGithubToken({
+		repo: "not-a-valid-repo",
+		fetchImpl: (async (_url: string, init: RequestInit) => {
+			capturedBody = init.body as string | undefined;
+			return new Response(
+				JSON.stringify({ token: "ghs_mintedToken", expires_at: "2026-01-01T00:00:00Z" }),
+				{ status: 201 },
+			);
+		}) as typeof fetch,
+	});
+
+	assert.equal(capturedBody, undefined);
+	assert.equal(token, "ghs_mintedToken");
+});
+
 test("resolveInjectedGithubToken falls back to the raw PAT when no GitHub App is configured", async () => {
 	process.env.GH_TOKEN = "ghp_fallbackPat1234567890abcdefghijkl";
 	const token = await resolveInjectedGithubToken();

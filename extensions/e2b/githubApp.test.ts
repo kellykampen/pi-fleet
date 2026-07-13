@@ -174,6 +174,54 @@ test("mintInstallationToken posts to the GitHub installation access_tokens endpo
 	assert.equal(token.expiresAt, "2026-01-01T01:00:00Z");
 });
 
+test("mintInstallationToken omits a request body when no repositories are given (mints with the installation's full access, previous behavior)", async () => {
+	const { privateKey } = testKeyPair();
+	let capturedBody: string | undefined;
+	let capturedContentType: string | undefined;
+
+	await mintInstallationToken(
+		{ appId: "999", installationId: "42", privateKey },
+		{
+			fetchImpl: (async (_url: string, init: RequestInit) => {
+				capturedBody = init.body as string | undefined;
+				capturedContentType = (init.headers as Record<string, string>)["Content-Type"];
+				return new Response(
+					JSON.stringify({ token: "ghs_full", expires_at: "2026-01-01T01:00:00Z" }),
+					{ status: 201 },
+				);
+			}) as typeof fetch,
+		},
+	);
+
+	assert.equal(capturedBody, undefined);
+	assert.equal(capturedContentType, undefined);
+});
+
+test("mintInstallationToken scopes the request to the given repositories (FLT-12 per-repo path)", async () => {
+	const { privateKey } = testKeyPair();
+	let capturedBody: string | undefined;
+	let capturedContentType: string | undefined;
+
+	const token = await mintInstallationToken(
+		{ appId: "999", installationId: "42", privateKey },
+		{
+			repositories: ["pi-fleet"],
+			fetchImpl: (async (_url: string, init: RequestInit) => {
+				capturedBody = init.body as string | undefined;
+				capturedContentType = (init.headers as Record<string, string>)["Content-Type"];
+				return new Response(
+					JSON.stringify({ token: "ghs_scoped", expires_at: "2026-01-01T01:00:00Z" }),
+					{ status: 201 },
+				);
+			}) as typeof fetch,
+		},
+	);
+
+	assert.equal(capturedContentType, "application/json");
+	assert.deepEqual(JSON.parse(capturedBody ?? "{}"), { repositories: ["pi-fleet"] });
+	assert.equal(token.token, "ghs_scoped");
+});
+
 test("mintInstallationToken throws a clear error (without leaking the private key) when GitHub responds with an error status", async () => {
 	const { privateKey } = testKeyPair();
 

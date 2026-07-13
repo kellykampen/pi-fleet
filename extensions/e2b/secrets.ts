@@ -206,6 +206,17 @@ export function githubCredentialSourceConfigured(
 export interface ResolveInjectedGithubTokenOptions {
 	fetchImpl?: FetchLike;
 	profile?: FleetJob["profile"];
+	/**
+	 * The cast's target repo (any shape {@link normalizeRepoSlug} accepts).
+	 * When set and a GitHub App is configured, the minted installation token
+	 * is narrowed to just this repo (FLT-12) instead of carrying the
+	 * installation's full access set. Malformed/unparseable values are
+	 * ignored rather than failing token minting here — `normalizeRepoSlug`
+	 * already throws its own clear error elsewhere in the same cast path
+	 * (e.g. {@link buildRunnerScript}), so this is defense-in-depth, not the
+	 * only validation.
+	 */
+	repo?: string;
 }
 
 /**
@@ -222,8 +233,20 @@ export async function resolveInjectedGithubToken(
 ): Promise<string | undefined> {
 	const appConfig = resolveGithubAppConfig();
 	if (appConfig) {
+		let repositories: string[] | undefined;
+		try {
+			const slug = opts.repo?.trim() ? normalizeRepoSlug(opts.repo) : undefined;
+			repositories = slug ? [slug.split("/")[1]] : undefined;
+		} catch {
+			// Malformed repo: mint with the installation's full access rather than
+			// failing the token mint; the cast still fails fast elsewhere on the
+			// same bad value (see normalizeRepoSlug call sites in the runner
+			// builders) before this token is ever used.
+			repositories = undefined;
+		}
 		const { token } = await mintInstallationToken(appConfig, {
 			fetchImpl: opts.fetchImpl,
+			repositories,
 		});
 		return token;
 	}
