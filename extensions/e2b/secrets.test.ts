@@ -767,25 +767,29 @@ test("resolveInjectedGithubToken narrows the minted App token to the cast's targ
 	assert.deepEqual(JSON.parse(capturedBody ?? "{}"), { repositories: ["some-other-repo"] });
 });
 
-test("resolveInjectedGithubToken mints with the installation's full access when repo is malformed, instead of failing the mint", async () => {
+test("resolveInjectedGithubToken fails closed (throws) on a malformed cast repo instead of minting with the installation's full access (FLT-12 review fix)", async () => {
 	process.env[GITHUB_APP_ID_ENV] = "123";
 	process.env[GITHUB_APP_INSTALLATION_ID_ENV] = "456";
 	process.env[GITHUB_APP_PRIVATE_KEY_ENV] = generateTestRsaPrivateKey();
-	let capturedBody: string | undefined;
+	let fetchCalled = false;
 
-	const token = await resolveInjectedGithubToken({
-		repo: "not-a-valid-repo",
-		fetchImpl: (async (_url: string, init: RequestInit) => {
-			capturedBody = init.body as string | undefined;
-			return new Response(
-				JSON.stringify({ token: "ghs_mintedToken", expires_at: "2026-01-01T00:00:00Z" }),
-				{ status: 201 },
-			);
-		}) as typeof fetch,
-	});
-
-	assert.equal(capturedBody, undefined);
-	assert.equal(token, "ghs_mintedToken");
+	await assert.rejects(
+		() =>
+			resolveInjectedGithubToken({
+				repo: "not-a-valid-repo",
+				fetchImpl: (async () => {
+					fetchCalled = true;
+					return new Response(
+						JSON.stringify({ token: "ghs_mintedToken", expires_at: "2026-01-01T00:00:00Z" }),
+						{ status: 201 },
+					);
+				}) as typeof fetch,
+			}),
+		/repo/i,
+	);
+	// The bad repo must be rejected before any network call is made — never a
+	// broad, unscoped mint as a side effect of the malformed input.
+	assert.equal(fetchCalled, false);
 });
 
 test("resolveInjectedGithubToken falls back to the raw PAT when no GitHub App is configured", async () => {

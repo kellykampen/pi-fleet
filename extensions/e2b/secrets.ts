@@ -210,11 +210,12 @@ export interface ResolveInjectedGithubTokenOptions {
 	 * The cast's target repo (any shape {@link normalizeRepoSlug} accepts).
 	 * When set and a GitHub App is configured, the minted installation token
 	 * is narrowed to just this repo (FLT-12) instead of carrying the
-	 * installation's full access set. Malformed/unparseable values are
-	 * ignored rather than failing token minting here — `normalizeRepoSlug`
-	 * already throws its own clear error elsewhere in the same cast path
-	 * (e.g. {@link buildRunnerScript}), so this is defense-in-depth, not the
-	 * only validation.
+	 * installation's full access set. A malformed/unparseable value throws
+	 * (via `normalizeRepoSlug`) rather than silently falling back to minting
+	 * with the installation's *full* access — a cast path must never widen a
+	 * credential's reach just because its own input was bad. Omit only when
+	 * the caller genuinely isn't scoping to a cast (no cast-path caller does
+	 * this today; `repo` is required upstream by every cast validator).
 	 */
 	repo?: string;
 }
@@ -233,17 +234,12 @@ export async function resolveInjectedGithubToken(
 ): Promise<string | undefined> {
 	const appConfig = resolveGithubAppConfig();
 	if (appConfig) {
-		let repositories: string[] | undefined;
-		try {
-			const slug = opts.repo?.trim() ? normalizeRepoSlug(opts.repo) : undefined;
-			repositories = slug ? [slug.split("/")[1]] : undefined;
-		} catch {
-			// Malformed repo: mint with the installation's full access rather than
-			// failing the token mint; the cast still fails fast elsewhere on the
-			// same bad value (see normalizeRepoSlug call sites in the runner
-			// builders) before this token is ever used.
-			repositories = undefined;
-		}
+		// Fail closed: a malformed repo must never fall back to minting with the
+		// installation's full access set. normalizeRepoSlug throws its own clear
+		// "Invalid repo slug" error, which propagates as-is.
+		const repositories = opts.repo?.trim()
+			? [normalizeRepoSlug(opts.repo).split("/")[1]]
+			: undefined;
 		const { token } = await mintInstallationToken(appConfig, {
 			fetchImpl: opts.fetchImpl,
 			repositories,

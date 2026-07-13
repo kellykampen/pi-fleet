@@ -172,8 +172,23 @@ export async function mintInstallationToken(
 
 	if (!res.ok) {
 		const body = await res.text().catch(() => "");
+		// GitHub 404s/422s a `repositories`-scoped request whenever a named repo
+		// isn't reachable by this installation — e.g. it belongs to a different
+		// account/org than the one this App is installed on, or was never added
+		// under the installation's "Repository access" setting. That's an actual
+		// FLT-12 boundary (a per-cast repo is only reachable if *this*
+		// installation covers it — there is no cross-installation/org fallback),
+		// so make it actionable here rather than surfacing GitHub's generic body.
+		const reachabilityHint = opts.repositories?.length
+			? ` This GitHub App installation (id ${config.installationId}) may not have ` +
+				`access to: ${opts.repositories.join(", ")}. A repo is only castable if ` +
+				`it's installed under this App's installation and belongs to the same ` +
+				`GitHub account/org as that installation — verify under the App's ` +
+				`Configure → Repository access, or add a separate installation for a ` +
+				`different account/org.`
+			: "";
 		throw new Error(
-			`GitHub App installation token request failed (${res.status}): ${body.slice(0, 300)}`,
+			`GitHub App installation token request failed (${res.status}): ${body.slice(0, 300)}${reachabilityHint}`,
 		);
 	}
 

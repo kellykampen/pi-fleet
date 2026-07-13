@@ -548,13 +548,21 @@ independent of which repo a given cast's `repo` names.
 
 To add a new repo to the set the fleet can actually reach:
 
-- **GitHub App (preferred)** — install the App on the additional repo (GitHub → the App's settings →
-  **Configure** → **Repository access** → add the repo, or switch the installation to "All
-  repositories" for org-wide reach) and note that the same `FLEET_GITHUB_APP_INSTALLATION_ID` covers
-  every repo the installation has access to; no fleet-side config changes with the new repo. Each cast
-  still only ever gets a token narrowed to its own `repo` (see the security notes above) — adding a
-  repo to the installation makes it *reachable*, not automatically *accessible* to every cast, since
-  the per-cast token only ever includes the repo that specific cast named.
+- **A GitHub App installation is scoped to exactly one GitHub account (one user or one org).** It can
+  only ever mint tokens for repos that live under that same account and are explicitly reachable by
+  that installation — there is **no cross-installation or cross-org support**: a repo owned by a
+  different account needs either a *separate* App installation (its own
+  `FLEET_GITHUB_APP_INSTALLATION_ID`, configured the same way) or the PAT fallback below.
+- **GitHub App (preferred), same account** — install the App on the additional repo (GitHub → the
+  App's settings → **Configure** → **Repository access** → add the repo, or switch the installation to
+  "All repositories" for account-wide reach *within that one account*) and note that the same
+  `FLEET_GITHUB_APP_INSTALLATION_ID` covers every repo the installation has access to; no fleet-side
+  config changes with the new repo. Each cast still only ever gets a token narrowed to its own `repo`
+  (see the security notes above) — adding a repo to the installation makes it *reachable*, not
+  automatically *accessible* to every cast, since the per-cast token only ever includes the repo that
+  specific cast named. If a cast names a repo the installation can't reach (wrong account, or never
+  added under Repository access), token minting fails fast with an error naming the installation id
+  and the unreachable repo — there is no silent fallback to a broader, unscoped token.
 - **PAT fallback** — a classic PAT already covers every repo its owner can access; a fine-grained PAT
   must have the new repo added explicitly under **Repository access** (GitHub → Settings → Developer
   settings → Personal access tokens → the token → Repository access). Either way this is a single

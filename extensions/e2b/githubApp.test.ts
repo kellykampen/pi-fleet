@@ -242,3 +242,48 @@ test("mintInstallationToken throws a clear error (without leaking the private ke
 		},
 	);
 });
+
+test("mintInstallationToken adds an actionable installation-reachability hint when a repositories-scoped request fails (FLT-12 review fix)", async () => {
+	const { privateKey } = testKeyPair();
+
+	await assert.rejects(
+		() =>
+			mintInstallationToken(
+				{ appId: "999", installationId: "42", privateKey },
+				{
+					repositories: ["some-other-repo"],
+					fetchImpl: (async () =>
+						new Response(JSON.stringify({ message: "Not Found" }), { status: 404 })) as typeof fetch,
+				},
+			),
+		(err: Error) => {
+			assert.match(err.message, /404/);
+			// Actionable: names the installation and the repo(s) that weren't
+			// reachable, and points at fixing App repository access rather than
+			// implying arbitrary cross-installation/org support exists.
+			assert.match(err.message, /installation \(id 42\)/);
+			assert.match(err.message, /some-other-repo/);
+			assert.match(err.message, /Repository access/);
+			return true;
+		},
+	);
+});
+
+test("mintInstallationToken omits the reachability hint when no repositories scope was requested", async () => {
+	const { privateKey } = testKeyPair();
+
+	await assert.rejects(
+		() =>
+			mintInstallationToken(
+				{ appId: "999", installationId: "42", privateKey },
+				{
+					fetchImpl: (async () =>
+						new Response("installation not found", { status: 404 })) as typeof fetch,
+				},
+			),
+		(err: Error) => {
+			assert.equal(/installation \(id/.test(err.message), false);
+			return true;
+		},
+	);
+});
