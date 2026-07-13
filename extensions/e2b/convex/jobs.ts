@@ -65,20 +65,33 @@ export const list = query({
 	returns: v.array(jobDoc),
 	handler: async (ctx, { status, repo, ticketId }) => {
 		// Pick the most selective index available, then filter the rest in JS.
-		// Every path is bounded by MAX_JOBS.
+		// Every path orders newest-first (by _creationTime) and is bounded by
+		// MAX_JOBS, so a table past that cap still surfaces its newest jobs
+		// rather than silently returning the oldest ones.
+		const singleStatus =
+			status !== undefined && !Array.isArray(status) ? status : undefined;
+
 		let rows;
 		if (repo !== undefined) {
 			rows = await ctx.db
 				.query("jobs")
 				.withIndex("by_repo", (q) => q.eq("repo", repo))
+				.order("desc")
 				.take(MAX_JOBS);
 		} else if (ticketId !== undefined) {
 			rows = await ctx.db
 				.query("jobs")
 				.withIndex("by_ticket", (q) => q.eq("ticketId", ticketId))
+				.order("desc")
+				.take(MAX_JOBS);
+		} else if (singleStatus !== undefined) {
+			rows = await ctx.db
+				.query("jobs")
+				.withIndex("by_status", (q) => q.eq("status", singleStatus))
+				.order("desc")
 				.take(MAX_JOBS);
 		} else {
-			rows = await ctx.db.query("jobs").take(MAX_JOBS);
+			rows = await ctx.db.query("jobs").order("desc").take(MAX_JOBS);
 		}
 
 		const wanted =

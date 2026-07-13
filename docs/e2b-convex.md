@@ -48,10 +48,27 @@ The matching server code lives in `extensions/e2b/convex/`:
   **is** the e2b tool contract. Indexes: `by_jobId`, `by_status`, `by_repo`,
   `by_ticket`.
 - `convex/jobs.ts` — the `put`/`get`/`list` functions. `list` reads through the
-  most selective index and filters the rest in JS, bounded by `MAX_JOBS = 1000`.
+  most selective index available (`by_repo` > `by_ticket` > `by_status` for a
+  single status > full table), ordered newest-first (`order("desc")`), and
+  filters the rest in JS, bounded by `MAX_JOBS = 1000`.
 
 Convex adds `_id` / `_creationTime` system fields to every document;
 `ConvexJobStore` strips them so callers always get a clean `FleetJob`.
+`ConvexJobStore` also bounds every HTTP call with a 15s deadline
+(`timeoutMs`, configurable) so a hung deployment surfaces a clear timeout
+error instead of hanging the calling e2b tool indefinitely.
+
+### Known v0 limits (not addressed by this follow-up)
+
+- **No `ctx.auth` check** on `put`/`get`/`list` — this deployment relies on
+  `FLEET_CONVEX_TOKEN` being kept private, not on Convex-side identity
+  verification. Adding real auth means wiring a Convex Auth provider, which is
+  bigger than this job-store/UI follow-up; tracked as a future ticket if this
+  ever needs to run on a shared/exposed deployment.
+- **`MAX_JOBS = 1000` is a hard cap, not paginated.** Past that many rows in
+  the table, `list` still only sees its newest 1000 (now ordered correctly —
+  see below) and filters within that window. Full cursor-based pagination
+  would be needed to search the entire table past the cap.
 
 ### Deploying (only needed for real Convex use)
 
@@ -81,8 +98,14 @@ npm run jobs -- --html > jobs.html
 ```
 
 Flags: `--status <s>`, `--project <owner/name>`, `--ticket <id>`, `--html`.
+`--status` is validated against the known `JobStatus` values; an unknown flag
+or a flag missing its value fails fast with a clear error instead of being
+silently ignored or swallowing the next argument.
+
 The `renderJobsText` / `renderJobsHtml` renderers are pure and unit-tested; HTML
-output escapes all values (XSS-safe).
+output escapes all values (XSS-safe), and the terminal table sanitizes control
+characters (newlines, tabs, ANSI escapes) out of every cell so a job field
+can't break column alignment or inject terminal escape sequences.
 
 ## Tests
 

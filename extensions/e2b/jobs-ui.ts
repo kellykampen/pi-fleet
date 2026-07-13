@@ -11,7 +11,8 @@
  * The renderers below are pure so they are unit-tested without any store.
  */
 import { listJobs } from "./jobs.js";
-import type { FleetJob, JobFilter, JobStatus } from "./types.js";
+import { ALL_JOB_STATUSES, isJobStatus } from "./types.js";
+import type { FleetJob, JobFilter } from "./types.js";
 
 const COLUMNS: { header: string; value: (j: FleetJob) => string }[] = [
 	{ header: "jobId", value: (j) => j.jobId },
@@ -26,9 +27,15 @@ const COLUMNS: { header: string; value: (j: FleetJob) => string }[] = [
 	},
 ];
 
+/** Neutralize newlines/control chars (incl. ANSI escapes) so a cell can't break table alignment or inject terminal escapes. */
+function sanitizeCell(value: string): string {
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control chars to strip them.
+	return value.replace(/[\u0000-\u001f\u007f]/g, " ");
+}
+
 export function renderJobsText(jobs: FleetJob[]): string {
 	if (jobs.length === 0) return "No jobs.";
-	const rows = jobs.map((j) => COLUMNS.map((c) => c.value(j)));
+	const rows = jobs.map((j) => COLUMNS.map((c) => sanitizeCell(c.value(j))));
 	const headers = COLUMNS.map((c) => c.header);
 	const widths = headers.map((h, i) =>
 		Math.max(h.length, ...rows.map((r) => r[i].length)),
@@ -84,20 +91,39 @@ ${body || `<tr><td colspan="${COLUMNS.length}">No jobs.</td></tr>`}
 `;
 }
 
+const VALUE_FLAGS = new Set(["--status", "--project", "--ticket"]);
+
+function assertHasValue(
+	arg: string,
+	value: string | undefined,
+): asserts value is string {
+	if (value === undefined || value.startsWith("--")) {
+		throw new Error(`${arg} requires a value`);
+	}
+}
+
 export function parseFilterArgs(argv: string[]): JobFilter {
 	const filter: JobFilter = {};
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i];
+		if (arg === "--html") continue;
+		if (!VALUE_FLAGS.has(arg)) {
+			throw new Error(`Unknown flag: ${arg}`);
+		}
 		const next = argv[i + 1];
-		if (arg === "--status" && next) {
-			filter.status = next as JobStatus;
-			i++;
-		} else if (arg === "--project" && next) {
+		assertHasValue(arg, next);
+		i++;
+		if (arg === "--status") {
+			if (!isJobStatus(next)) {
+				throw new Error(
+					`--status must be one of ${ALL_JOB_STATUSES.join(", ")}, got "${next}"`,
+				);
+			}
+			filter.status = next;
+		} else if (arg === "--project") {
 			filter.repo = next;
-			i++;
-		} else if (arg === "--ticket" && next) {
+		} else {
 			filter.ticketId = next;
-			i++;
 		}
 	}
 	return filter;
