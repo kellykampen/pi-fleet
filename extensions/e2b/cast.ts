@@ -380,6 +380,7 @@ export async function tryCreateSandbox(
 		const githubToken = await resolveInjectedGithubToken({
 			fetchImpl: opts.fetchImpl,
 			profile: job.profile,
+			repo: job.repo,
 		});
 		await sandbox.commands.run(
 			"bash -lc 'nohup /work/run-job.sh >/work/job.log 2>&1 & echo $! > /work/job.pid'",

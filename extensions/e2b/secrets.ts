@@ -206,6 +206,18 @@ export function githubCredentialSourceConfigured(
 export interface ResolveInjectedGithubTokenOptions {
 	fetchImpl?: FetchLike;
 	profile?: FleetJob["profile"];
+	/**
+	 * The cast's target repo (any shape {@link normalizeRepoSlug} accepts).
+	 * When set and a GitHub App is configured, the minted installation token
+	 * is narrowed to just this repo (FLT-12) instead of carrying the
+	 * installation's full access set. A malformed/unparseable value throws
+	 * (via `normalizeRepoSlug`) rather than silently falling back to minting
+	 * with the installation's *full* access — a cast path must never widen a
+	 * credential's reach just because its own input was bad. Omit only when
+	 * the caller genuinely isn't scoping to a cast (no cast-path caller does
+	 * this today; `repo` is required upstream by every cast validator).
+	 */
+	repo?: string;
 }
 
 /**
@@ -222,8 +234,15 @@ export async function resolveInjectedGithubToken(
 ): Promise<string | undefined> {
 	const appConfig = resolveGithubAppConfig();
 	if (appConfig) {
+		// Fail closed: a malformed repo must never fall back to minting with the
+		// installation's full access set. normalizeRepoSlug throws its own clear
+		// "Invalid repo slug" error, which propagates as-is.
+		const repositories = opts.repo?.trim()
+			? [normalizeRepoSlug(opts.repo).split("/")[1]]
+			: undefined;
 		const { token } = await mintInstallationToken(appConfig, {
 			fetchImpl: opts.fetchImpl,
+			repositories,
 		});
 		return token;
 	}
