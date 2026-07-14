@@ -1,0 +1,12 @@
+{
+  "name": "pi-fleet-agent-interview-tool",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Repo-local pinned runtime for the pi-fleet spike interview wrapper",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "agent-interview-cli": "0.1.0"
+  }
+}

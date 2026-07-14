@@ -1,0 +1,360 @@
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import {
+  access,
+  mkdir,
+  readFile,
+  rename,
+  writeFile,
+} from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  TOOL_VERSION,
+  buildAuditPayload,
+  renderAuditComment,
+  validateQuestions,
+} from "./lib/spike-interview.mjs";
+
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const fleetRoot = resolve(scriptDir, "..");
+const defaultInterviewBin = join(
+  fleetRoot,
+  "tools",
+  "agent-interview-cli",
+  "node_modules",
+  ".bin",
+  "interview",
+);
+
+function usage() {
+  return `Usage:
+  pi-fleet-spike-interview run --issue <SPIKE-ID> --questions <file> [options]
+  pi-fleet-spike-interview record --issue <SPIKE-ID> --questions <file> --result <file> [options]
+
+Options:
+  --output <file>       Also write the audit JSON to this path
+  --timeout <seconds>   Browser interview timeout (default: 600)
+  --no-open             Print the URL instead of opening the browser
+  --run-id <id>         Supply an audit run ID (normally generated)
+  -h, --help            Show this help
+
+Environment:
+  PI_FLEET_INTERVIEW_NONINTERACTIVE=1  Post the question set to Linear and block
+  PI_FLEET_INTERVIEW_STATE_DIR=<path>  Override the persistent local audit directory`;
+}
+
+function parseArgs(argv) {
+  const [command, ...rest] = argv;
+  if (command === "--help" || command === "-h") return { help: true };
+  if (!new Set(["run", "record"]).has(command)) {
+    throw new Error("first argument must be run or record");
+  }
+
+  const options = { command, timeout: 600, open: true };
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+    if (arg === "--no-open") {
+      options.open = false;
+      continue;
+    }
+    if (arg === "--help" || arg === "-h") return { help: true };
+    const keyByArg = {
+      "--issue": "issue",
+      "--questions": "questionsPath",
+      "--result": "resultPath",
+      "--output": "outputPath",
+      "--timeout": "timeout",
+      "--run-id": "runId",
+    };
+    const key = keyByArg[arg];
+    if (!key) throw new Error(`unknown argument: ${arg}`);
+    index += 1;
+    if (index >= rest.length) throw new Error(`${arg} requires a value`);
+    options[key] = rest[index];
+  }
+
+  if (!options.issue || !/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(options.issue)) {
+    throw new Error("--issue must be a Linear issue identifier such as FLT-48");
+  }
+  if (!options.questionsPath) throw new Error("--questions is required");
+  if (command === "record" && !options.resultPath) throw new Error("record requires --result");
+  const timeout = Number.parseInt(String(options.timeout), 10);
+  if (!Number.isSafeInteger(timeout) || timeout <= 0) {
+    throw new Error("--timeout must be a positive integer");
+  }
+  options.timeout = timeout;
+  if (options.runId && !/^[a-z0-9][a-z0-9-]+$/.test(options.runId)) {
+    throw new Error("--run-id may contain lowercase letters, numbers, and hyphens");
+  }
+  return options;
+}
+
+async function readJson(path, label) {
+  let text;
+  try {
+    text = await readFile(path, "utf8");
+  } catch (error) {
+    throw new Error(`cannot read ${label} at ${path}: ${error.message}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`invalid JSON in ${label} at ${path}: ${error.message}`);
+  }
+}
+
+function commandResult(command, args, { timeoutMs } = {}) {
+  return new Promise((resolveResult) => {
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let settled = false;
+    let timer;
+    let killTimer;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+      resolveResult({ stdout, stderr, timedOut, ...result });
+    };
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => { stdout += chunk; });
+    child.stderr?.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", (error) => finish({ code: null, error }));
+    child.on("close", (code, signal) => finish({ code, signal }));
+
+    if (timeoutMs !== undefined) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGTERM");
+        killTimer = setTimeout(() => child.kill("SIGKILL"), 1_000);
+      }, timeoutMs);
+    }
+  });
+}
+
+function testOverride(name, fallback) {
+  if (process.env.PI_FLEET_INTERVIEW_TEST_MODE === "1" && process.env[name]) {
+    return process.env[name];
+  }
+  return fallback;
+}
+
+function stateRoot() {
+  if (process.env.PI_FLEET_INTERVIEW_STATE_DIR) {
+    return resolve(process.env.PI_FLEET_INTERVIEW_STATE_DIR);
+  }
+  const xdg = process.env.XDG_STATE_HOME || join(homedir(), ".local", "state");
+  return join(xdg, "pi-fleet", "spike-interviews");
+}
+
+function makeRunId(issue) {
+  const timestamp = new Date().toISOString().replace(/[-:.]/g, "").toLowerCase();
+  return `${issue.toLowerCase()}-${timestamp}-${randomUUID().slice(0, 8)}`;
+}
+
+async function atomicWrite(path, contents) {
+  await mkdir(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.tmp`;
+  await writeFile(temporary, contents, { mode: 0o600 });
+  await rename(temporary, path);
+}
+
+async function persistAudit(payload, comment, outputPath) {
+  const issueDir = join(stateRoot(), payload.sourceSpike.toUpperCase());
+  const artifactPath = join(issueDir, `${payload.interviewId}.json`);
+  const commentPath = join(issueDir, `${payload.interviewId}.md`);
+  const json = `${JSON.stringify(payload, null, 2)}\n`;
+  await atomicWrite(artifactPath, json);
+  await atomicWrite(commentPath, `${comment}\n`);
+  if (outputPath) await atomicWrite(resolve(outputPath), json);
+  process.stdout.write(json);
+  return artifactPath;
+}
+
+async function postLinearComment(issue, comment) {
+  const linearBin = testOverride("PI_FLEET_LINEAR_BIN", "linear-cli");
+  return commandResult(linearBin, [
+    "comments",
+    "create",
+    issue,
+    "--body",
+    comment,
+    "--output",
+    "json",
+    "--quiet",
+    "--no-pager",
+  ]);
+}
+
+async function resolveRunResult(options, questions, paths) {
+  if (options.command === "record") {
+    return {
+      result: await readJson(resolve(options.resultPath), "recorded interview result"),
+      channel: "linear-comment/fallback",
+      toolVersion: TOOL_VERSION,
+    };
+  }
+
+  const nonInteractive = process.env.PI_FLEET_INTERVIEW_NONINTERACTIVE === "1"
+    || (process.env.CI && process.env.CI !== "0" && process.env.CI !== "false");
+  const interviewBin = testOverride("PI_FLEET_INTERVIEW_BIN", defaultInterviewBin);
+  let available = !nonInteractive;
+  let unavailableReason = nonInteractive ? "environment is explicitly non-interactive" : "";
+
+  if (available) {
+    try {
+      await access(interviewBin, fsConstants.X_OK);
+    } catch {
+      available = false;
+      unavailableReason = `pinned interview CLI is unavailable at ${interviewBin}`;
+    }
+  }
+
+  if (available) {
+    const versionCheck = await commandResult(interviewBin, ["--version"], { timeoutMs: 5_000 });
+    if (versionCheck.code !== 0 || versionCheck.stdout.trim() !== TOOL_VERSION) {
+      available = false;
+      unavailableReason = `expected agent-interview-cli ${TOOL_VERSION}, got ${versionCheck.stdout.trim() || "no version"}`;
+    }
+  }
+
+  if (!available) {
+    process.stderr.write(`pi-fleet-spike-interview: ${unavailableReason}; posting fail-loud Linear fallback\n`);
+    return {
+      result: { status: "unavailable", responses: [] },
+      channel: "linear-comment/fallback",
+      toolVersion: TOOL_VERSION,
+    };
+  }
+
+  await mkdir(paths.snapshotDir, { recursive: true });
+  const args = [
+    resolve(options.questionsPath),
+    "--timeout",
+    String(options.timeout),
+    "--snapshot-dir",
+    paths.snapshotDir,
+    "--pretty",
+  ];
+  if (!options.open) args.push("--no-open");
+
+  const grace = Number.parseInt(process.env.PI_FLEET_INTERVIEW_WATCHDOG_GRACE || "5", 10);
+  const watchdogMs = (options.timeout + (Number.isSafeInteger(grace) && grace >= 0 ? grace : 5)) * 1_000;
+  const executed = await commandResult(interviewBin, args, { timeoutMs: watchdogMs });
+  if (executed.stderr) process.stderr.write(executed.stderr);
+  if (executed.timedOut) {
+    process.stderr.write("pi-fleet-spike-interview: external watchdog timed out the browser interview\n");
+    return {
+      result: { status: "timeout", responses: [] },
+      channel: "agent-interview-cli/browser",
+      toolVersion: TOOL_VERSION,
+    };
+  }
+
+  let result;
+  try {
+    result = JSON.parse(executed.stdout);
+  } catch (error) {
+    process.stderr.write(`pi-fleet-spike-interview: malformed CLI output: ${error.message}\n`);
+    result = { status: "error", responses: [] };
+  }
+  if (executed.error) {
+    process.stderr.write(`pi-fleet-spike-interview: failed to launch browser interview: ${executed.error.message}\n`);
+    result = { status: "error", responses: [] };
+  } else if (executed.code === 2 && result.status === "aborted") {
+    result = { ...result, status: "error" };
+  }
+
+  return {
+    result,
+    channel: "agent-interview-cli/browser",
+    toolVersion: TOOL_VERSION,
+  };
+}
+
+async function main() {
+  let options;
+  try {
+    options = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    process.stderr.write(`pi-fleet-spike-interview: ${error.message}\n\n${usage()}\n`);
+    return 2;
+  }
+  if (options.help) {
+    process.stdout.write(`${usage()}\n`);
+    return 0;
+  }
+
+  let questions;
+  try {
+    questions = validateQuestions(await readJson(resolve(options.questionsPath), "questions file"));
+  } catch (error) {
+    process.stderr.write(`pi-fleet-spike-interview: ${error.message}; decomposition is BLOCKED\n`);
+    return 2;
+  }
+
+  const runId = options.runId || makeRunId(options.issue);
+  const runDirectory = join(stateRoot(), options.issue.toUpperCase(), runId);
+  const startedAt = new Date().toISOString();
+  const resolvedRun = await resolveRunResult(options, questions, {
+    snapshotDir: join(runDirectory, "snapshots"),
+  });
+  const finishedAt = new Date().toISOString();
+
+  let payload;
+  try {
+    payload = buildAuditPayload(questions, resolvedRun.result, {
+      sourceSpike: options.issue.toUpperCase(),
+      runId,
+      channel: resolvedRun.channel,
+      toolVersion: resolvedRun.toolVersion,
+      startedAt,
+      finishedAt,
+    });
+  } catch (error) {
+    process.stderr.write(`pi-fleet-spike-interview: invalid interview result: ${error.message}; decomposition is BLOCKED\n`);
+    return 2;
+  }
+
+  const comment = renderAuditComment(payload);
+  let artifactPath;
+  try {
+    artifactPath = await persistAudit(payload, comment, options.outputPath);
+  } catch (error) {
+    process.stderr.write(`pi-fleet-spike-interview: cannot persist audit: ${error.message}; decomposition is BLOCKED\n`);
+    return 2;
+  }
+
+  const posted = await postLinearComment(payload.sourceSpike, comment);
+  if (posted.code !== 0 || posted.error) {
+    const detail = posted.error?.message || posted.stderr.trim() || `exit ${posted.code}`;
+    process.stderr.write(`pi-fleet-spike-interview: Linear audit comment failed: ${detail}\n`);
+    process.stderr.write(`Local audit retained at ${artifactPath}; decomposition remains BLOCKED\n`);
+    return 2;
+  }
+
+  process.stderr.write(`pi-fleet-spike-interview: Linear audit posted; local audit: ${artifactPath}\n`);
+  if (payload.decompositionGate !== "OPEN") {
+    process.stderr.write(`pi-fleet-spike-interview: status=${payload.status}; decomposition remains BLOCKED\n`);
+    return 1;
+  }
+  return 0;
+}
+
+try {
+  process.exitCode = await main();
+} catch (error) {
+  process.stderr.write(`pi-fleet-spike-interview: unexpected failure: ${error.stack || error.message}\n`);
+  process.exitCode = 2;
+}

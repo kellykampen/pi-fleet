@@ -19,7 +19,8 @@ top.
 ### Requirements
 
 - [Pi](https://pi.dev) and [outfitter](https://pi.dev/packages/@ai-outfitter/outfitter) installed
-- Global pi packages: `pi-mcp-adapter`, `pi-subagents`, `@gotgenes/pi-permission-system`
+- Node.js 20+ and global pi packages: `pi-mcp-adapter`, `pi-subagents`, `@gotgenes/pi-permission-system`
+- Repo-local tools installed by `setup.sh`, including exact-pinned `agent-interview-cli@0.1.0`
 - At least one allowed provider/model authenticated in Pi (recommended: `openai-codex` with `gpt-5.5`/`gpt-5.6`)
 - *Optional*, for long-running `pi-conductor`/`pi-project-lead` seats that self-schedule checkups:
   `@jl1990/pi-scheduler` — see [docs/scheduling.md](docs/scheduling.md). **Avoid `pi-schedule-prompt`**;
@@ -37,9 +38,10 @@ cd ~/your/project && pi-reviewer              # launch a read-only reviewer seat
 `setup.sh` is the one-copy onboarding entry point: it checks (and, on macOS with Homebrew, offers
 to install) the quick-start dependencies below, runs `bin/pi-fleet-bootstrap` to wire local config
 (idempotent — it backs up, never overwrites, any pre-existing config), and guides you through
-external-service auth (`gh`, Linear, a Pi provider, optional E2B). Run `./setup.sh --check` for a
-side-effect-free status report, or `./setup.sh --yes` to auto-confirm every install it knows how
-to do. See `./setup.sh --help` for details.
+external-service auth (`gh`, Linear, a Pi provider, optional E2B). It installs the spike interview
+runtime clone-locally from its integrity-locked npm dependency with install scripts disabled. Run
+`./setup.sh --check` for a side-effect-free status report, or `./setup.sh --yes` to auto-confirm
+every install it knows how to do. See `./setup.sh --help` for details.
 
 Models in the profiles are **defaults, not locks** — override per launch with `--provider/--model`,
 or let the `pi-conductor`/`pi-project-lead` pick one via the bundled `model-classifier` skill.
@@ -92,7 +94,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  [env model args] -
 | **`pi-designer`** | GPT-5.6 Terra (`openai-codex`) · high | read, grep, find, ls, write, edit, bash | Design / architecture / API + planning docs (taste model). Hands build to `pi-implementer`. For **claude.ai design import/update**, use `claude-designer` instead. |
 | **`claude-designer`** | Claude Code (`--agent claude`) | `mcp__claude_design__*` + Read/Grep/Glob/Edit/Write/Bash(git,pnpm,npm) | Reads/updates **claude.ai design** projects via the `claude_design` MCP and implements them. Runs **Claude Code, not pi** — claude_design's OAuth is gated to Claude Code's blessed client (pi's generic MCP OAuth is turned down). One-time `/design-login` if tools 401. |
 | **`pi-planner`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Breaks a feature into a Linear project + ≤3-pt issues with checkbox AC + blockers. |
-| **`pi-spike-breakdown`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Turns a Linear **spike** into a Linear project + ≤3-pt issues: reads the spike + context, finds the gaps (architecture/technical/dependency/product), **interviews the CEO** (`claude-conductor` relays the interview-linear questions via AskUserQuestion; fallback = direct AskUserQuestion or structured Linear comments), then applies `issue-breakdown`. Reads Linear + repo; no repo `write`/`edit`. |
+| **`pi-spike-breakdown`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Turns a Linear **spike** into a Linear project + ≤3-pt issues. Its primary interview channel is pinned `agent-interview-cli` opening a direct browser form. Stable decisions and exact answers are persisted and posted to the source spike before decomposition; cancellation/timeout/non-interactive fallback fails loudly. See [spike interviews](docs/spike-interviews.md). Reads Linear + repo; no repo `write`/`edit`. |
 | **`pi-security-reviewer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. Strong reasoning default. |
 | **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Cross-project router — assigns **project leads**, watches portfolio health, escalates to the CEO. Does not cast workers. |
 | **`claude-conductor`** | Claude Code (`--remote-control`) | *(no allowlist — same tool surface as `claude`)* | Thin wrapper that launches Claude Code with `--remote-control` so the CEO can reach the Conductor from the Claude Code **mobile app**. Every other Claude seat has `remoteControlAtStartup=false`; this is the one session that opts back in. Session name defaults to `claude-conductor`, override with `CONDUCTOR_NAME`. `FLEET_YOLO=1` gates `--dangerously-skip-permissions`, same convention as the other wrappers. |
@@ -145,7 +147,8 @@ make sure they're on `PATH`:
 | --- | --- |
 | `pi-reviewer`, `pi-researcher`, `pi-security-reviewer` | *nothing* — read-only seats |
 | `pi-implementer`, `pi-designer`, `pi-ac-verifier` | `git`, `gh`, and the target project's toolchain (`node` + `pnpm`/`npm`) |
-| `pi-planner`, `pi-spike-breakdown`, `pi-linear` | [`linear-cli`](https://github.com/schpet/linear-cli) *(+ a `LINEAR_API_KEY`)*. `pi-spike-breakdown`'s interview channel is pi-fleet-native: a running `claude-conductor` relays the interview-linear questions to the CEO via AskUserQuestion (fallback = direct AskUserQuestion or structured Linear comments). |
+| `pi-planner`, `pi-linear` | [`linear-cli`](https://github.com/schpet/linear-cli) *(+ a `LINEAR_API_KEY`)* |
+| `pi-spike-breakdown` | `linear-cli` plus the repo-local `agent-interview-cli@0.1.0` installed by `setup.sh`; see [install, schema, fallback, and audit contract](docs/spike-interviews.md) |
 | `pi-visual-qa` | `node` + Playwright (`npx playwright install`); a way to run the app under test |
 | `pi-conductor`, `pi-project-lead` | [`cmux`](https://cmux.io) (casts workers into panes), `git`, `gh`, `linear-cli` |
 | `pi-project-lead` **E2B remote casts** | the `e2b` CLI (`npm i` in `extensions/e2b`) + `E2B_API_KEY` + a GitHub App (recommended) or `FLEET_GITHUB_TOKEN` — see [E2B section](#e2b-remote-implementers-v0) |
@@ -424,6 +427,7 @@ Required environment variables for non-dry-run casts:
       `.../settings/installations/<installation_id>`) and the App's **App ID**
       (shown on the App's settings page).
    4. Set:
+
       ```bash
       export FLEET_GITHUB_APP_ID=123456
       export FLEET_GITHUB_APP_INSTALLATION_ID=987654
@@ -431,6 +435,7 @@ Required environment variables for non-dry-run casts:
       # or, to inline the PEM instead of a file path:
       # export FLEET_GITHUB_APP_PRIVATE_KEY="$(cat /path/to/app-private-key.pem)"
       ```
+
       All three of `FLEET_GITHUB_APP_ID`, `FLEET_GITHUB_APP_INSTALLATION_ID`, and
       `FLEET_GITHUB_APP_PRIVATE_KEY`/`FLEET_GITHUB_APP_PRIVATE_KEY_PATH` must be set
       together — the fleet fails fast with a clear error before creating any

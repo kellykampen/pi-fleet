@@ -5,6 +5,8 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INTERVIEW_TOOL_DIR="${PI_FLEET_INTERVIEW_TOOL_DIR:-$REPO_DIR/tools/agent-interview-cli}"
+INTERVIEW_BIN="$INTERVIEW_TOOL_DIR/node_modules/.bin/interview"
 YES=0
 CHECK_ONLY=0
 
@@ -15,9 +17,10 @@ Usage: setup.sh [--check] [--yes] [--help]
   --check   Report dependency/config/auth status only. Makes no changes (no installs, does not
             run bin/pi-fleet-bootstrap). Exits 0 if nothing needs attention, 1 otherwise.
   --yes     Non-interactive: auto-confirm installs for dependencies this script knows how to
-            install (git/gh/node via Homebrew, outfitter via npm, pi-fleet's global pi packages
-            via `pi install npm:...`). Without --yes and without a terminal to prompt on, missing
-            installable deps are reported with the exact command to run yourself.
+            install (git/gh/node via Homebrew, outfitter via npm, repo-local pinned tools via
+            `npm ci`, and pi-fleet's global pi packages via `pi install npm:...`). Without --yes
+            and without a terminal to prompt on, missing installable deps are reported with the
+            exact command to run yourself.
   --help    Show this help and exit 0.
 
 Safe to re-run: every install step is skipped once its dependency is already present, and
@@ -41,6 +44,15 @@ done
 ISSUES=0
 note_issue() { ISSUES=$((ISSUES + 1)); }
 have() { command -v "$1" >/dev/null 2>&1; }
+have_node_20() {
+  local major=""
+  have node && have npm || return 1
+  major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)"
+  [ -n "$major" ] && [ "$major" -ge 20 ] 2>/dev/null
+}
+have_pinned_interview_cli() {
+  [ -x "$INTERVIEW_BIN" ] && [ "$("$INTERVIEW_BIN" --version 2>/dev/null)" = "0.1.0" ]
+}
 
 # maybe_install <label> <present_cmd> <install_cmd|""> <guidance>
 # present_cmd/install_cmd are eval'd shell snippets (fixed strings we author below, not user
@@ -92,17 +104,23 @@ echo "-- Core CLIs --"
 if [ "$HAVE_BREW" = "1" ]; then
   maybe_install "git" "have git" "brew install git" "install via your OS package manager or https://git-scm.com"
   maybe_install "gh (GitHub CLI)" "have gh" "brew install gh" "install from https://cli.github.com"
-  maybe_install "node/npm" "have node && have npm" "brew install node" "install from https://nodejs.org"
+  maybe_install "node 20+/npm" "have_node_20" "brew install node" "install Node.js 20+ from https://nodejs.org"
 else
   maybe_install "git" "have git" "" "install via your OS package manager or https://git-scm.com"
   maybe_install "gh (GitHub CLI)" "have gh" "" "install from https://cli.github.com"
-  maybe_install "node/npm" "have node && have npm" "" "install from https://nodejs.org"
+  maybe_install "node 20+/npm" "have_node_20" "" "install Node.js 20+ from https://nodejs.org"
 fi
 maybe_install "pi (coding agent)" "have pi" "" "install from https://pi.dev — no automated installer available here"
 maybe_install "outfitter" "have outfitter" "npm install -g @ai-outfitter/outfitter" \
   "npm install -g @ai-outfitter/outfitter (needs npm), or see https://pi.dev/packages/@ai-outfitter/outfitter"
 maybe_install "linear-cli" "have linear-cli" "" "install from https://github.com/schpet/linear-cli"
 maybe_install "cmux" "have cmux" "" "install from https://cmux.io"
+
+echo
+echo "-- Repo-local tools --"
+maybe_install "agent-interview-cli@0.1.0 (repo-local)" "have_pinned_interview_cli" \
+  "npm ci --prefix \"$INTERVIEW_TOOL_DIR\" --omit=dev --ignore-scripts" \
+  "run: npm ci --prefix \"$INTERVIEW_TOOL_DIR\" --omit=dev --ignore-scripts"
 
 echo
 echo "-- Global pi packages --"
