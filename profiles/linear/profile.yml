@@ -8,4 +8,4 @@ controls:
     skills:
       - ../skills/linear-management
     extensions:
-      - ../extensions/linear.ts
+      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
