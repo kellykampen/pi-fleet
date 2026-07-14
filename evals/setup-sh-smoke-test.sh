@@ -54,19 +54,24 @@ trap 'rm -rf "$SCRATCH"' EXIT
 FAKE_HOME="$SCRATCH/home"
 FAKE_BIN_EMPTY="$SCRATCH/bin-empty"
 FAKE_BIN_FULL="$SCRATCH/bin-full"
-mkdir -p "$FAKE_HOME" "$FAKE_BIN_EMPTY" "$FAKE_BIN_FULL"
+INTERVIEW_TOOL_EMPTY="$SCRATCH/interview-tool-empty"
+INTERVIEW_TOOL_FULL="$SCRATCH/interview-tool-full"
+mkdir -p "$FAKE_HOME" "$FAKE_BIN_EMPTY" "$FAKE_BIN_FULL" "$INTERVIEW_TOOL_EMPTY" \
+  "$INTERVIEW_TOOL_FULL/node_modules/.bin"
 
 # Minimal PATH (git/bash/coreutils only) so no dependency is "found" by accident.
 MINIMAL_PATH="/usr/bin:/bin"
 
 # --check with nothing on PATH: everything should be MISSING, no side effects, exit 1.
 before_ls=$(/bin/ls -1a "$FAKE_HOME")
-out=$(env -i HOME="$FAKE_HOME" PATH="$MINIMAL_PATH" "$SCRIPT" --check 2>&1) && rc=0 || rc=$?
+out=$(env -i HOME="$FAKE_HOME" PATH="$MINIMAL_PATH" \
+  PI_FLEET_INTERVIEW_TOOL_DIR="$INTERVIEW_TOOL_EMPTY" "$SCRIPT" --check 2>&1) && rc=0 || rc=$?
 check "--check with nothing installed exits 1" "1" "$rc"
 # Note: git is deliberately not asserted missing here — macOS ships a real /usr/bin/git even in
 # a minimal PATH, so asserting it MISSING would be asserting a false fact about this machine.
 check_contains "--check reports missing cmux" "$out" "[MISSING] cmux"
 check_contains "--check reports missing pi" "$out" "[MISSING] pi (coding agent)"
+check_contains "--check reports missing pinned interview CLI" "$out" "[MISSING] agent-interview-cli@0.1.0 (repo-local)"
 check_contains "--check summary counts issues" "$out" "item(s) need attention"
 after_ls=$(/bin/ls -1a "$FAKE_HOME")
 check "--check makes no changes under \$HOME" "$before_ls" "$after_ls"
@@ -110,6 +115,11 @@ fi
 exit 0
 EOF
 chmod +x "$FAKE_BIN_FULL"/*
+cat > "$INTERVIEW_TOOL_FULL/node_modules/.bin/interview" <<'EOF'
+#!/usr/bin/env bash
+[ "${1:-}" = "--version" ] && printf '0.1.0\n'
+EOF
+chmod +x "$INTERVIEW_TOOL_FULL/node_modules/.bin/interview"
 
 # Pre-seed the pi auth file + bootstrap-managed symlinks so the "all OK" path is fully exercised.
 mkdir -p "$FAKE_HOME/.pi/agent"
@@ -119,10 +129,12 @@ ln -s "$DIR/agents" "$FAKE_HOME/.pi/agent/agents"
 mkdir -p "$FAKE_HOME/.pi/agent/extensions/pi-permission-system"
 ln -s "$DIR/permission-system/config.json" "$FAKE_HOME/.pi/agent/extensions/pi-permission-system/config.json"
 
-out=$(env -i HOME="$FAKE_HOME" PATH="$FAKE_BIN_FULL:$MINIMAL_PATH" "$SCRIPT" --check 2>&1) && rc=0 || rc=$?
+out=$(env -i HOME="$FAKE_HOME" PATH="$FAKE_BIN_FULL:$MINIMAL_PATH" \
+  PI_FLEET_INTERVIEW_TOOL_DIR="$INTERVIEW_TOOL_FULL" "$SCRIPT" --check 2>&1) && rc=0 || rc=$?
 check "--check with everything present exits 0" "0" "$rc"
 check_contains "--check reports OK git" "$out" "[OK]      git"
 check_contains "--check reports OK pi-permission-system package" "$out" "[OK]      @gotgenes/pi-permission-system (pi package)"
+check_contains "--check reports OK pinned interview CLI" "$out" "[OK]      agent-interview-cli@0.1.0 (repo-local)"
 check_contains "--check reports OK gh auth" "$out" "[OK]      gh (GitHub CLI) authenticated"
 check_contains "--check reports OK config symlinks" "$out" "[OK]      $FAKE_HOME/.pi/agent/mcp.json"
 check_contains "--check all-clear summary" "$out" "All checks passed."

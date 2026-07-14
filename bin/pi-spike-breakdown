@@ -4,6 +4,7 @@
 # Like pi-planner it has NO write/edit — it never touches repo source, only Linear.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PATH="$DIR:$PATH"
 . "$DIR/lib/pi-model-env.sh"
 pi_model_override_args spike-breakdown "spike" "$@"
 YOLO=""

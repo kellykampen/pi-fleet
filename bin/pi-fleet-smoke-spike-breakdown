@@ -17,6 +17,10 @@ PROFILE="$ROOT/profiles/spike-breakdown/profile.yml"
 WRAPPER="$ROOT/bin/pi-spike-breakdown"
 SKILL="$ROOT/skills/spike-breakdown/SKILL.md"
 AGENT="$ROOT/agents/spike-breakdown.md"
+INTERVIEW_WRAPPER="$ROOT/bin/pi-fleet-spike-interview"
+INTERVIEW_PACKAGE="$ROOT/tools/agent-interview-cli/package.json"
+INTERVIEW_LOCK="$ROOT/tools/agent-interview-cli/package-lock.json"
+INTERVIEW_DOC="$ROOT/docs/spike-interviews.md"
 
 # 1. Profile exists, has the right id, skills, and linear extension.
 if [ -f "$PROFILE" ]; then ok "profile.yml exists"; else no "profile.yml missing"; fi
@@ -32,6 +36,7 @@ if [ -x "$WRAPPER" ]; then ok "wrapper is executable"; else no "wrapper missing/
 has "$WRAPPER" -- '--profile spike-breakdown' && ok "wrapper targets profile" || no "wrapper targets profile"
 has "$WRAPPER" -- 'bash'                       && ok "wrapper has bash (linear-cli)" || no "wrapper missing bash"
 has "$WRAPPER" -- 'linear_get_issue'           && ok "wrapper has linear read" || no "wrapper missing linear read"
+has "$WRAPPER" 'PATH="$DIR:$PATH"'              && ok "fleet interview helper is on PATH" || no "fleet interview helper missing from PATH"
 TOOLS_LINE="$(grep -oE -- '--tools [^\"]+' "$WRAPPER" || true)"
 case "$TOOLS_LINE" in
   *,write,*|*,write|*write,*) no "wrapper allowlist leaks write" ;;
@@ -48,15 +53,44 @@ has "$AGENT" 'name: spike-breakdown' && ok "agent front-matter name" || no "agen
 
 # 4. The behavioral contract the AC cares about is documented somewhere in the seat's text.
 CONTRACT="$PROFILE $SKILL $AGENT"
-grep -qiE 'Spike'            $CONTRACT && ok "spike label filtering documented"        || no "spike label filtering documented"
-grep -qi  'interview'        $CONTRACT && ok "interview mechanism documented"          || no "interview mechanism documented"
-grep -qi  'claude-conductor' $CONTRACT && ok "claude-conductor relay channel documented" || no "claude-conductor relay channel documented"
-grep -qi  'AskUserQuestion'  $CONTRACT && ok "AskUserQuestion channel documented"      || no "AskUserQuestion channel documented"
-grep -qE  '3 ?pt|<=3|≤3'     $CONTRACT && ok "<=3-point rule documented"               || no "<=3-point rule documented"
-grep -q   -- '- \[ \]'       $CONTRACT && ok "checkbox AC documented"                  || no "checkbox AC documented"
-grep -qi  'blocker'          $CONTRACT && ok "blockers/dependencies documented"        || no "blockers/dependencies documented"
+grep -qiE 'Spike'                  $CONTRACT && ok "spike label filtering documented"       || no "spike label filtering documented"
+grep -qi  'agent-interview-cli'    $CONTRACT && ok "browser interview CLI documented"       || no "browser interview CLI missing"
+grep -qi  'direct browser'         $CONTRACT && ok "direct browser is primary"               || no "direct browser primary missing"
+if grep -qiE 'claude-conductor|AskUserQuestion|interview-linear' $CONTRACT; then
+  no "retired conductor/AskUserQuestion/interview-linear relay remains"
+else
+  ok "retired relay mechanisms absent"
+fi
+grep -qiE 'stable (question |decision )?IDs?' $CONTRACT && ok "stable decision IDs documented" || no "stable decision IDs missing"
+grep -qiE 'critical.*minor|minor.*critical' $CONTRACT && ok "decision weights documented"      || no "decision weights missing"
+grep -qi  'conviction'             $CONTRACT && ok "decision conviction documented"          || no "decision conviction missing"
+grep -qiE 'before (any )?decompos|before draft' $CONTRACT && ok "audit-before-decomposition gate" || no "audit-before-decomposition gate missing"
+grep -qiE 'cancelled.*timeout|timeout.*cancelled' $CONTRACT && ok "cancel/timeout behavior documented" || no "cancel/timeout behavior missing"
+grep -qE  '3 ?pt|<=3|≤3'           $CONTRACT && ok "<=3-point rule documented"              || no "<=3-point rule documented"
+grep -q   -- '- \[ \]'             $CONTRACT && ok "checkbox AC documented"                 || no "checkbox AC documented"
+grep -qi  'blocker'                $CONTRACT && ok "blockers/dependencies documented"       || no "blockers/dependencies documented"
 
-# 5. If outfitter is on PATH, confirm it can load the profile (best-effort; skipped otherwise).
+# 5. The CLI is repo-local, exact-version pinned, and routed through the audit wrapper.
+if [ -x "$INTERVIEW_WRAPPER" ]; then ok "interview audit wrapper is executable"; else no "interview audit wrapper missing/not executable"; fi
+has "$SKILL" 'pi-fleet-spike-interview run' && ok "skill invokes fleet interview wrapper" || no "skill does not invoke fleet interview wrapper"
+node -e '
+  const fs = require("fs");
+  try {
+    const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const lock = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+    if (pkg.dependencies?.["agent-interview-cli"] !== "0.1.0") process.exit(1);
+    const pinned = lock.packages?.["node_modules/agent-interview-cli"];
+    if (pinned?.version !== "0.1.0" || !pinned.integrity) process.exit(1);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+' "$INTERVIEW_PACKAGE" "$INTERVIEW_LOCK" 2>/dev/null \
+  && ok "agent-interview-cli 0.1.0 exact pin + integrity lock" \
+  || no "agent-interview-cli pin/lock invalid"
+[ -f "$INTERVIEW_DOC" ] && ok "spike interview audit/install doc exists" || no "spike interview audit/install doc missing"
+
+# 6. If outfitter is on PATH, confirm it can load the profile (best-effort; skipped otherwise).
 if command -v outfitter >/dev/null 2>&1; then
   if outfitter profile list 2>/dev/null | grep -q spike-breakdown; then
     ok "outfitter lists the profile"
