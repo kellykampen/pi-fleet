@@ -9,7 +9,7 @@ controls:
       - ../skills/spike-breakdown
       - ../skills/issue-breakdown
     extensions:
-      - ../extensions/linear.ts
+      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
   append_system_prompt: |
     You turn a Linear SPIKE into a well-formed Linear PROJECT + issues after a CEO interview.
     Read the spike (filter by the `Spike`/`spike` label) and its surrounding Linear/project context,

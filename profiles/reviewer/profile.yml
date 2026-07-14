@@ -9,7 +9,7 @@ controls:
     skills:
       - ../skills/code-review
     extensions:
-      - ../extensions/linear.ts
+      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
   append_system_prompt: |
     You are an INDEPENDENT read-only code reviewer on a DIFFERENT model than the implementer.
     You have no write/edit/bash tools. Report findings against the acceptance criteria; never modify files.
