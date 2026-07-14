@@ -1,0 +1,87 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+function fail(message) {
+  process.stderr.write(`fleet-note: ${message}\n`);
+  process.exit(1);
+}
+
+function contained(root, candidate) {
+  const rel = path.relative(root, candidate);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+}
+
+const ORCHESTRATION_DOCUMENTS = new Set([
+  ".claude/orchestration/ORCHESTRATION-HANDOFF.md",
+  ".claude/orchestration/MORNING-ESCALATIONS.md",
+  ".claude/orchestration/ORCHESTRATOR-PLAYBOOK.md",
+]);
+
+function approved(relativePath) {
+  if (relativePath.includes("\\")) return false;
+  const parts = path.normalize(relativePath).split("/");
+  const normalizedPath = parts.join("/");
+  return ORCHESTRATION_DOCUMENTS.has(normalizedPath) || (parts[0] === "coordination" && parts.length > 1);
+}
+
+function nearestExistingParent(candidate) {
+  let current = candidate;
+  while (!fs.existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) return current;
+    current = parent;
+  }
+  return current;
+}
+
+const [operation, requestedPath, content, ...extra] = process.argv.slice(2);
+if (extra.length > 0 || !["append", "write"].includes(operation) || requestedPath === undefined || content === undefined) {
+  fail("usage: fleet-note append|write <relative-path> <content>");
+}
+
+const configuredRoot = process.env.FLEET_COORDINATION_ROOT;
+if (!configuredRoot) fail("FLEET_COORDINATION_ROOT is not set by the seat launcher");
+if (!fs.existsSync(configuredRoot)) fail("coordination root does not exist");
+
+const root = fs.realpathSync(configuredRoot);
+if (path.isAbsolute(requestedPath)) fail("absolute paths are not allowed");
+const rawParts = requestedPath.split(/[\\/]/u);
+if (rawParts.includes("..")) fail("parent traversal is not allowed");
+if (!approved(requestedPath)) fail("target is outside the coordination-document allowlist");
+
+const target = path.resolve(root, requestedPath);
+if (!contained(root, target) || target === root) fail("target escapes the coordination root");
+
+const parent = path.dirname(target);
+const existingAncestor = nearestExistingParent(parent);
+const canonicalAncestor = fs.realpathSync(existingAncestor);
+if (!contained(root, canonicalAncestor)) fail("target parent resolves outside the coordination root");
+
+if (fs.existsSync(target)) {
+  const targetStat = fs.lstatSync(target);
+  if (targetStat.isSymbolicLink()) fail("symlink targets are not writable coordination documents");
+  const canonicalTarget = fs.realpathSync(target);
+  if (!contained(root, canonicalTarget)) fail("target resolves outside the coordination root");
+}
+
+fs.mkdirSync(parent, { recursive: true });
+const canonicalParent = fs.realpathSync(parent);
+if (!contained(root, canonicalParent)) fail("created parent resolves outside the coordination root");
+
+const constants = fs.constants;
+const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW |
+  (operation === "append" ? constants.O_APPEND : constants.O_TRUNC);
+let descriptor;
+try {
+  descriptor = fs.openSync(target, flags, 0o600);
+  fs.writeFileSync(descriptor, `${content}\n`, { encoding: "utf8" });
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
+} finally {
+  if (descriptor !== undefined) fs.closeSync(descriptor);
+}
+
+process.stdout.write(`${operation}d ${requestedPath}\n`);

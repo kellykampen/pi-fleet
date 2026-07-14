@@ -7,11 +7,15 @@
 # --remote-control (alias --rc). The session name (default "claude-conductor") is what shows
 # in the Claude Code mobile "Sessions" list; override with CONDUCTOR_NAME.
 set -euo pipefail
-
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAME="${CONDUCTOR_NAME:-claude-conductor}"
 
-# YOLO: autonomous fleets set FLEET_YOLO=1 so the conductor drives cmux/bash without prompts.
-# Default (unset) is safe/interactive.
-YOLO=""; [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--dangerously-skip-permissions"
-
-exec claude --remote-control "$NAME" $YOLO "$@"
+# The hook is the authoritative Bash boundary. Native dontAsk + allow rules suppress prompts for
+# known-good orchestration commands; disallowedTools removes direct file mutation entirely.
+export PI_FLEET_ROOT="$DIR"
+export FLEET_COORDINATION_ROOT="$(pwd -P)"
+export PATH="$DIR/bin:$PATH"
+exec claude --remote-control "$NAME" \
+  --settings "$DIR/claude-settings/conductor.json" \
+  --disallowedTools "Edit Write NotebookEdit" \
+  "$@"

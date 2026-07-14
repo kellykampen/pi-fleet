@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# claude-project-lead — project lead on the Claude harness (Opus by default).
+#
+# A lead DELEGATES: it casts worker/reviewer/AC seats via cmux, drives the PR merge queue
+# (gh + linear-cli), and holds the QC gates. It does not do the bulk of the coding itself.
+# Like other non-Conductor seats it does NOT connect to the mobile app (remoteControlAtStartup=false).
+#
+# Model override: LEAD_MODEL (default opus). FLEET_YOLO never bypasses this restricted seat.
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MODEL="${LEAD_MODEL:-opus}"
+
+# Project leads retain integration-only merge verbs; the seat-specific hook denies implementation.
+export PI_FLEET_ROOT="$DIR"
+export FLEET_COORDINATION_ROOT="$(pwd -P)"
+export PATH="$DIR/bin:$PATH"
+exec claude --model "$MODEL" \
+  --settings "$DIR/claude-settings/project-lead.json" \
+  --disallowedTools "Edit Write NotebookEdit" \
+  --append-system-prompt "$(cat "$DIR/skills/project-lead/SKILL.md")" \
+  "$@"

@@ -15,6 +15,12 @@ FAKE_BIN="$(mktemp -d)"
 FAKE_HOME="$(mktemp -d)"
 trap 'rm -rf "$FAKE_BIN" "$FAKE_HOME"' EXIT
 
+# pi-conductor's runtime (FLT-52) hard-requires @gotgenes/pi-permission-system under the
+# resolved agent dir before it will run at all. Stub a resolvable package dir under this
+# sandbox's HOME so the conductor wrapper can complete setup here rather than failing on a
+# precondition this smoke test isn't exercising.
+mkdir -p "$FAKE_HOME/.pi/agent/npm/node_modules/@gotgenes/pi-permission-system"
+
 cat > "$FAKE_BIN/outfitter" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$@"

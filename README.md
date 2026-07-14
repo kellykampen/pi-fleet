@@ -96,8 +96,9 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  [env model args] -
 | **`pi-planner`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Breaks a feature into a Linear project + ≤3-pt issues with checkbox AC + blockers. |
 | **`pi-spike-breakdown`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Turns a Linear **spike** into a Linear project + ≤3-pt issues. Its primary interview channel is pinned `agent-interview-cli` opening a direct browser form. Stable decisions and exact answers are persisted and posted to the source spike before decomposition; cancellation/timeout/non-interactive fallback fails loudly. See [spike interviews](docs/spike-interviews.md). Reads Linear + repo; no repo `write`/`edit`. |
 | **`pi-security-reviewer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. Strong reasoning default. |
-| **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Cross-project router — assigns **project leads**, watches portfolio health, escalates to the CEO. Does not cast workers. |
-| **`claude-conductor`** | Claude Code (`--remote-control`) | *(no allowlist — same tool surface as `claude`)* | Thin wrapper that launches Claude Code with `--remote-control` so the CEO can reach the Conductor from the Claude Code **mobile app**. Every other Claude seat has `remoteControlAtStartup=false`; this is the one session that opts back in. Session name defaults to `claude-conductor`, override with `CONDUCTOR_NAME`. `FLEET_YOLO=1` gates `--dangerously-skip-permissions`, same convention as the other wrappers. |
+| **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear *(no write/edit)* | Cross-project router with a default-deny command policy. It can orchestrate seats and update validated coordination notes through `fleet-note`, but cannot clone, build, run arbitrary scripts, or mutate source. |
+| **`claude-conductor`** | Claude Code (`--remote-control`) | Read/Grep/Glob + conductor-only Bash allowlist *(no Write/Edit)* | CEO-facing conductor with an authoritative fail-closed `PreToolUse` hook. It cannot use merge-flow commands; `FLEET_YOLO` cannot bypass the boundary. |
+| **`claude-project-lead`** | Claude Code (Opus by default) | Read/Grep/Glob + lead Bash allowlist *(no Write/Edit)* | Native project lead: orchestration plus narrow develop integration (`fetch`, ff-only pull, checkout/switch develop, merge/push, PR merge/comment, and worktree lifecycle). Build/install/script commands remain blocked. |
 | **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Owns one project — routes each task to the right worker + model (via **model-classifier**), casts seats, holds QC gates. |
 | **`pi-visual-qa`** | GPT-5.6 Terra (`openai-codex`) · medium | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. Taste/visual default. |
 | **`pi-linear`** | GPT-5.5 (`openai-codex`) · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
@@ -155,7 +156,7 @@ make sure they're on `PATH`:
 | `pi-remotion` | `node`/`npm` + [Remotion](https://www.remotion.dev) (`npx remotion`) |
 | `pi-personal-assistant` | your own CLIs on `PATH`: `finch` (X), `gog` (Google), `imsg` (iMessage), `wacli` (WhatsApp), `obsidian-cli`, `ntn` (Notion), `linear-cli`, `gh`/`git`. **Not bundled** — supply your own; the profile only orchestrates them under a draft→approve→execute gate. |
 | `pi-docs` | `git`, `gh` (to read the PR diff) |
-| `claude-designer`, `claude-reviewer`, `claude-worker`, `claude-conductor` | [Claude Code](https://claude.com/claude-code) (`claude`), authenticated. `claude-designer` also needs a one-time `/design-login`. |
+| `claude-designer`, `claude-reviewer`, `claude-worker`, `claude-conductor`, `claude-project-lead` | [Claude Code](https://claude.com/claude-code) (`claude`), authenticated. `claude-designer` also needs a one-time `/design-login`. |
 | `agy-researcher`, `agy-reviewer`, `agy-worker` | Disabled by roster lock; use `claude-*` or `pi-*` seats instead. |
 
 Read-only seats (`pi-reviewer` etc.) deliberately have **no `bash`**, so they need nothing extra.
@@ -317,11 +318,12 @@ The security boundary is the wrapper's `--tools` line — a read-only seat simpl
 
 ## Permissions (no click-ops on fleet seats)
 
-Fleet seats should not stop for “Permission Required” dialogs. Policy lives in:
-
-- Global: `permission-system/config.json` (bootstrapped into `~/.pi/agent/...`)
-- Project: `.pi/extensions/pi-permission-system/config.json` (**yoloMode** + allow; denials for `.env` / ssh)
-- Subagent frontmatter: `agents/project-lead.md`, `agents/conductor.md`
+Fleet seats should not stop for “Permission Required” dialogs. General Pi policy lives in the
+bootstrapped global/project config and subagent frontmatter. `pi-conductor` is stricter: its wrapper
+loads `permission-system/conductor.json` from an isolated agent overlay and dedicated policy cwd,
+then applies an immutable command gate so a permissive caller-project config cannot weaken it.
+Claude conductor/lead wrappers load separate `claude-settings/*.json` files; their seat-specific
+`PreToolUse` hook is authoritative and fails closed on unknown or compound commands.
 
 Details: [`docs/permissions.md`](./docs/permissions.md). **One project lead per project workspace.**
 

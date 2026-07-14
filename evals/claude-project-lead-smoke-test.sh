@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Deterministic wrapper smoke: mock Claude and assert the conductor restriction wiring.
+# Deterministic wrapper smoke: mock Claude and assert the project-lead restriction wiring.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WRAPPER="$DIR/bin/claude-conductor"
+WRAPPER="$DIR/bin/claude-project-lead"
 FAKE_BIN="$(mktemp -d)"
 trap 'rm -rf "$FAKE_BIN"' EXIT
 
@@ -27,19 +27,17 @@ rejects() {
   if printf '%s\n' "$output" | grep -Fqx -- "$value"; then no "$desc (found: $value)"; else ok "$desc"; fi
 }
 
-[ -x "$WRAPPER" ] && ok "wrapper is executable" || no "wrapper is executable"
-out=$(cd /tmp && env -u FLEET_YOLO -u CONDUCTOR_NAME PATH="$FAKE_BIN:$PATH" "$WRAPPER" --extra flag)
-contains "remote control enabled" "ARG=--remote-control" "$out"
-contains "default session name" "ARG=claude-conductor" "$out"
-contains "conductor settings loaded" "ARG=$DIR/claude-settings/conductor.json" "$out"
+out=$(cd /tmp && env -u FLEET_YOLO LEAD_MODEL=opus PATH="$FAKE_BIN:$PATH" "$WRAPPER" --extra flag)
+contains "lead model retained" "ARG=opus" "$out"
+contains "project-lead settings loaded" "ARG=$DIR/claude-settings/project-lead.json" "$out"
 contains "mutation tools disallowed" "ARG=Edit Write NotebookEdit" "$out"
 contains "fleet root exported for hook" "PI_FLEET_ROOT=$DIR" "$out"
 contains "launch cwd is coordination root" "FLEET_COORDINATION_ROOT=$(cd /tmp && pwd -P)" "$out"
 contains "fleet-note directory is prepended to PATH" "PATH=$DIR/bin:$FAKE_BIN:$PATH" "$out"
+contains "project-lead prompt loaded" "ARG=$(cat "$DIR/skills/project-lead/SKILL.md")" "$out"
 contains "extra args forwarded" "ARG=--extra" "$out"
 
-out=$(cd /tmp && CONDUCTOR_NAME=my-session FLEET_YOLO=1 PATH="$FAKE_BIN:$PATH" "$WRAPPER")
-contains "session override retained" "ARG=my-session" "$out"
+out=$(cd /tmp && FLEET_YOLO=1 PATH="$FAKE_BIN:$PATH" "$WRAPPER")
 rejects "permission bypass is impossible even with FLEET_YOLO" "ARG=--dangerously-skip-permissions" "$out"
 
 echo "---"
