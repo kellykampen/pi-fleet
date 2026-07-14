@@ -44,6 +44,12 @@ done
 ISSUES=0
 note_issue() { ISSUES=$((ISSUES + 1)); }
 have() { command -v "$1" >/dev/null 2>&1; }
+have_node_20() {
+  local major=""
+  have node && have npm || return 1
+  major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)"
+  [ -n "$major" ] && [ "$major" -ge 20 ] 2>/dev/null
+}
 have_pinned_interview_cli() {
   [ -x "$INTERVIEW_BIN" ] && [ "$("$INTERVIEW_BIN" --version 2>/dev/null)" = "0.1.0" ]
 }
@@ -98,11 +104,11 @@ echo "-- Core CLIs --"
 if [ "$HAVE_BREW" = "1" ]; then
   maybe_install "git" "have git" "brew install git" "install via your OS package manager or https://git-scm.com"
   maybe_install "gh (GitHub CLI)" "have gh" "brew install gh" "install from https://cli.github.com"
-  maybe_install "node/npm" "have node && have npm" "brew install node" "install from https://nodejs.org"
+  maybe_install "node 20+/npm" "have_node_20" "brew install node" "install Node.js 20+ from https://nodejs.org"
 else
   maybe_install "git" "have git" "" "install via your OS package manager or https://git-scm.com"
   maybe_install "gh (GitHub CLI)" "have gh" "" "install from https://cli.github.com"
-  maybe_install "node/npm" "have node && have npm" "" "install from https://nodejs.org"
+  maybe_install "node 20+/npm" "have_node_20" "" "install Node.js 20+ from https://nodejs.org"
 fi
 maybe_install "pi (coding agent)" "have pi" "" "install from https://pi.dev — no automated installer available here"
 maybe_install "outfitter" "have outfitter" "npm install -g @ai-outfitter/outfitter" \

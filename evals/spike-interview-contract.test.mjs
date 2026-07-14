@@ -96,6 +96,18 @@ test("marks a nominally completed interview partial when a decision has no answe
   assert.equal(payload.decompositionGate, "BLOCKED");
 });
 
+test("keeps the gate blocked when a recorded answer does not match the decision options", () => {
+  const responses = [
+    { id: "architectural-001", value: "Unlisted service" },
+    { id: "product-001", value: ["CLI", "Desktop"] },
+  ];
+  const payload = buildAuditPayload(questions, { status: "completed", responses }, metadata);
+
+  assert.equal(payload.status, "partial");
+  assert.equal(payload.decompositionGate, "BLOCKED");
+  assert.deepEqual(payload.responses, responses, "invalid answers remain auditable");
+});
+
 test("preserves partial answers for cancelled and timeout interviews", () => {
   for (const status of ["cancelled", "timeout"]) {
     const responses = [{ id: "architectural-001", value: "Service" }];

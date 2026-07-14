@@ -88,6 +88,9 @@ exit 0
 EOF
 cat > "$FAKE_BIN_FULL/node" <<'EOF'
 #!/usr/bin/env bash
+if [ "${1:-}" = "-p" ]; then
+  printf '22\n'
+fi
 exit 0
 EOF
 cat > "$FAKE_BIN_FULL/npm"  <<'EOF'
@@ -133,6 +136,7 @@ out=$(env -i HOME="$FAKE_HOME" PATH="$FAKE_BIN_FULL:$MINIMAL_PATH" \
   PI_FLEET_INTERVIEW_TOOL_DIR="$INTERVIEW_TOOL_FULL" "$SCRIPT" --check 2>&1) && rc=0 || rc=$?
 check "--check with everything present exits 0" "0" "$rc"
 check_contains "--check reports OK git" "$out" "[OK]      git"
+check_contains "--check reports OK Node 20+" "$out" "[OK]      node 20+/npm"
 check_contains "--check reports OK pi-permission-system package" "$out" "[OK]      @gotgenes/pi-permission-system (pi package)"
 check_contains "--check reports OK pinned interview CLI" "$out" "[OK]      agent-interview-cli@0.1.0 (repo-local)"
 check_contains "--check reports OK gh auth" "$out" "[OK]      gh (GitHub CLI) authenticated"

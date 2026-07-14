@@ -23,11 +23,15 @@ function optionLabel(option) {
   return typeof option === "string" ? option : option?.label;
 }
 
-function hasAnswer(response) {
+function hasValidAnswer(question, response) {
   if (!response || !("value" in response)) return false;
-  if (typeof response.value === "string") return response.value.trim().length > 0;
-  if (Array.isArray(response.value)) return response.value.length > 0;
-  return response.value !== null && response.value !== undefined;
+  const labels = question.options.map(optionLabel);
+  if (question.type === "single") {
+    return typeof response.value === "string" && labels.includes(response.value);
+  }
+  return Array.isArray(response.value)
+    && response.value.length > 0
+    && response.value.every((value) => labels.includes(value));
 }
 
 export function validateQuestions(input) {
@@ -127,8 +131,10 @@ export function buildAuditPayload(questionInput, result, metadata) {
   const questionIds = new Set(validatedQuestions.questions.map((question) => question.id));
   validateResult(result, questionIds);
 
-  const answeredIds = new Set(result.responses.filter(hasAnswer).map((response) => response.id));
-  const allAnswered = validatedQuestions.questions.every((question) => answeredIds.has(question.id));
+  const responsesById = new Map(result.responses.map((response) => [response.id, response]));
+  const allAnswered = validatedQuestions.questions.every((question) =>
+    hasValidAnswer(question, responsesById.get(question.id))
+  );
   const status = result.status === "completed" && !allAnswered ? "partial" : result.status;
 
   return {

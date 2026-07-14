@@ -96,7 +96,7 @@ The primary channel is `agent-interview-cli/browser`. Asynchronously recorded an
 `OPEN` requires all of the following:
 
 1. status is `completed`;
-2. every decision has a non-empty response;
+2. every decision has a response matching its declared option set;
 3. the local JSON/Markdown audit is persisted;
 4. the structured Linear comment is posted successfully.
 

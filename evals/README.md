@@ -65,6 +65,26 @@ paths from the wrapper location. It also checks remaining profile-managed Linear
 stay portable (`../extensions/linear.ts`) and that profiles contain no machine-specific `/Users/...`
 paths.
 
+## Spike direct-browser interview contract
+
+These checks cover the `spike-breakdown` interview path without opening a browser or writing to
+Linear:
+
+```bash
+node --test evals/spike-interview-contract.test.mjs
+evals/pi-spike-interview-smoke-test.sh
+bin/pi-fleet-smoke-spike-breakdown
+evals/setup-sh-smoke-test.sh
+```
+
+The Node contract tests validate stable decision IDs, recommendations with reasoning/context,
+weights, exact response preservation, and the audit comment payload. The shell integration test uses
+scratch fake browser/Linear CLIs to prove completed, cancelled-with-partial-answer, watchdog timeout,
+non-interactive fallback, async recording, and Linear-write-failure behavior. The seat smoke checks
+that no retired relay mechanism remains and that `agent-interview-cli@0.1.0` is exact-pinned with an
+integrity lock. Real browser completion still requires a human and is never represented by these
+mocked checks.
+
 ## Bash-command policy eval
 
 `@gotgenes/pi-permission-system` enforces per-command policy (`git *: allow`, `rm -rf *: deny`, …)
