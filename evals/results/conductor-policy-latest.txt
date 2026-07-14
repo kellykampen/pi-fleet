@@ -5,6 +5,11 @@ conductor-policy eval
   uptime sentinel                      -> RAN
   git -C read sentinel                 -> RAN
   git -C merge sentinel                -> BLOCKED
+  transport RCE control (without hook) -> LIVE
+  lead fetch transport RCE sentinel    -> BLOCKED
+  lead pull transport RCE sentinel     -> BLOCKED
+  lead push transport RCE sentinel     -> BLOCKED
+  legitimate lead git flow             -> ALLOWED
   git clone sentinel                   -> BLOCKED
   git clone output                     -> ABSENT
   npm ci sentinel                      -> BLOCKED

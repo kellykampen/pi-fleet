@@ -35,7 +35,7 @@ test("allows the conductor orchestration and read command set", () => {
     "wc -l README.md",
     "find . -maxdepth 2 -type f",
     "jq -r .state issue.json",
-    "fleet-note append MORNING-ESCALATIONS.md status",
+    "fleet-note append .claude/orchestration/MORNING-ESCALATIONS.md status",
   ]) allow(command);
 });
 
@@ -43,10 +43,12 @@ test("allows lead-only integration, worktree, and evidence commands", () => {
   for (const command of [
     "git checkout develop",
     "git switch develop",
-    "git fetch --prune origin",
+    "git fetch origin",
+    "git fetch --prune origin develop",
     "git pull --ff-only origin develop",
+    "git push origin HEAD",
+    "git merge FETCH_HEAD",
     "git merge --no-edit feature/FLT-52",
-    "git push origin develop",
     "git worktree list",
     "git worktree add .worktrees/flt-52 -b flt-52 develop",
     "git worktree remove .worktrees/flt-52",
@@ -85,6 +87,36 @@ test("allows git -C only when followed by a read-only subcommand", () => {
   }
 });
 
+test("blocks lead git transport execution and unsafe remotes", () => {
+  for (const command of [
+    'git fetch --upload-pack="touch /tmp/fetch-rce;git-upload-pack" .',
+    'git fetch --upload-pack "touch /tmp/fetch-rce;git-upload-pack" origin',
+    'git fetch --upload-pack="touch /tmp/fetch-rce;git-upload-pack" origin',
+    'git fetch -u="touch /tmp/fetch-rce;git-upload-pack" origin',
+    'git fetch -u "touch /tmp/fetch-rce;git-upload-pack" origin',
+    'git pull --ff-only --upload-pack="touch /tmp/pull-rce;git-upload-pack" .',
+    'git push --receive-pack="touch /tmp/push-rce" . develop',
+    'git push --receive-pack "touch /tmp/push-rce" origin develop',
+    'git push --exec="touch /tmp/push-rce" origin develop',
+    "git fetch .",
+    "git fetch ../repo",
+    "git fetch file:///repo",
+    "git fetch 'ext::sh -c id'",
+    "git pull --ff-only . develop",
+    "git push . develop",
+    "git fetch upstream",
+    "git pull --ff-only upstream develop",
+    "git push upstream develop",
+    "git fetch origin --unknown-option",
+    "git pull --ff-only origin develop extra-ref",
+    "git push origin",
+    "git push origin HEAD extra-ref",
+    "git merge --strategy=evil feature/FLT-52",
+    "git merge /tmp/local-repo",
+    "git merge file:///repo",
+  ]) deny(command, "lead");
+});
+
 test("denies lead-only integration commands to the conductor", () => {
   for (const command of [
     "git checkout develop",
@@ -119,6 +151,8 @@ test("denies implementation, research runtimes, and reviewer-only actions to bot
       "sh script.sh",
       "sed -i '' s/a/b/ source.ts",
       "tee source.ts",
+      "fleet-note write src/deep/HANDOFF bad",
+      "fleet-note write .claude/orchestration/OTHER-HANDOFF.md bad",
       "gh pr review 42 --approve",
       "git diff --output=bin/foo.sh HEAD",
       "git diff --ext-diff HEAD",

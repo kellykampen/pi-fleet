@@ -43,9 +43,12 @@ The helper receives its root from the launcher, not from model arguments. It sup
 `write`, rejects absolute paths and `..`, resolves existing parents and targets, rejects symlink escapes,
 and permits only:
 
-- names containing `HANDOFF`;
-- names ending in `ESCALATIONS.md`;
+- `.claude/orchestration/ORCHESTRATION-HANDOFF.md`;
+- `.claude/orchestration/MORNING-ESCALATIONS.md`;
+- `.claude/orchestration/ORCHESTRATOR-PLAYBOOK.md`;
 - files below `coordination/`.
+
+Matching basenames elsewhere in the project tree are not writable.
 
 This is the only direct write path for these restricted seats.
 
@@ -67,8 +70,11 @@ request itself and fails closed. Outside quoted `cmux send` message payloads, on
 atomic command. Compounds, pipelines, redirects, substitutions, interpreter/indirection wrappers, unknown
 executables, and parse failures are blocked. For both seats, `git -C <path>` is accepted only when the
 parsed subcommand is read-only (`status`, `log`, `diff`, `show`, `rev-parse`, or listing branches); `-C`
-never enables checkout, commit, fetch, pull, merge, push, or worktree operations. `FLEET_YOLO` does not add
-Claude's permission-bypass flag to these wrappers.
+never enables checkout, commit, fetch, pull, merge, push, or worktree operations. Lead integration verbs are
+also shape-restricted: network operations target only `origin`, pull requires `--ff-only`, push carries one
+ref, merge carries one local ref, and Git transport/executable override options are denied. Unexpected hook
+exceptions exit with Claude's blocking status instead of failing open. `FLEET_YOLO` does not add Claude's
+permission-bypass flag to these wrappers.
 
 ## New project setup
 

@@ -154,18 +154,68 @@ function worktreePath(args, operation) {
   return undefined;
 }
 
+const FORBIDDEN_GIT_EXEC_OPTIONS = ["--upload-pack", "--receive-pack", "--exec"];
+const FETCH_OPTIONS = new Set(["--prune", "--tags", "--no-tags", "--force", "--quiet", "--verbose", "--dry-run", "-p", "-t", "-f", "-q", "-v"]);
+const PULL_OPTIONS = new Set(["--ff-only", "--quiet", "--verbose", "--dry-run", "-q", "-v"]);
+const PUSH_OPTIONS = new Set(["--dry-run", "--porcelain", "--quiet", "--verbose", "-n", "-q", "-v"]);
+const MERGE_OPTIONS = new Set(["--no-edit", "--ff-only", "--no-ff", "--squash", "--commit", "--no-commit", "--quiet", "--verbose", "--stat", "--no-stat", "-q", "-v"]);
+
+function hasGitExecutableOption(args) {
+  return args.some((arg) =>
+    FORBIDDEN_GIT_EXEC_OPTIONS.some((option) => arg === option || arg.startsWith(`${option}=`)) ||
+    arg === "-u" || arg.startsWith("-u=") || /^-u[^-]/u.test(arg)
+  );
+}
+
+function isSafeGitRef(value) {
+  return (
+    typeof value === "string" &&
+    !value.startsWith("-") &&
+    !value.includes("..") &&
+    !value.includes("::") &&
+    /^(?:\+)?[A-Za-z0-9][A-Za-z0-9._/-]*(?::[A-Za-z0-9][A-Za-z0-9._/-]*)?$/u.test(value)
+  );
+}
+
+function parseOriginOperation(args, allowedOptions) {
+  const refs = [];
+  let sawOrigin = false;
+  for (const arg of args) {
+    if (allowedOptions.has(arg)) continue;
+    if (arg.startsWith("-")) return undefined;
+    if (!sawOrigin) {
+      if (arg !== "origin") return undefined;
+      sawOrigin = true;
+      continue;
+    }
+    if (!isSafeGitRef(arg)) return undefined;
+    refs.push(arg);
+  }
+  return sawOrigin ? refs : undefined;
+}
+
 function allowLeadGit(args, cwd) {
   const subcommand = args[0];
   const rest = args.slice(1);
+  if (hasGitExecutableOption(rest)) return false;
   if (subcommand === "checkout" || subcommand === "switch") {
     return rest.length === 1 && rest[0] === "develop";
   }
-  if (subcommand === "fetch") return rest.length >= 0;
-  if (subcommand === "pull") {
-    return rest.includes("--ff-only") && !rest.some((arg) => arg === "--rebase" || arg === "--no-ff" || arg === "--squash");
+  if (subcommand === "fetch") {
+    return parseOriginOperation(rest, FETCH_OPTIONS) !== undefined;
   }
-  if (subcommand === "merge") return rest.length > 0;
-  if (subcommand === "push") return rest.length > 0;
+  if (subcommand === "pull") {
+    const refs = parseOriginOperation(rest, PULL_OPTIONS);
+    return rest.includes("--ff-only") && refs !== undefined && refs.length <= 1;
+  }
+  if (subcommand === "push") {
+    const refs = parseOriginOperation(rest, PUSH_OPTIONS);
+    return refs !== undefined && refs.length === 1;
+  }
+  if (subcommand === "merge") {
+    const refs = rest.filter((arg) => !MERGE_OPTIONS.has(arg));
+    return rest.every((arg) => MERGE_OPTIONS.has(arg) || isSafeGitRef(arg)) && refs.length === 1;
+  }
   if (subcommand !== "worktree") return false;
 
   const operation = rest[0];
@@ -183,12 +233,18 @@ function allowGh(args, seat) {
   return false;
 }
 
+const ORCHESTRATION_DOCUMENTS = new Set([
+  ".claude/orchestration/ORCHESTRATION-HANDOFF.md",
+  ".claude/orchestration/MORNING-ESCALATIONS.md",
+  ".claude/orchestration/ORCHESTRATOR-PLAYBOOK.md",
+]);
+
 function allowedCoordinationPath(pathValue) {
-  if (!pathValue || isAbsolute(pathValue)) return false;
-  const parts = normalize(pathValue).split(/[\\/]/u);
+  if (!pathValue || isAbsolute(pathValue) || pathValue.includes("\\")) return false;
+  const parts = normalize(pathValue).split("/");
   if (parts.includes("..")) return false;
-  const basename = parts.at(-1) ?? "";
-  return parts[0] === "coordination" || basename.includes("HANDOFF") || basename.endsWith("ESCALATIONS.md");
+  const normalizedPath = parts.join("/");
+  return ORCHESTRATION_DOCUMENTS.has(normalizedPath) || (parts[0] === "coordination" && parts.length > 1);
 }
 
 function allowFleetNote(tokens) {

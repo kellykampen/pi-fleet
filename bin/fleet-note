@@ -14,10 +14,17 @@ function contained(root, candidate) {
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
 }
 
+const ORCHESTRATION_DOCUMENTS = new Set([
+  ".claude/orchestration/ORCHESTRATION-HANDOFF.md",
+  ".claude/orchestration/MORNING-ESCALATIONS.md",
+  ".claude/orchestration/ORCHESTRATOR-PLAYBOOK.md",
+]);
+
 function approved(relativePath) {
-  const parts = path.normalize(relativePath).split(/[\\/]/u);
-  const basename = parts.at(-1) ?? "";
-  return parts[0] === "coordination" || basename.includes("HANDOFF") || basename.endsWith("ESCALATIONS.md");
+  if (relativePath.includes("\\")) return false;
+  const parts = path.normalize(relativePath).split("/");
+  const normalizedPath = parts.join("/");
+  return ORCHESTRATION_DOCUMENTS.has(normalizedPath) || (parts[0] === "coordination" && parts.length > 1);
 }
 
 function nearestExistingParent(candidate) {

@@ -79,3 +79,9 @@ test("Claude policies are separate, real dontAsk settings with authoritative hoo
   assert.match(conductor.hooks.PreToolUse[0].hooks[0].command, /claude-bash-policy-hook" conductor$/);
   assert.match(lead.hooks.PreToolUse[0].hooks[0].command, /claude-bash-policy-hook" lead$/);
 });
+
+
+test("Claude hook converts unexpected policy exceptions into blocking exit 2", async () => {
+  const source = await readFile(`${root}bin/lib/claude-bash-policy-hook.mjs`, "utf8");
+  assert.match(source, /try \{[\s\S]*evaluateCommand\([\s\S]*catch \{[\s\S]*process\.exit\(2\)/u);
+});
