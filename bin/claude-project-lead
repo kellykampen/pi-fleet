@@ -5,11 +5,17 @@
 # (gh + linear-cli), and holds the QC gates. It does not do the bulk of the coding itself.
 # Like other non-Conductor seats it does NOT connect to the mobile app (remoteControlAtStartup=false).
 #
-# Model override: LEAD_MODEL (default opus). YOLO: FLEET_YOLO=1 auto-approves (autonomous fleets).
+# Model override: LEAD_MODEL (default opus). FLEET_YOLO never bypasses this restricted seat.
 set -euo pipefail
-DIR="$HOME/code/pi-fleet"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODEL="${LEAD_MODEL:-opus}"
-YOLO=""; [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--dangerously-skip-permissions"
-exec claude --model "$MODEL" $YOLO \
+
+# Project leads retain integration-only merge verbs; the seat-specific hook denies implementation.
+export PI_FLEET_ROOT="$DIR"
+export FLEET_COORDINATION_ROOT="$(pwd -P)"
+export PATH="$DIR/bin:$PATH"
+exec claude --model "$MODEL" \
+  --settings "$DIR/claude-settings/project-lead.json" \
+  --disallowedTools "Edit Write NotebookEdit" \
   --append-system-prompt "$(cat "$DIR/skills/project-lead/SKILL.md")" \
   "$@"

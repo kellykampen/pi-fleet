@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash(cmux:*)",
+      "Bash(linear-cli:*)",
+      "Bash(\u0070eek:*)",
+      "Bash(check-model-usage:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git branch:*)",
+      "Bash(git -C:*)",
+      "Bash(git checkout develop:*)",
+      "Bash(git switch develop:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull --ff-only:*)",
+      "Bash(git merge:*)",
+      "Bash(git push:*)",
+      "Bash(git worktree list:*)",
+      "Bash(git worktree add:*)",
+      "Bash(git worktree remove:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(jq:*)",
+      "Bash(uptime:*)",
+      "Bash(fleet-note:*)"
+    ],
+    "deny": [
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "Bash(git clone:*)",
+      "Bash(git commit:*)",
+      "Bash(gh pr review:*)",
+      "Bash(npm:*)",
+      "Bash(pnpm:*)",
+      "Bash(yarn:*)",
+      "Bash(bun:*)",
+      "Bash(node:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(make:*)",
+      "Bash(cargo:*)",
+      "Bash(bash:*)",
+      "Bash(sh:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$PI_FLEET_ROOT/bin/claude-bash-policy-hook\" lead",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

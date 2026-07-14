@@ -6,12 +6,20 @@ FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
 "$FLEET_ROOT/bin/lib/scheduler-status.sh" || echo "pi-conductor: scheduler-status check failed, continuing" >&2
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
+. "$FLEET_ROOT/bin/lib/pi-conductor-runtime.sh"
 pi_model_override_args conductor "" "$@"
 YOLO=""
 [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--approve"
-# FLT-35: --no-extensions blocks machine-global package auto-discovery (e.g. @jl1990/pi-scheduler);
-# the explicit --extension flag below is unaffected and still loads.
+
+# Resolve the package before switching Pi to the isolated conductor agent/config overlay. The
+# dedicated policy cwd prevents a caller repo's project config from weakening conductor.json.
+pi_conductor_prepare_runtime "$FLEET_ROOT"
+
+# FLT-35: --no-extensions blocks machine-global package auto-discovery. Explicit extensions remain:
+# Linear orchestration, pi-permission-system, then the immutable caller-config override backstop.
 exec outfitter run --profile conductor --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
-  --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
+  --extension "$PI_PERMISSION_SYSTEM_PATH" \
+  --extension "$FLEET_ROOT/extensions/conductor-policy.ts" \
+  --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"

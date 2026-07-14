@@ -1,0 +1,12 @@
+conductor-policy eval
+  pi-conductor process                 -> completed
+  cmux workspace list sentinel         -> RAN
+  linear-cli read sentinel             -> RAN
+  git clone sentinel                   -> BLOCKED
+  git clone output                     -> ABSENT
+  npm ci sentinel                      -> BLOCKED
+  node build sentinel                  -> BLOCKED
+  caller bin/foo.sh                    -> BLOCKED
+  permissive caller config present     -> YES-DID-NOT-WEAKEN
+  claude-conductor smoke               -> PASS
+  VERDICT: PASS
