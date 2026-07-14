@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# claude-project-lead — project lead on the Claude harness (Opus by default).
+#
+# A lead DELEGATES: it casts worker/reviewer/AC seats via cmux, drives the PR merge queue
+# (gh + linear-cli), and holds the QC gates. It does not do the bulk of the coding itself.
+# Like other non-Conductor seats it does NOT connect to the mobile app (remoteControlAtStartup=false).
+#
+# Model override: LEAD_MODEL (default opus). YOLO: FLEET_YOLO=1 auto-approves (autonomous fleets).
+set -euo pipefail
+DIR="$HOME/code/pi-fleet"
+MODEL="${LEAD_MODEL:-opus}"
+YOLO=""; [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--dangerously-skip-permissions"
+exec claude --model "$MODEL" $YOLO \
+  --append-system-prompt "$(cat "$DIR/skills/project-lead/SKILL.md")" \
+  "$@"
