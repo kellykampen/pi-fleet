@@ -28,8 +28,23 @@ test("Pi conductor config allows orchestration and explicitly denies implementat
     "gh pr view *",
     "git status *",
     "cat *",
+    "jq *",
+    "uptime",
     "fleet-note *",
   ]) assert.equal(permission.bash[pattern], "allow", pattern);
+  for (const subcommand of ["status", "log", "diff", "show", "rev-parse"])
+    for (const suffix of ["", " *"])
+      assert.equal(
+        permission.bash[`git -C * ${subcommand}${suffix}`],
+        "allow",
+        `git -C * ${subcommand}${suffix}`,
+      );
+  for (const pattern of [
+    "git -C * branch",
+    "git -C * branch --list",
+    "git -C * branch --list *",
+  ])
+    assert.equal(permission.bash[pattern], "allow", pattern);
   for (const pattern of [
     "git clone *",
     "git checkout *",

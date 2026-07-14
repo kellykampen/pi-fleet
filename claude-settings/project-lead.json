@@ -8,7 +8,6 @@
       "Glob",
       "Bash(cmux:*)",
       "Bash(linear-cli:*)",
-      "Bash(\u0070eek:*)",
       "Bash(check-model-usage:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
@@ -41,7 +40,7 @@
       "Bash(wc:*)",
       "Bash(find:*)",
       "Bash(jq:*)",
-      "Bash(uptime:*)",
+      "Bash(uptime)",
       "Bash(fleet-note:*)"
     ],
     "deny": [

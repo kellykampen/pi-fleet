@@ -53,9 +53,9 @@ This is the only direct write path for these restricted seats.
 
 The wrappers load separate settings files:
 
-- `claude-settings/conductor.json` — orchestration and read commands only; merge flow denied.
+- `claude-settings/conductor.json` — orchestration, read commands, and zero-argument `uptime`; merge flow denied.
 - `claude-settings/project-lead.json` — the conductor set plus develop integration, PR merge/comment,
-  merge preparation, worktree lifecycle, and load inspection.
+  merge preparation, and worktree lifecycle.
 
 Both pass `--disallowedTools "Edit Write NotebookEdit"` and use the real Claude mode `dontAsk`, which
 auto-denies commands not pre-approved by native permissions. Native `permissions.allow` mainly suppresses
@@ -65,8 +65,10 @@ Claude Bash rules are prefix-based, so a command beginning with an allowed prefi
 second verb in a compound expression. The authoritative `PreToolUse` hook therefore parses every Bash
 request itself and fails closed. Outside quoted `cmux send` message payloads, one Bash call must contain one
 atomic command. Compounds, pipelines, redirects, substitutions, interpreter/indirection wrappers, unknown
-executables, and parse failures are blocked. `FLEET_YOLO` does not add Claude's permission-bypass flag to
-these wrappers.
+executables, and parse failures are blocked. For both seats, `git -C <path>` is accepted only when the
+parsed subcommand is read-only (`status`, `log`, `diff`, `show`, `rev-parse`, or listing branches); `-C`
+never enables checkout, commit, fetch, pull, merge, push, or worktree operations. `FLEET_YOLO` does not add
+Claude's permission-bypass flag to these wrappers.
 
 ## New project setup
 

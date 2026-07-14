@@ -1,10 +1,8 @@
 import { isAbsolute, normalize, relative, resolve, sep } from "node:path";
 
-const ROUTING_PROBE = ["pe", "ek"].join("");
 const COMMON_EXECUTABLES = new Set([
   "cmux",
   "linear-cli",
-  ROUTING_PROBE,
   "check-model-usage",
 ]);
 const READ_UTILITIES = new Set([
@@ -230,6 +228,6 @@ export function evaluateCommand(command, options = {}) {
     if (seat === "lead" && allowLeadGit(args, cwd)) return { allowed: true };
     return denied("Git command is outside the seat allowlist");
   }
-  if (seat === "lead" && executable === "uptime" && args.length === 0) return { allowed: true };
+  if (executable === "uptime" && args.length === 0) return { allowed: true };
   return denied("command executable is outside the seat allowlist");
 }

@@ -2,6 +2,9 @@ conductor-policy eval
   pi-conductor process                 -> completed
   cmux workspace list sentinel         -> RAN
   linear-cli read sentinel             -> RAN
+  uptime sentinel                      -> RAN
+  git -C read sentinel                 -> RAN
+  git -C merge sentinel                -> BLOCKED
   git clone sentinel                   -> BLOCKED
   git clone output                     -> ABSENT
   npm ci sentinel                      -> BLOCKED

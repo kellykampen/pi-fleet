@@ -3,7 +3,6 @@ import test from "node:test";
 
 import { evaluateCommand } from "../bin/lib/conductor-command-policy.mjs";
 
-const routingProbe = ["pe", "ek"].join("");
 const allow = (command, seat = "conductor", cwd = "/repo") =>
   assert.deepEqual(evaluateCommand(command, { seat, cwd }), { allowed: true });
 const deny = (command, seat = "conductor", cwd = "/repo") =>
@@ -14,7 +13,6 @@ test("allows the conductor orchestration and read command set", () => {
     "cmux workspace list --json",
     'cmux send --surface surface:12 "status && blockers"',
     "linear-cli issue get FLT-52",
-    `${routingProbe} --help`,
     "check-model-usage",
     "gh pr view 42",
     "gh pr list --state open",
@@ -27,7 +25,7 @@ test("allows the conductor orchestration and read command set", () => {
     "git rev-parse HEAD",
     "git branch",
     "git branch --list 'flt-*'",
-    "git -C /repo status --short",
+    "uptime",
     "cat README.md",
     "ls -la",
     "grep -n safety README.md",
@@ -41,7 +39,7 @@ test("allows the conductor orchestration and read command set", () => {
   ]) allow(command);
 });
 
-test("allows lead-only integration, worktree, evidence, and load commands", () => {
+test("allows lead-only integration, worktree, and evidence commands", () => {
   for (const command of [
     "git checkout develop",
     "git switch develop",
@@ -54,8 +52,37 @@ test("allows lead-only integration, worktree, evidence, and load commands", () =
     "git worktree remove .worktrees/flt-52",
     "gh pr merge 42 --merge",
     "gh pr comment 42 --body gate-passed",
-    "uptime",
   ]) allow(command, "lead");
+});
+
+test("allows git -C only when followed by a read-only subcommand", () => {
+  for (const seat of ["conductor", "lead"]) {
+    for (const command of [
+      "git -C /repo status",
+      "git -C /repo status --short",
+      "git -C ../repo log -5 --oneline",
+      "git -C '/repo with spaces' diff HEAD~1",
+      "git -C /repo show HEAD:README.md",
+      "git -C /repo rev-parse HEAD",
+      "git -C /repo branch",
+      "git -C /repo branch --list",
+      "git -C /repo branch --list 'flt-*'",
+    ])
+      allow(command, seat);
+
+    for (const command of [
+      "git -C /repo clone https://example.invalid/repo.git",
+      "git -C /repo checkout develop",
+      "git -C /repo switch develop",
+      "git -C /repo commit -am implementation",
+      "git -C /repo fetch origin",
+      "git -C /repo pull --ff-only origin develop",
+      "git -C /repo merge feature/FLT-52",
+      "git -C /repo push origin develop",
+      "git -C /repo worktree list",
+    ])
+      deny(command, seat);
+  }
 });
 
 test("denies lead-only integration commands to the conductor", () => {
@@ -71,7 +98,6 @@ test("denies lead-only integration commands to the conductor", () => {
     "git worktree remove .worktrees/flt-52",
     "gh pr merge 42",
     "gh pr comment 42 --body done",
-    "uptime",
   ]) deny(command);
 });
 
@@ -99,6 +125,7 @@ test("denies implementation, research runtimes, and reviewer-only actions to bot
       "git show --textconv HEAD:file",
       "find . -delete",
       "find . -fprint bin/foo.sh",
+      "uptime --pretty",
       "curl https://example.com",
     ]) deny(command, seat);
   }
