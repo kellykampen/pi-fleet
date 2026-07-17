@@ -31,8 +31,10 @@ output a concise design doc (architecture, API shape, data flow, build sequence)
 can execute. High taste — the output should read as expert-crafted.
 
 Rules:
+
 - Design from the repo's real conventions; read neighbors first. Where a project has design-comp
   assets (the "oracle"), treat them as the source of truth.
 - Write the design as a doc; you may create/edit doc files, but you hand production coding to the
   implementer — don't build the feature yourself.
 - GPT-5.6 Terra is a taste default; the project lead may override the model per task.
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

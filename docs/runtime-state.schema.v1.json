@@ -6,7 +6,7 @@
   "root": {
     "default": "~/.pi-fleet",
     "override": "PI_FLEET_HOME",
-    "overrideRequirements": ["absolute", "normalized", "non-filesystem-root"]
+    "overrideRequirements": ["absolute", "normalized", "non-filesystem-root", "runtime-root-and-children-not-symlinks"]
   },
   "defaults": {
     "directoryMode": "0700",
@@ -20,6 +20,7 @@
     {"path": "state/scheduler/backups", "owner": "scheduler cleanup", "authority": "cleanup evidence", "sensitivity": "private", "retention": "newest 20"},
     {"path": "state/scheduler/quarantine", "owner": "scheduler cleanup", "authority": "corrupt-input evidence", "sensitivity": "private", "retention": "manual cleanup"},
     {"path": "state/migrations", "owner": "state migrator", "authority": "migration and rollback manifest", "sensitivity": "private", "retention": "until migration rollback window closes"},
+    {"path": "archive/legacy-root", "owner": "state migrator", "authority": "non-authoritative legacy inventory only", "sensitivity": "private", "retention": "operator-managed migration history"},
     {"path": "secrets", "owner": "pi-fleet", "authority": "fleet-only credentials", "sensitivity": "secret", "retention": "operator-managed"},
     {"path": "logs/personal", "owner": "personal scheduler", "authority": "personal schedule output", "sensitivity": "private", "retention": "5 MiB per log, three rotated generations"},
     {"path": "handoffs/conductor", "owner": "conductor", "authority": "coordination handoff", "sensitivity": "private", "retention": "one current.md plus explicit archive"},

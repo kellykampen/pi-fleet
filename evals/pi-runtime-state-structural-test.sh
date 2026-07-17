@@ -3,18 +3,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 [[ -f "$ROOT/docs/runtime-state.md" && -f "$ROOT/docs/runtime-state.schema.v1.json" ]]
 python3 -m json.tool "$ROOT/docs/runtime-state.schema.v1.json" >/dev/null
-for profile in conductor project-lead personal-assistant implementer reviewer; do
-	grep -q '../skills/fleet-state' "$ROOT/profiles/$profile/profile.yml"
+for profile_file in "$ROOT"/profiles/*/profile.yml; do
+	grep -q '../skills/fleet-state' "$profile_file"
 done
-for agent in conductor project-lead implementer reviewer; do
-	grep -qi 'fleet-state' "$ROOT/agents/$agent.md"
+for agent_file in "$ROOT"/agents/*.md; do
+	grep -qi 'fleet-state' "$agent_file"
 done
 for phrase in 'ad-hoc top-level' 'secret' 'copied durable policy' 'exactly one' 'report-only' 'handoffs/conductor' 'handoffs/projects/<stable-id>' 'archive'; do
 	grep -qi "$phrase" "$ROOT/skills/fleet-state/SKILL.md"
 done
-# Current production/docs guidance must use the canonical root. Historical/migration material and tests are excluded.
-if grep -R -n -E '~?/\.pi/fleet|Library/Logs/pi-fleet' "$ROOT/bin" "$ROOT/extensions" "$ROOT/README.md" "$ROOT/docs" \
-	--include='*.sh' --include='*.ts' --include='*.md' | grep -v 'pi-fleet-state-migrate' | grep -v 'runtime-state.md'; then
+# Inspect extensionless bin executables as well as source/docs. Only migration/history may name legacy roots.
+if grep -R -n -E '~?/\.pi/fleet|\$HOME/\.pi/fleet|Library/Logs/pi-fleet' \
+	"$ROOT/bin" "$ROOT/extensions" "$ROOT/README.md" "$ROOT/docs" \
+	--exclude='pi-fleet-state-migrate' --exclude='runtime-state.md'; then
 	echo 'deprecated current runtime path found' >&2
 	exit 1
 fi

@@ -33,6 +33,7 @@ look AND function like the comp; nothing invented, nothing missing. You have bas
 capture screenshots; you do NOT edit the app's code.
 
 Capture, then compare:
+
 1. Launch the app the way the project runs it, navigate to the target route/state, screenshot the
    states/breakpoints that matter (e.g. mobile + desktop).
 2. Compare against the comp: VERDICT MATCH/MISMATCH + discrepancies (layout, spacing, color,
@@ -42,3 +43,5 @@ Capture, then compare:
 you start you MUST kill when done (trap/cleanup; prefer a one-shot start→capture→stop). Leaked
 screenshot servers have pinned CPU to load ~230 and taken the machine down. Confirm nothing you
 launched is still running before you exit.
+
+**Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

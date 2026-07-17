@@ -55,7 +55,7 @@ plist_count() {
 	echo "${#plists[@]}"
 }
 run_sync() {
-	HOME="$FAKE_HOME" \
+	HOME="$FAKE_HOME" PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" \
 		PATH="$FAKE_BIN:/usr/bin:/bin:/usr/sbin:/sbin" \
 		PI_FLEET_PROFILE=personal-assistant \
 		PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
@@ -70,7 +70,7 @@ SOCIAL_PLIST="$FAKE_AGENTS_DIR/dev.pi-fleet.personal.social-x-checkup.plist"
 GMAIL_PLIST="$FAKE_AGENTS_DIR/dev.pi-fleet.personal.gmail-reply-checkup.plist"
 
 echo "1) profile guard: a non-personal role cannot install schedules"
-HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=conductor \
+HOME="$FAKE_HOME" PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=conductor \
 	PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
 	PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
 	"$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
@@ -105,8 +105,8 @@ check_eq "$(plist_count)" "2" "repeat sync creates no duplicate plists"
 check_eq "$(cat "$GLOBAL_TASKS")" "$TASKS_BEFORE" "personal sync leaves global scheduler store empty and unchanged"
 
 echo "4) PI_SCHEDULE_SYNC_ENABLED=0 unloads and removes installed schedules"
-HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
-	PI_SCHEDULE_SYNC_ENABLED=0 \
+HOME="$FAKE_HOME" PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
+	PI_SCHEDULE_SYNC_ENABLED=0 PI_SCHEDULER_TASKS_FILE="$GLOBAL_TASKS" \
 	PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
 	PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
 	"$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
@@ -116,14 +116,20 @@ check_eq "$(cat "$GLOBAL_TASKS")" "$TASKS_BEFORE" "disabled sync does not popula
 echo "5) PI_SCHEDULE_SYNC_ENABLED=0 with zero installed plists does not crash (bash 3.2 unbound-array regression)"
 DISABLE_AGAIN_STATUS=0
 /bin/bash -c '
-HOME="$1" PATH="$2:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
-	PI_SCHEDULE_SYNC_ENABLED=0 \
+HOME="$1" PI_FLEET_HOME="$1/.pi-fleet" PATH="$2:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
+	PI_SCHEDULE_SYNC_ENABLED=0 PI_SCHEDULER_TASKS_FILE="$6" \
 	PI_SCHEDULE_SYNC_AGENTS_DIR="$3" \
 	PI_TEST_LAUNCHCTL_LOG="$4" \
 	"$5/bin/pi-personal-schedule-sync"
-' _ "$FAKE_HOME" "$FAKE_BIN" "$FAKE_AGENTS_DIR" "$LAUNCHCTL_LOG" "$FLEET_ROOT" >/dev/null 2>&1 || DISABLE_AGAIN_STATUS=$?
+' _ "$FAKE_HOME" "$FAKE_BIN" "$FAKE_AGENTS_DIR" "$LAUNCHCTL_LOG" "$FLEET_ROOT" "$GLOBAL_TASKS" >/dev/null 2>&1 || DISABLE_AGAIN_STATUS=$?
 check_eq "$DISABLE_AGAIN_STATUS" "0" "disabling an already-empty schedule set exits 0 on stock /bin/bash instead of crashing on unbound \${plists[@]}"
 check_eq "$(plist_count)" "0" "still zero plists after disabling an already-empty set"
+
+echo "6) nested personal-log symlinks are rejected without outside writes"
+OUTSIDE_LOGS="$TMPDIR/outside-logs"
+rm -rf "$FAKE_HOME/.pi-fleet/logs"; mkdir "$OUTSIDE_LOGS"; ln -s "$OUTSIDE_LOGS" "$FAKE_HOME/.pi-fleet/logs"
+if run_sync >/dev/null 2>&1; then check false "nested log symlink is rejected"; else check true "nested log symlink is rejected"; fi
+[[ -z "$(find "$OUTSIDE_LOGS" -mindepth 1 -print -quit)" ]] && check true "no files written through log symlink" || check false "files written through log symlink"
 
 echo ""
 echo "pass=$pass fail=$fail"

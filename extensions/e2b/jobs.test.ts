@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, lstat, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -167,13 +167,39 @@ test("retention is dry-run by default, preserves active, archives terminal, then
 		const old = "2025-01-01T00:00:00.000Z";
 		await writeJob(baseJob({ jobId: "active", status: "running", createdAt: old, updatedAt: old }));
 		await writeJob(baseJob({ jobId: "done", status: "succeeded", createdAt: old, updatedAt: old, finishedAt: old }));
+		const before = await readdir(jobsDir());
 		const dry = await retainJobs({ now: new Date("2026-01-01"), archiveAfterDays: 30, deleteAfterDays: 90 });
 		assert.deepEqual(dry.archive, ["done"]);
+		assert.deepEqual(await readdir(jobsDir()), before, "dry-run must not create archive or lock paths");
 		assert.ok(await readFile(join(jobsDir(), "done.json"), "utf8"));
 		await retainJobs({ now: new Date("2026-01-01"), archiveAfterDays: 30, deleteAfterDays: 90, apply: true });
 		assert.equal((await readdir(join(jobsDir(), "archive"))).some((f) => f === "done.json"), true);
 		const deleted = await retainJobs({ now: new Date("2026-05-01"), archiveAfterDays: 30, deleteAfterDays: 90, apply: true, deleteArchived: true });
 		assert.deepEqual(deleted.delete, ["done"]);
 		assert.equal((await readdir(join(jobsDir(), "archive"))).includes("done.json"), false);
+	});
+});
+
+test("runtime child, archive, and quarantine paths reject nested symlinks", async () => {
+	await withTempStore(async () => {
+		const root = process.env.PI_FLEET_HOME!;
+		await mkdir(join(root, "state"));
+		await symlink(await mkdtemp(join(tmpdir(), "pi-fleet-outside-")), join(root, "state", "e2b"));
+		await assert.rejects(() => writeJob(baseJob({ jobId: "nested" })), /symlink/i);
+	});
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "done", status: "succeeded", finishedAt: "2025-01-01T00:00:00.000Z" }));
+		const outside = await mkdtemp(join(tmpdir(), "pi-fleet-archive-"));
+		await symlink(outside, join(jobsDir(), "archive"));
+		await assert.rejects(() => retainJobs({ now: new Date("2026-01-01") }), /symlink/i);
+		await rm(outside, { recursive: true, force: true });
+	});
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "broken" }));
+		const outside = await mkdtemp(join(tmpdir(), "pi-fleet-quarantine-"));
+		await symlink(outside, join(jobsDir(), "quarantine"));
+		await writeFile(join(jobsDir(), "broken.json"), "bad-json");
+		await assert.rejects(() => readJob("broken"), /symlink/i);
+		await rm(outside, { recursive: true, force: true });
 	});
 });

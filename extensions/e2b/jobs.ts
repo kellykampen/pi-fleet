@@ -12,7 +12,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { ConvexJobStore, isConvexConfigured } from "./convexStore.js";
-import { fleetRuntimeRoot, runtimePath } from "./runtimePaths.js";
+import { assertRuntimePathNoSymlinks, runtimePath } from "./runtimePaths.js";
 import { sanitizeSecrets } from "./secrets.js";
 import type { FleetJob, JobFilter, JobStatus, JobStore } from "./types.js";
 import { isTerminal } from "./types.js";
@@ -41,26 +41,11 @@ function jobPath(jobId: string): string {
 	return join(jobsDir(), `${validateJobId(jobId)}.json`);
 }
 
-async function rejectSymlinkComponents(path: string): Promise<void> {
-	const root = fleetRuntimeRoot();
-	let current = root;
-	const components = ["", ...path.slice(root.length).split(/[\\/]/).filter(Boolean)];
-	for (const component of components) {
-		if (component) current = join(current, component);
-		try {
-			if ((await lstat(current)).isSymbolicLink())
-				throw new Error(`Job store path contains a symlink: ${current}`);
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-		}
-	}
-}
-
 export async function ensureJobsDir(): Promise<void> {
 	const dir = jobsDir();
-	await rejectSymlinkComponents(dir);
+	await assertRuntimePathNoSymlinks(dir);
 	await mkdir(dir, { recursive: true, mode: 0o700 });
-	await rejectSymlinkComponents(dir);
+	await assertRuntimePathNoSymlinks(dir);
 	await chmod(dir, 0o700);
 }
 
@@ -70,10 +55,12 @@ async function withLock<T>(
 ): Promise<T> {
 	await ensureJobsDir();
 	const lock = join(jobsDir(), `.lock-${validateJobId(name)}`);
+	await assertRuntimePathNoSymlinks(lock);
 	const deadline = Date.now() + LOCK_WAIT_MS;
 	for (;;) {
 		try {
 			await mkdir(lock, { mode: 0o700 });
+			await assertRuntimePathNoSymlinks(lock);
 			break;
 		} catch (error) {
 			if (
@@ -129,12 +116,13 @@ async function readRecord(jobId: string): Promise<FleetJob | null> {
 		if (error instanceof Error && /symlink|regular file/.test(error.message))
 			throw error;
 		const quarantine = join(jobsDir(), "quarantine");
+		await assertRuntimePathNoSymlinks(quarantine);
 		await mkdir(quarantine, { recursive: true, mode: 0o700 });
+		await assertRuntimePathNoSymlinks(quarantine);
 		await chmod(quarantine, 0o700);
-		await rename(
-			path,
-			join(quarantine, `${jobId}.${Date.now()}.corrupt`),
-		).catch(() => undefined);
+		const destination = join(quarantine, `${jobId}.${Date.now()}.corrupt`);
+		await assertRuntimePathNoSymlinks(destination);
+		await rename(path, destination).catch(() => undefined);
 		throw new CorruptJobError(jobId, error);
 	}
 }
@@ -299,17 +287,39 @@ export async function retainJobs(
 	const deleteBefore =
 		now.getTime() - (options.deleteAfterDays ?? 180) * 86_400_000;
 	const result = { archive: [] as string[], delete: [] as string[] };
-	await ensureJobsDir();
-	for (const job of await localStore.list()) {
-		if (
-			isTerminal(job.status) &&
-			Date.parse(job.finishedAt ?? job.updatedAt) < archiveBefore
-		)
-			result.archive.push(job.jobId);
+	const dir = jobsDir();
+	await assertRuntimePathNoSymlinks(dir);
+	let files: string[];
+	try {
+		const stat = await lstat(dir);
+		if (!stat.isDirectory()) throw new Error("Job store path is not a directory");
+		files = await readdir(dir);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return result;
+		throw error;
 	}
-	const archiveDir = join(jobsDir(), "archive");
-	await mkdir(archiveDir, { recursive: true, mode: 0o700 });
-	for (const file of await readdir(archiveDir)) {
+	for (const file of files) {
+		if (!file.endsWith(".json")) continue;
+		const id = validateJobId(file.slice(0, -5));
+		const path = jobPath(id);
+		await assertRuntimePathNoSymlinks(path);
+		const stat = await lstat(path);
+		if (!stat.isFile()) throw new Error(`Unsafe job record: ${file}`);
+		let job: FleetJob;
+		try { job = JSON.parse(await readFile(path, "utf8")) as FleetJob; }
+		catch (error) { throw new CorruptJobError(id, error); }
+		if (job.jobId !== id) throw new CorruptJobError(id);
+		if (isTerminal(job.status) && Date.parse(job.finishedAt ?? job.updatedAt) < archiveBefore)
+			result.archive.push(id);
+	}
+	const archiveDir = join(dir, "archive");
+	await assertRuntimePathNoSymlinks(archiveDir);
+	let archivedFiles: string[] = [];
+	try { archivedFiles = await readdir(archiveDir); }
+	catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+	}
+	for (const file of archivedFiles) {
 		if (!file.endsWith(".json")) continue;
 		const path = join(archiveDir, file);
 		const stat = await lstat(path);
@@ -325,10 +335,16 @@ export async function retainJobs(
 			result.delete.push(file.slice(0, -5));
 	}
 	if (options.apply) {
+		await assertRuntimePathNoSymlinks(archiveDir);
+		await mkdir(archiveDir, { recursive: true, mode: 0o700 });
+		await assertRuntimePathNoSymlinks(archiveDir);
+		await chmod(archiveDir, 0o700);
 		for (const id of result.archive)
-			await withLock(id, () =>
-				rename(jobPath(id), join(archiveDir, `${id}.json`)),
-			);
+			await withLock(id, async () => {
+				const destination = join(archiveDir, `${id}.json`);
+				await assertRuntimePathNoSymlinks(destination);
+				await rename(jobPath(id), destination);
+			});
 		if (options.deleteArchived)
 			for (const id of result.delete) await rm(join(archiveDir, `${id}.json`));
 	}

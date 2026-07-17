@@ -66,3 +66,13 @@ corrupt=("$PI_FLEET_HOME/state/scheduler/quarantine"/*)
 shopt -u nullglob
 [[ "${#corrupt[@]}" -eq 1 && "$(stat -f '%Lp' "${corrupt[0]}")" == 600 ]]
 printf 'ok - scheduler cleanup is locked, atomic, and preserves corrupt input\n'
+
+# Every nested runtime writer path rejects symlinks instead of writing through them.
+SYMLINK_ROOT="$TMPDIR/symlink-fleet"; OUTSIDE="$TMPDIR/outside"; mkdir -p "$SYMLINK_ROOT/state" "$OUTSIDE"
+ln -s "$OUTSIDE" "$SYMLINK_ROOT/state/scheduler"
+printf '{"version":2,"tasks":[{"id":"unsafe"}]}' > "$TMPDIR/unsafe-tasks.json"
+if PI_FLEET_HOME="$SYMLINK_ROOT" PI_SCHEDULER_TASKS_FILE="$TMPDIR/unsafe-tasks.json" "$ROOT/bin/lib/scheduler-status.sh" >/dev/null 2>&1; then
+	echo 'not ok - nested scheduler symlink accepted' >&2; exit 1
+fi
+[[ -z "$(find "$OUTSIDE" -mindepth 1 -print -quit)" ]]
+printf 'ok - scheduler nested symlinks are rejected without outside writes\n'

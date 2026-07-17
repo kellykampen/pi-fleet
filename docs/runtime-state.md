@@ -17,6 +17,7 @@ Callers repair modes when opening an existing namespace. State is namespaced by 
 | `state/e2b/jobs` | E2B job lifecycle | private; sanitized | active retained; terminal jobs are archive-eligible after 30 days; archived records are deletion-eligible after 180 days |
 | `state/scheduler/{backups,quarantine}` | global-scheduler cleanup evidence | private | newest 20 backups; quarantines require operator cleanup |
 | `state/migrations` | migration manifests | private | retain through rollback window |
+| `archive/legacy-root` | non-authoritative copies of recognized loose legacy root content | private | operator-managed migration history; never treated as current state |
 | `secrets` | fleet-only credentials | secret | operator-managed; never print values |
 | `logs/personal` | personal LaunchAgent output | private | rotate above 5 MiB; keep three generations |
 | `handoffs/conductor` | conductor coordination | private | exactly one `current.md`; older handoffs in `archive/` |
@@ -41,10 +42,12 @@ keeps bounded private backups, and preserves corrupt external input while copyin
 
 ## Migration and rollback
 
-Run `bin/pi-fleet-state-migrate` to inventory recognized legacy job and secret locations. Its
-default is **report-only** and it never displays file contents. `--apply` copies without overwriting
-or deleting sources, enforces private modes, and atomically writes a private SHA-256 manifest.
-Conflicts are reported and preserved. `--rollback` removes only migration-created destinations
+Run `bin/pi-fleet-state-migrate` to inventory recognized legacy job and secret locations plus
+regular loose top-level files/directories. Canonical namespaces are excluded; loose content is
+copied only beneath the explicitly non-authoritative `archive/legacy-root` namespace. Its default
+is **report-only** and it never displays file contents. `--apply` copies without overwriting or
+deleting sources, enforces private modes, and atomically writes a private SHA-256 manifest under a
+bounded migration lock. Conflicts are reported and preserved. `--rollback` removes only migration-created destinations
 whose hash is unchanged; modified destinations and every source remain untouched. There is no
 implicit or destructive migration.
 

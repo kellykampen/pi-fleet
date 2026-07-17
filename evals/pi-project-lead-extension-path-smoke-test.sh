@@ -23,9 +23,17 @@ mkdir -p "$FAKE_HOME/.pi/agent/npm/node_modules/@gotgenes/pi-permission-system"
 
 cat > "$FAKE_BIN/outfitter" <<'EOF'
 #!/usr/bin/env bash
+printf 'ENV:E2B_API_KEY=%s\n' "${E2B_API_KEY-}"
+printf 'ENV:FLEET_GITHUB_TOKEN=%s\n' "${FLEET_GITHUB_TOKEN-}"
 printf '%s\n' "$@"
 EOF
 chmod +x "$FAKE_BIN/outfitter"
+mkdir -p "$FAKE_HOME/.pi-fleet/secrets" "$FAKE_HOME/.pi/fleet"
+chmod 700 "$FAKE_HOME/.pi-fleet" "$FAKE_HOME/.pi-fleet/secrets"
+printf 'E2B_API_KEY=canonical-key\nFLEET_GITHUB_TOKEN=canonical-token\n' > "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+chmod 600 "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+printf 'E2B_API_KEY=legacy-must-not-load\n' > "$FAKE_HOME/.pi/fleet/secrets.env"
+chmod 600 "$FAKE_HOME/.pi/fleet/secrets.env"
 
 pass=0; fail=0
 ok() { echo "PASS: $1"; pass=$((pass + 1)); }
@@ -48,6 +56,7 @@ extract_extension_args() {
 run_wrapper_from() {
   local wrapper="$1" cwd="$2"
   (cd "$cwd" && env -u FLEET_YOLO -u E2B_API_KEY -u FLEET_GITHUB_TOKEN HOME="$FAKE_HOME" \
+    PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" PI_SCHEDULER_TASKS_FILE="$FAKE_HOME/tasks.json" \
     PATH="$FAKE_BIN:$PATH" "$wrapper" --print "hi")
 }
 
@@ -100,6 +109,29 @@ assert_wrapper_linear_extension pi-conductor
 # Project-lead also owns the E2B extension; verify it is wrapper-resolved and clone-local.
 project_lead_out="$(run_wrapper_from "$DIR/bin/pi-project-lead" /tmp)"
 project_lead_exts="$(printf '%s\n' "$project_lead_out" | extract_extension_args)"
+check "pi-project-lead loads canonical private E2B secret" "ENV:E2B_API_KEY=canonical-key" \
+  "$(printf '%s\n' "$project_lead_out" | grep '^ENV:E2B_API_KEY=' | head -1)"
+check "pi-project-lead loads canonical private GitHub secret" "ENV:FLEET_GITHUB_TOKEN=canonical-token" \
+  "$(printf '%s\n' "$project_lead_out" | grep '^ENV:FLEET_GITHUB_TOKEN=' | head -1)"
+
+# The parser never shell-sources content, rejects unknown keys and insecure metadata, and ignores legacy.
+printf 'E2B_API_KEY=$(touch %s)\n' "$FAKE_HOME/parser-executed" > "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+chmod 600 "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+parsed="$(run_wrapper_from "$DIR/bin/pi-project-lead" /tmp)"
+[[ ! -e "$FAKE_HOME/parser-executed" ]] && ok "secret values are not evaluated" || no "secret value executed shell syntax"
+[[ "$parsed" == *'ENV:E2B_API_KEY=$(touch '* ]] && ok "secret parser preserves literal value" || no "secret parser did not preserve literal value"
+printf 'UNKNOWN_KEY=value\n' > "$FAKE_HOME/.pi-fleet/secrets/secrets.env"; chmod 600 "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+if run_wrapper_from "$DIR/bin/pi-project-lead" /tmp >/dev/null 2>&1; then no "unknown secret key is rejected"; else ok "unknown secret key is rejected"; fi
+printf 'E2B_API_KEY=value\n' > "$FAKE_HOME/.pi-fleet/secrets/secrets.env"; chmod 644 "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+if run_wrapper_from "$DIR/bin/pi-project-lead" /tmp >/dev/null 2>&1; then no "group/world-readable secret file is rejected"; else ok "group/world-readable secret file is rejected"; fi
+rm "$FAKE_HOME/.pi-fleet/secrets/secrets.env"; ln -s "$FAKE_HOME/.pi/fleet/secrets.env" "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+if run_wrapper_from "$DIR/bin/pi-project-lead" /tmp >/dev/null 2>&1; then no "symlink secret file is rejected"; else ok "symlink secret file is rejected"; fi
+rm "$FAKE_HOME/.pi-fleet/secrets/secrets.env"; mkdir "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+if run_wrapper_from "$DIR/bin/pi-project-lead" /tmp >/dev/null 2>&1; then no "non-regular secret file is rejected"; else ok "non-regular secret file is rejected"; fi
+rmdir "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+legacy_out="$(run_wrapper_from "$DIR/bin/pi-project-lead" /tmp)"
+check "legacy ~/.pi/fleet secret is never loaded" "ENV:E2B_API_KEY=" \
+  "$(printf '%s\n' "$legacy_out" | grep '^ENV:E2B_API_KEY=' | head -1)"
 check "pi-project-lead passes repo-local e2b extension" "$DIR/extensions/e2b" \
   "$(printf '%s\n' "$project_lead_exts" | grep '/extensions/e2b$' | head -1 || true)"
 
