@@ -294,7 +294,7 @@ test("buildRunnerScript keeps the per-cast target separate from FLEET_REPO_URL",
 
 	assert.match(
 		script,
-		/git clone --depth 1 --branch 'develop' 'https:\/\/github\.com\/fleet-org\/pi-fleet\.git' \/work\/pi-fleet/,
+		/git clone --depth 1 --branch 'main' 'https:\/\/github\.com\/fleet-org\/pi-fleet\.git' \/work\/pi-fleet/,
 	);
 	assert.match(script, /export TARGET_REPO='customer-org\/private-app'/);
 	// codeAccess=clone no longer calls clone_target (that requires the sandbox
@@ -1249,6 +1249,10 @@ test("buildReviewerRunnerScript never embeds token values", () => {
 		false,
 	);
 	assert.match(script, /FLEET_GITHUB_TOKEN/);
+	assert.match(
+		script,
+		/git clone --depth 1 --branch 'main' 'https:\/\/github\.com\/owner\/pi-fleet\.git' \/work\/pi-fleet/,
+	);
 });
 
 test("buildReviewerRunnerScript fetches the PR read-only and never runs a code-mutating command", () => {

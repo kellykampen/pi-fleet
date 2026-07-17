@@ -27,7 +27,13 @@ test("Claude hook allows seat-specific atomic commands", () => {
     assert.equal(invoke(seat, "uptime").status, 0);
     assert.equal(invoke(seat, "git -C /repo status --short").status, 0);
   }
-  assert.equal(invoke("lead", "git checkout develop").status, 0);
+  for (const command of [
+    "git checkout main",
+    "git switch main",
+    "git pull --ff-only origin main",
+    "git push origin main",
+    "git worktree add .worktrees/flt-52 -b flt-52 main",
+  ]) assert.equal(invoke("lead", command).status, 0, command);
   assert.equal(invoke("lead", "gh pr merge 42 --merge").status, 0);
 });
 
@@ -36,7 +42,9 @@ test("Claude hook blocks with exit 2 when a command is outside policy", () => {
     ["conductor", "git merge feature"],
     ["conductor", "git -C /repo merge feature"],
     ["conductor", "uptime --pretty"],
-    ["lead", "git -C /repo checkout develop"],
+    ["lead", "git -C /repo checkout main"],
+    ["lead", "git checkout develop"],
+    ["lead", "git switch develop"],
     ["lead", "npm ci"],
     ["lead", "cmux workspace list && node build.js"],
     ["lead", "cat README.md > bin/foo.sh"],
@@ -67,6 +75,9 @@ test("Claude policies are separate, real dontAsk settings with authoritative hoo
   assert.equal(lead.permissions.defaultMode, "dontAsk");
   assert.notDeepEqual(conductor.permissions.allow, lead.permissions.allow);
   assert.ok(lead.permissions.allow.includes("Bash(gh pr merge:*)"));
+  assert.ok(lead.permissions.allow.includes("Bash(git checkout main:*)"));
+  assert.ok(lead.permissions.allow.includes("Bash(git switch main:*)"));
+  assert.ok(!lead.permissions.allow.some((entry) => entry.includes("develop")));
   assert.ok(!conductor.permissions.allow.includes("Bash(gh pr merge:*)"));
   for (const policy of [conductor, lead]) {
     assert.ok(policy.permissions.allow.includes("Bash(git -C:*)"));

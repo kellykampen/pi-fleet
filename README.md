@@ -61,9 +61,9 @@ CEO  →  conductor  →  project lead  →  worker
 
 | Seat | Command | Owns |
 | --- | --- | --- |
-| **CEO** | (human) | Goals, priorities, merge-to-main, risk/money |
-| **Conductor** | `pi-conductor` | Cross-project routing; assigns project leads; escalates to CEO |
-| **Project lead** | `pi-project-lead` | One project/stream; casts workers; holds QC gates; reports to conductor |
+| **CEO** | (human) | Goals, priorities/reprioritization, risk/money |
+| **Conductor** | `pi-conductor` | Cross-project routing; assigns project leads; escalates CEO decisions |
+| **Project lead** | `pi-project-lead` | One project/stream; casts workers; holds every gate; merges ticket PRs to main |
 | **Worker** | `pi-implementer`, `pi-reviewer`, … | Single-purpose work; reports to the project lead |
 
 **Cast** = spin up a worker seat (project lead → worker). The conductor assigns work to project
@@ -102,7 +102,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  [env model args] -
 | **`pi-security-reviewer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. Strong reasoning default. |
 | **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear *(no write/edit)* | Cross-project router with a default-deny command policy. It can orchestrate seats and update validated coordination notes through `fleet-note`, but cannot clone, build, run arbitrary scripts, or mutate source. |
 | **`claude-conductor`** | Claude Code (`--remote-control`) | Read/Grep/Glob + conductor-only Bash allowlist *(no Write/Edit)* | CEO-facing conductor with an authoritative fail-closed `PreToolUse` hook. It cannot use merge-flow commands; `FLEET_YOLO` cannot bypass the boundary. |
-| **`claude-project-lead`** | Claude Code (Opus by default) | Read/Grep/Glob + lead Bash allowlist *(no Write/Edit)* | Native project lead: orchestration plus narrow develop integration (`fetch`, ff-only pull, checkout/switch develop, merge/push, PR merge/comment, and worktree lifecycle). Build/install/script commands remain blocked. |
+| **`claude-project-lead`** | Claude Code (Opus by default) | Read/Grep/Glob + lead Bash allowlist *(no Write/Edit)* | Native project lead: orchestration plus narrow main integration (`fetch`, ff-only pull, checkout/switch main, merge/push, PR merge/comment, and worktree lifecycle). Build/install/script commands remain blocked. |
 | **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Owns one project — routes each task to the right worker + model (via **model-classifier**), casts seats, holds QC gates. |
 | **`pi-visual-qa`** | GPT-5.6 Terra (`openai-codex`) · medium | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. Taste/visual default. |
 | **`pi-linear`** | GPT-5.5 (`openai-codex`) · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
@@ -350,7 +350,8 @@ guard" in each.
 `skills/conductor/SKILL.md` and `skills/project-lead/SKILL.md` also codify: the conductor's
 "does no work" delegation-only rule + routing table; the two-conductor model
 (`claude-conductor` = CEO-facing relay, `pi-conductor` = drives project leads); the
-**Docs-as-final-DoD-gate** canonical pipeline (review → AC-verify → CI → Docs pass → merge/Done,
+**Docs-as-final-DoD-gate** canonical pipeline (short-lived ticket branch/worktree → review →
+AC-verify → visual-QA where applicable → CI → Docs pass → project-lead merge directly to main/Done,
 see the [`pi-docs`](#the-profiles) profile); the hard roster lock (allowed:
 `claude-worker`/`claude-reviewer` Sonnet 5/Opus 4.8, `pi` `gpt-5.5`/`gpt-5.6`; banned: Grok/xAI,
 Kimi/`claudekimi`, GLM/`claudeglm`, Gemini/`agy`); pane/seat hygiene (no mass-close, project

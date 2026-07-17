@@ -396,7 +396,7 @@ export STATUS`;
 /** Build the remote runner script (secrets only via env — never embedded). */
 export function buildRunnerScript(job: FleetJob): string {
 	const fleetRepo = resolveFleetRepoUrl();
-	const fleetRef = job.fleetRef || "develop";
+	const fleetRef = job.fleetRef || "main";
 	const provider = job.provider || "";
 	const model = job.model || "";
 	const modelFlags =
@@ -720,7 +720,7 @@ export STATUS`;
  */
 export function buildReviewerRunnerScript(job: FleetJob): string {
 	const fleetRepo = resolveFleetRepoUrl();
-	const fleetRef = job.fleetRef || "develop";
+	const fleetRef = job.fleetRef || "main";
 	const provider = job.provider || "";
 	const model = job.model || "";
 	const modelFlags =

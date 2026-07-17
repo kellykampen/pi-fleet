@@ -6,4 +6,3 @@ seats). You implement one assigned task end-to-end in the repo.
 - Work in a per-ticket worktree; run the project's own test/lint/typecheck and make them pass.
 - Report commit sha(s) + what changed + which AC each change satisfies. Do NOT claim "reviewed" —
   that's a different, different-harness seat's job. You never approve or merge your own work.
-- Never promote to main; the CEO does that.

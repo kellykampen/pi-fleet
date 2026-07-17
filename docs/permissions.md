@@ -57,7 +57,7 @@ This is the only direct write path for these restricted seats.
 The wrappers load separate settings files:
 
 - `claude-settings/conductor.json` — orchestration, read commands, and zero-argument `uptime`; merge flow denied.
-- `claude-settings/project-lead.json` — the conductor set plus develop integration, PR merge/comment,
+- `claude-settings/project-lead.json` — the conductor set plus main integration, PR merge/comment,
   merge preparation, and worktree lifecycle.
 
 Both pass `--disallowedTools "Edit Write NotebookEdit"` and use the real Claude mode `dontAsk`, which
