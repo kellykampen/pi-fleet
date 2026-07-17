@@ -27,7 +27,7 @@ PY
     case "$secret_line" in *=*) ;; *) echo "pi-project-lead: malformed secrets assignment" >&2; exit 2 ;; esac
     secret_key="${secret_line%%=*}"
     secret_value="${secret_line#*=}"
-    case "$secret_key" in E2B_API_KEY|FLEET_GITHUB_TOKEN) ;; *)
+    case "$secret_key" in E2B_API_KEY|FLEET_GITHUB_TOKEN|GH_TOKEN|FLEET_GITHUB_REVIEWER_TOKEN|FLEET_E2B_TEMPLATE|FLEET_REPO_URL|FLEET_CONVEX_URL|FLEET_CONVEX_TOKEN|OPENAI_API_KEY|OPENROUTER_API_KEY|ANTHROPIC_API_KEY|XAI_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY|KIMI_API_KEY|MOONSHOT_API_KEY|PI_AGENT_AUTH_JSON_B64|FLEET_GITHUB_APP_ID|FLEET_GITHUB_APP_INSTALLATION_ID|FLEET_GITHUB_APP_PRIVATE_KEY|FLEET_GITHUB_APP_PRIVATE_KEY_PATH) ;; *)
       echo "pi-project-lead: secret key is not allowlisted: $secret_key" >&2; exit 2 ;;
     esac
     [[ "$secret_key" =~ ^[A-Z][A-Z0-9_]*$ && "$secret_value" != *$'\r'* ]] || {

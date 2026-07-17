@@ -25,12 +25,17 @@ cat >"$FAKE_BIN/outfitter" <<'EOF'
 #!/usr/bin/env bash
 printf 'ENV:E2B_API_KEY=%s\n' "${E2B_API_KEY-}"
 printf 'ENV:FLEET_GITHUB_TOKEN=%s\n' "${FLEET_GITHUB_TOKEN-}"
+printf 'ENV:GH_TOKEN=%s\n' "${GH_TOKEN-}"
+printf 'ENV:OPENAI_API_KEY=%s\n' "${OPENAI_API_KEY-}"
+printf 'ENV:PI_AGENT_AUTH_JSON_B64=%s\n' "${PI_AGENT_AUTH_JSON_B64-}"
+printf 'ENV:FLEET_GITHUB_APP_ID=%s\n' "${FLEET_GITHUB_APP_ID-}"
+printf 'ENV:FLEET_CONVEX_TOKEN=%s\n' "${FLEET_CONVEX_TOKEN-}"
 printf '%s\n' "$@"
 EOF
 chmod +x "$FAKE_BIN/outfitter"
 mkdir -p "$FAKE_HOME/.pi-fleet/secrets" "$FAKE_HOME/.pi/fleet"
 chmod 700 "$FAKE_HOME/.pi-fleet" "$FAKE_HOME/.pi-fleet/secrets"
-printf 'E2B_API_KEY=canonical-key\nFLEET_GITHUB_TOKEN=canonical-token\n' >"$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+printf 'E2B_API_KEY=canonical-key\nFLEET_GITHUB_TOKEN=canonical-token\nGH_TOKEN=github-oauth-token\nOPENAI_API_KEY=model-key\nPI_AGENT_AUTH_JSON_B64=oauth-json-b64\nFLEET_GITHUB_APP_ID=12345\nFLEET_CONVEX_TOKEN=convex-token\n' >"$FAKE_HOME/.pi-fleet/secrets/secrets.env"
 chmod 600 "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
 printf 'E2B_API_KEY=legacy-must-not-load\n' >"$FAKE_HOME/.pi/fleet/secrets.env"
 chmod 600 "$FAKE_HOME/.pi/fleet/secrets.env"
@@ -62,7 +67,8 @@ extract_extension_args() {
 
 run_wrapper_from() {
 	local wrapper="$1" cwd="$2"
-	(cd "$cwd" && env -u FLEET_YOLO -u E2B_API_KEY -u FLEET_GITHUB_TOKEN HOME="$FAKE_HOME" \
+	(cd "$cwd" && env -u FLEET_YOLO -u E2B_API_KEY -u FLEET_GITHUB_TOKEN -u GH_TOKEN \
+		-u OPENAI_API_KEY -u PI_AGENT_AUTH_JSON_B64 -u FLEET_GITHUB_APP_ID -u FLEET_CONVEX_TOKEN HOME="$FAKE_HOME" \
 		PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" PI_SCHEDULER_TASKS_FILE="$FAKE_HOME/tasks.json" \
 		PATH="$FAKE_BIN:$PATH" "$wrapper" --print "hi")
 }
@@ -120,6 +126,16 @@ check "pi-project-lead loads canonical private E2B secret" "ENV:E2B_API_KEY=cano
 	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:E2B_API_KEY=' | head -1)"
 check "pi-project-lead loads canonical private GitHub secret" "ENV:FLEET_GITHUB_TOKEN=canonical-token" \
 	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:FLEET_GITHUB_TOKEN=' | head -1)"
+check "pi-project-lead loads GitHub OAuth secret" "ENV:GH_TOKEN=github-oauth-token" \
+	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:GH_TOKEN=' | head -1)"
+check "pi-project-lead loads model provider secret" "ENV:OPENAI_API_KEY=model-key" \
+	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:OPENAI_API_KEY=' | head -1)"
+check "pi-project-lead loads agent OAuth secret" "ENV:PI_AGENT_AUTH_JSON_B64=oauth-json-b64" \
+	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:PI_AGENT_AUTH_JSON_B64=' | head -1)"
+check "pi-project-lead loads GitHub App secret" "ENV:FLEET_GITHUB_APP_ID=12345" \
+	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:FLEET_GITHUB_APP_ID=' | head -1)"
+check "pi-project-lead loads Convex secret" "ENV:FLEET_CONVEX_TOKEN=convex-token" \
+	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:FLEET_CONVEX_TOKEN=' | head -1)"
 
 # The parser never shell-sources content, rejects unknown keys and insecure metadata, and ignores legacy.
 printf 'E2B_API_KEY=$(touch %s)\n' "$FAKE_HOME/parser-executed" >"$FAKE_HOME/.pi-fleet/secrets/secrets.env"
