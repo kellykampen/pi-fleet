@@ -206,6 +206,39 @@ test("retention apply privately quarantines corrupt active records", async () =>
 	});
 });
 
+test("retention rejects archived filenames that are not valid job IDs", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "seed" }));
+		const archive = join(jobsDir(), "archive");
+		await mkdir(archive, { mode: 0o700 });
+		await writeFile(
+			join(archive, "bad id.json"),
+			`${JSON.stringify(baseJob({ jobId: "bad id", status: "succeeded" }))}\n`,
+		);
+
+		await assert.rejects(() => retainJobs(), /Invalid job ID/);
+	});
+});
+
+test("retention rejects archived records whose embedded ID does not match the filename", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "seed" }));
+		const archive = join(jobsDir(), "archive");
+		await mkdir(archive, { mode: 0o700 });
+		await writeFile(
+			join(archive, "expected.json"),
+			`${JSON.stringify(baseJob({ jobId: "different", status: "succeeded" }))}\n`,
+		);
+
+		await assert.rejects(
+			() => retainJobs(),
+			(error: unknown) =>
+				error instanceof CorruptJobError &&
+				error.message === "Corrupt job record: expected",
+		);
+	});
+});
+
 test("retention is dry-run by default, preserves active, archives terminal, then deletes old archives", async () => {
 	await withTempStore(async () => {
 		const old = "2025-01-01T00:00:00.000Z";

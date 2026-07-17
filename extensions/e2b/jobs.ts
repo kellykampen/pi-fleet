@@ -63,10 +63,8 @@ async function withLock<T>(
 			await assertRuntimePathNoSymlinks(lock);
 			break;
 		} catch (error) {
-			if (
-				(error as NodeJS.ErrnoException).code !== "EEXIST" ||
-				Date.now() >= deadline
-			)
+			if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+			if (Date.now() >= deadline)
 				throw new Error(`Timed out acquiring job lock: ${name}`, {
 					cause: error,
 				});
@@ -337,6 +335,7 @@ export async function retainJobs(
 	}
 	for (const file of archivedFiles) {
 		if (!file.endsWith(".json")) continue;
+		const id = validateJobId(file.slice(0, -5));
 		const path = join(archiveDir, file);
 		const stat = await lstat(path);
 		if (stat.isSymbolicLink() || !stat.isFile())
@@ -345,10 +344,12 @@ export async function retainJobs(
 		try {
 			archived = JSON.parse(await readFile(path, "utf8")) as FleetJob;
 		} catch (error) {
-			throw new CorruptJobError(file.slice(0, -5), error);
+			throw new CorruptJobError(id, error);
 		}
+		if (!archived || archived.jobId !== id)
+			throw new CorruptJobError(id, new Error("record ID mismatch"));
 		if (Date.parse(archived.finishedAt ?? archived.updatedAt) < deleteBefore)
-			result.delete.push(file.slice(0, -5));
+			result.delete.push(id);
 	}
 	if (options.apply) {
 		await assertRuntimePathNoSymlinks(archiveDir);
@@ -362,7 +363,8 @@ export async function retainJobs(
 				await rename(jobPath(id), destination);
 			});
 		if (options.deleteArchived)
-			for (const id of result.delete) await rm(join(archiveDir, `${id}.json`));
+			for (const id of result.delete)
+				await rm(join(archiveDir, `${id}.json`), { force: true });
 	}
 	result.archive.sort();
 	result.delete.sort();
