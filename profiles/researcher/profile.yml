@@ -6,4 +6,5 @@ controls:
     model: gpt-5.5
     thinking: low
     skills:
+      - ../skills/fleet-state
       - ../skills/research

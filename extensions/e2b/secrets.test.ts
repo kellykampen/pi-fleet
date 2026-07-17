@@ -597,7 +597,7 @@ test("buildResultFinalizer falls through to succeeded/failed by exit code when n
 
 test("refreshFromSandbox persists needs_input status and questions from a remote result.json", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 
 	const now = new Date().toISOString();
@@ -804,7 +804,7 @@ test("resolveInjectedGithubToken returns undefined when neither a PAT nor a GitH
 
 test("non-dry-run cast fails clearly before sandbox creation when GitHub token is missing", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	delete process.env.FLEET_GITHUB_TOKEN;
 	delete process.env.GH_TOKEN;
@@ -841,7 +841,7 @@ test("non-dry-run cast fails clearly before sandbox creation when GitHub token i
 
 test("non-dry-run cast fails clearly before sandboxId when FLEET_E2B_TEMPLATE is missing", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
 	delete process.env.FLEET_E2B_TEMPLATE;
@@ -874,7 +874,7 @@ test("non-dry-run cast fails clearly before sandboxId when FLEET_E2B_TEMPLATE is
 
 test("non-dry-run cast fails fast before sandbox creation when FLEET_REPO_URL is missing", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
 	process.env.FLEET_E2B_TEMPLATE = "pi-fleet-node22";
@@ -1058,7 +1058,7 @@ test("describeSandboxError rewraps the opaque version crash but preserves other 
 
 test("non-dry-run cast surfaces the actionable hint when the SDK throws the opaque version error", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
 
@@ -1093,7 +1093,7 @@ test("non-dry-run cast surfaces the actionable hint when the SDK throws the opaq
 
 test("refreshFromSandbox sanitizes remote result fields and log tails before persisting", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN =
 		"github_pat_remoteSecretValue_abcdefghijklmnopqrstuvwxyz123456";
@@ -1151,7 +1151,7 @@ test("refreshFromSandbox sanitizes remote result fields and log tails before per
 		assert.match(refreshed.error ?? "", /\*\*\*/);
 
 		const persistedRaw = await readFile(
-			join(jobsDir, "job-sanitize.json"),
+			join(jobsDir, "state", "e2b", "jobs", "job-sanitize.json"),
 			"utf8",
 		);
 		assert.equal(persistedRaw.includes(process.env.FLEET_GITHUB_TOKEN), false);

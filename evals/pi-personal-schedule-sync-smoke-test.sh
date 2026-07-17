@@ -10,7 +10,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 FAKE_HOME="$TMPDIR/home"
 FAKE_AGENTS_DIR="$FAKE_HOME/Library/LaunchAgents"
-FAKE_LOG_DIR="$FAKE_HOME/Library/Logs/pi-fleet"
+FAKE_LOG_DIR="$FAKE_HOME/.pi-fleet/logs/personal"
 FAKE_SCHEDULES="$TMPDIR/schedules.json"
 FAKE_BIN="$TMPDIR/bin"
 STABLE_RUNNER="$FAKE_HOME/code/pi-fleet/bin/pi-personal-schedule-run"
@@ -59,7 +59,7 @@ run_sync() {
 		PATH="$FAKE_BIN:/usr/bin:/bin:/usr/sbin:/sbin" \
 		PI_FLEET_PROFILE=personal-assistant \
 		PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
-		PI_SCHEDULE_SYNC_LOG_DIR="$FAKE_LOG_DIR" \
+		PI_SCHEDULE_SYNC_LOG_MAX_BYTES=16 \
 		PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
 		PI_SCHEDULER_TASKS_FILE="$GLOBAL_TASKS" \
 		PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
@@ -77,7 +77,11 @@ HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=conductor \
 check_eq "$(plist_count)" "0" "conductor invocation creates no personal schedules"
 
 echo "2) first personal sync: creates and loads stable, launchd-safe jobs"
+mkdir -p "$FAKE_LOG_DIR"
+printf 'this log is deliberately oversized\n' >"$FAKE_LOG_DIR/social-x-checkup.log"
 run_sync
+[[ "$(stat -f '%Lp' "$FAKE_LOG_DIR")" == 700 ]] && check true "personal log directory is private" || check false "personal log directory is private"
+[[ -f "$FAKE_LOG_DIR/social-x-checkup.log.1" ]] && check true "oversized personal log rotates" || check false "oversized personal log rotates"
 [[ -f "$SOCIAL_PLIST" ]] && check true "social-x-checkup plist created" || check false "social-x-checkup plist created"
 [[ -f "$GMAIL_PLIST" ]] && check true "gmail-reply-checkup plist created" || check false "gmail-reply-checkup plist created"
 check_eq "$(plutil -extract ProgramArguments.0 raw "$SOCIAL_PLIST")" "$STABLE_RUNNER" "plist uses configured stable runner"

@@ -46,6 +46,10 @@ every install it knows how to do. See `./setup.sh --help` for details.
 Models in the profiles are **defaults, not locks** — override per launch with `--provider/--model`,
 or let the `pi-conductor`/`pi-project-lead` pick one via the bundled `model-classifier` skill.
 
+Pi-fleet runtime data lives only under private `~/.pi-fleet` (or an absolute `PI_FLEET_HOME`).
+See the canonical [runtime-state contract](docs/runtime-state.md). Bootstrap creates/repairs this
+root but never silently migrates old data; use `bin/pi-fleet-state-migrate` to report first.
+
 ## Hierarchy
 
 Fixed vocabulary for every skill, agent, and cast:
@@ -374,7 +378,7 @@ a local worktree. Planning and design live in Linear: E2B remote workers v0 proj
 
 **Who:** only `pi-project-lead` (tools on its `--tools` allowlist).  
 **What:** async `e2b_cast` → `jobId`; `e2b_status` / `e2b_wait` / `e2b_cancel` / `e2b_logs`.  
-**Jobs:** `~/.pi/fleet/jobs/<jobId>.json` (local store; Convex later).
+**Jobs:** `~/.pi-fleet/state/e2b/jobs/<jobId>.json` (private local fallback; Convex when configured).
 
 ### One-time setup
 

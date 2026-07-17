@@ -23,7 +23,7 @@ test.afterEach(() => {
 
 async function withJobsDir(fn: (jobsDir: string) => Promise<void>) {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	try {
 		await fn(jobsDir);
 	} finally {

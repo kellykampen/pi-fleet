@@ -20,7 +20,7 @@ test.afterEach(() => {
 
 async function withTempStore(fn: () => Promise<void>): Promise<void> {
 	const dir = await mkdtemp(join(tmpdir(), "pi-fleet-reconnect-"));
-	process.env.FLEET_JOBS_DIR = dir;
+	process.env.PI_FLEET_HOME = dir;
 	delete process.env.FLEET_CONVEX_URL;
 	try {
 		await fn();

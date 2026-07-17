@@ -1,58 +1,72 @@
 #!/usr/bin/env bash
-# Enforce (not just report) that the deprecated machine-global pi scheduler store is empty.
-# Personal schedules belong to launchd and must never appear here. Other pi runtimes (e.g. the
-# remote-pi/dev.remotepi.supervisord daemon) can still register or replay tasks into this file
-# from outside this repo, so every non-personal start/restart and every personal schedule sync
-# purges whatever is found - leaked tasks are backed up alongside the store, not silently dropped.
+# Enforce that Pi's external machine-global scheduler store is empty, preserving private evidence.
 set -euo pipefail
-
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=runtime-state.sh
+. "$LIB_DIR/runtime-state.sh"
+RUNTIME_ROOT="$(pi_fleet_runtime_root)"
 TASKS_FILE="${PI_SCHEDULER_TASKS_FILE:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/state/scheduler/tasks.json}"
-purged="$(
-	python3 - "$TASKS_FILE" <<'PYEOF'
-import datetime, json, os, sys
+# Private evidence namespaces: <runtime-root>/state/scheduler/backups and quarantine.
+STATE_DIR="$RUNTIME_ROOT/state/scheduler"
+LOCK_DIR="$STATE_DIR/.cleanup.lock"
+umask 077
+mkdir -p "$STATE_DIR"
+chmod 700 "$RUNTIME_ROOT" "$RUNTIME_ROOT/state" "$STATE_DIR" 2>/dev/null || true
+for _attempt in $(seq 1 100); do
+	if mkdir "$LOCK_DIR" 2>/dev/null; then break; fi
+	sleep .05
+	if [[ "$_attempt" == 100 ]]; then
+		echo "pi-fleet scheduler: timed out acquiring cleanup lock" >&2
+		exit 1
+	fi
+done
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
-path = sys.argv[1]
-if not os.path.exists(path):
-    print(0)
-    raise SystemExit
-
-try:
-    with open(path) as f:
-        data = json.load(f)
+result="$(
+	python3 - "$TASKS_FILE" "$STATE_DIR" <<'PYEOF'
+import json, os, shutil, sys, tempfile, time, uuid
+from pathlib import Path
+path, state = Path(sys.argv[1]), Path(sys.argv[2])
+if not path.exists(): print("empty"); raise SystemExit
+try: data = json.loads(path.read_text())
 except Exception:
-    print("unknown")
-    raise SystemExit
-
+    q = state / "quarantine"; q.mkdir(parents=True, exist_ok=True, mode=0o700); q.chmod(0o700)
+    dest = q / f"tasks.{time.time_ns()}.{uuid.uuid4().hex}.corrupt"
+    shutil.copyfile(path, dest); dest.chmod(0o600)
+    print("corrupt"); raise SystemExit
 tasks = data.get("tasks", [])
-if not tasks:
-    print(0)
-    raise SystemExit
-
-# Preserve evidence of what leaked before purging it.
-stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-backup_path = f"{path}.bak.{stamp}"
-with open(backup_path, "w") as f:
-    json.dump(data, f, indent=2)
-    f.write("\n")
-
+if not tasks: print("empty"); raise SystemExit
+backups = state / "backups"; backups.mkdir(parents=True, exist_ok=True, mode=0o700); backups.chmod(0o700)
+backup = backups / f"tasks.{time.time_ns()}.{uuid.uuid4().hex}.json"
+with backup.open("x") as f:
+    json.dump(data, f, indent=2); f.write("\n"); f.flush(); os.fsync(f.fileno())
+backup.chmod(0o600)
+# Bound evidence to the newest 20 records.
+for old in sorted(backups.glob("tasks.*.json"), key=lambda p: p.stat().st_mtime, reverse=True)[20:]: old.unlink()
 data["tasks"] = []
-tmp_path = f"{path}.tmp.{os.getpid()}"
-with open(tmp_path, "w") as f:
-    json.dump(data, f, indent=2)
-    f.write("\n")
-os.replace(tmp_path, path)
-
-print(len(tasks))
+path.parent.mkdir(parents=True, exist_ok=True)
+fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.tmp.", dir=path.parent)
+try:
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f, indent=2); f.write("\n"); f.flush(); os.fsync(f.fileno())
+    os.chmod(tmp, 0o600); os.replace(tmp, path)
+finally:
+    try: os.unlink(tmp)
+    except FileNotFoundError: pass
+print(f"purged:{len(tasks)}:{backup}")
 PYEOF
 )"
-
-if [[ "$purged" == "unknown" ]]; then
-	echo "pi-fleet scheduler: unknown global scheduled actions" >&2
-	echo "pi-fleet scheduler: WARNING could not parse $TASKS_FILE" >&2
-elif [[ "$purged" != "0" ]]; then
+case "$result" in
+corrupt)
+	echo "pi-fleet scheduler: unknown global scheduled actions"
+	echo "pi-fleet scheduler: WARNING corrupt input preserved; private copy under $STATE_DIR/quarantine" >&2
+	;;
+purged:*)
+	count="${result#purged:}"
+	count="${count%%:*}"
+	backup="${result#purged:*:}"
 	echo "pi-fleet scheduler: 0 global scheduled actions"
-	echo "pi-fleet scheduler: WARNING purged $purged leaked global task(s); backup at ${TASKS_FILE}.bak.*; personal schedules must use launchd" >&2
-	echo "pi-fleet scheduler: if this recurs, a live process is re-registering tasks - check: launchctl list | grep dev.remotepi.supervisord" >&2
-else
-	echo "pi-fleet scheduler: 0 global scheduled actions"
-fi
+	echo "pi-fleet scheduler: WARNING purged $count leaked global task(s); private backup at $backup" >&2
+	;;
+*) echo "pi-fleet scheduler: 0 global scheduled actions" ;;
+esac

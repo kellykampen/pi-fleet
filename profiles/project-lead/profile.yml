@@ -6,6 +6,7 @@ controls:
     model: gpt-5.5
     thinking: high
     skills:
+      - ../skills/fleet-state
       - ../skills/project-lead
       - ../skills/model-classifier
     # Extensions are NOT declared here: outfitter/pi resolve profile.yml extension paths

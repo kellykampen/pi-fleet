@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pi-fleet.local/schemas/runtime-state-v1.json",
+  "title": "pi-fleet runtime-state contract",
+  "contractVersion": 1,
+  "root": {
+    "default": "~/.pi-fleet",
+    "override": "PI_FLEET_HOME",
+    "overrideRequirements": ["absolute", "normalized", "non-filesystem-root"]
+  },
+  "defaults": {
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "lockTimeoutSeconds": 5,
+    "atomicWrite": "temporary-file, fsync, rename",
+    "migrationMode": "report-only"
+  },
+  "namespaces": [
+    {"path": "state/e2b/jobs", "owner": "pi-fleet e2b extension", "authority": "job lifecycle", "sensitivity": "private", "retention": "active forever; terminal archive after 30 days; archived delete only with explicit apply after 180 days"},
+    {"path": "state/scheduler/backups", "owner": "scheduler cleanup", "authority": "cleanup evidence", "sensitivity": "private", "retention": "newest 20"},
+    {"path": "state/scheduler/quarantine", "owner": "scheduler cleanup", "authority": "corrupt-input evidence", "sensitivity": "private", "retention": "manual cleanup"},
+    {"path": "state/migrations", "owner": "state migrator", "authority": "migration and rollback manifest", "sensitivity": "private", "retention": "until migration rollback window closes"},
+    {"path": "secrets", "owner": "pi-fleet", "authority": "fleet-only credentials", "sensitivity": "secret", "retention": "operator-managed"},
+    {"path": "logs/personal", "owner": "personal scheduler", "authority": "personal schedule output", "sensitivity": "private", "retention": "5 MiB per log, three rotated generations"},
+    {"path": "handoffs/conductor", "owner": "conductor", "authority": "coordination handoff", "sensitivity": "private", "retention": "one current.md plus explicit archive"},
+    {"path": "handoffs/projects/<stable-id>", "owner": "project lead", "authority": "project coordination handoff", "sensitivity": "private", "retention": "one current.md plus explicit archive"}
+  ],
+  "externalPaths": [
+    {"path": "~/.pi/agent", "owner": "Pi", "policy": "external; pi-fleet may configure links and clean scheduler tasks but does not claim ownership"},
+    {"path": "~/Library/LaunchAgents", "owner": "macOS launchd", "policy": "external; generated dev.pi-fleet.personal plists only"}
+  ]
+}

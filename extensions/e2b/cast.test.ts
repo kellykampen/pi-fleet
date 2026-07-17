@@ -93,7 +93,7 @@ test.afterEach(() => {
 
 test("non-dry-run cast propagates a successful createSandbox's sandboxId into the persisted job as status running", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
 
@@ -129,7 +129,7 @@ test("a cast without an explicit timeout uses the 90-minute hard-timeout default
 	assert.equal(DEFAULT_TIMEOUT_MINUTES, 90);
 
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
 
@@ -160,7 +160,7 @@ test("a cast without an explicit timeout uses the 90-minute hard-timeout default
 
 test("refreshFromSandbox kills the sandbox and marks the job timeout when result.json never appears past the max-lifetime ceiling", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 
 	// createdAt is 200 minutes ago — well past a 90 minute max-lifetime ceiling
@@ -212,7 +212,7 @@ test("refreshFromSandbox kills the sandbox and marks the job timeout when result
 
 test("refreshFromSandbox kills the sandbox when a terminal result.json appears", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 
 	const created = new Date().toISOString();
@@ -261,7 +261,7 @@ test("refreshFromSandbox kills the sandbox when a terminal result.json appears",
 
 test("non-dry-run cast fails clearly before sandbox creation when the GitHub App is only partially configured (FLT-6)", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	// A valid PAT is also present — misconfiguration must still be a hard
 	// error, never silently masked by falling back to the PAT.
@@ -421,7 +421,7 @@ test("requireReviewerCast rejects a partial provider/model override (live eviden
 
 test("non-dry-run reviewer cast dispatches to a running job distinct from an implementer cast", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
 	// Satisfies the reviewer model-auth preflight (openai-codex needs OAuth) so
@@ -459,7 +459,7 @@ test("non-dry-run reviewer cast dispatches to a running job distinct from an imp
 
 test("non-dry-run reviewer cast fails clearly before sandbox creation when no GitHub token (implementer or reviewer-scoped) is present", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	let sandboxCreated = false;
 
@@ -494,7 +494,7 @@ test("non-dry-run reviewer cast fails clearly before sandbox creation when no Gi
 
 test("non-dry-run reviewer cast fails fast before sandbox creation when no model-auth path is available (no OAuth blob, no provider/model override) — live evidence: jobs ab043369/9e9c2a4f failed deep in pi's launch with \"No API key found for openai-codex\" instead", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
 	let sandboxCreated = false;
@@ -532,7 +532,7 @@ test("non-dry-run reviewer cast fails fast before sandbox creation when no model
 
 test("a reviewer cast reaches sandbox creation when PI_AGENT_AUTH_JSON_B64 is forwarded, even without an explicit provider/model override", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
 	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJ0b2tlbi1zZWNyZXQifQ==";
@@ -564,7 +564,7 @@ test("a reviewer cast reaches sandbox creation when PI_AGENT_AUTH_JSON_B64 is fo
 
 test("a reviewer cast reaches sandbox creation when a matched provider/model override is given, even without PI_AGENT_AUTH_JSON_B64", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyz1234567890";
 	process.env.ANTHROPIC_API_KEY = "sk-worker-anthropic";
@@ -598,7 +598,7 @@ test("a reviewer cast reaches sandbox creation when a matched provider/model ove
 
 test("a reviewer cast succeeds with only FLEET_GITHUB_REVIEWER_TOKEN set (no implementer push token required)", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerOnlyToken1234567890abcdefgh";
 	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJ0b2tlbi1zZWNyZXQifQ==";
@@ -629,7 +629,7 @@ test("a reviewer cast succeeds with only FLEET_GITHUB_REVIEWER_TOKEN set (no imp
 
 test("refreshFromSandbox merges verdict/findingsSummary/reviewUrl/readOnlyEvidence from a reviewer job's remote result", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 	process.env.E2B_API_KEY = "e2b_test_key";
 
 	const now = new Date().toISOString();
@@ -694,7 +694,7 @@ test("refreshFromSandbox merges verdict/findingsSummary/reviewUrl/readOnlyEviden
 
 test("reconnectSandbox rehydrates a reviewer job's profile and verdict from a live sandbox, not a hardcoded implementer default", async () => {
 	const jobsDir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = jobsDir;
+	process.env.PI_FLEET_HOME = jobsDir;
 
 	try {
 		const job = await reconnectSandbox("sbx-review-reconnect", {

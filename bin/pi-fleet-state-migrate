@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Inventory/apply/rollback the v1 runtime-root migration without deleting sources."""
+import argparse, hashlib, json, os, shutil, sys, tempfile
+from pathlib import Path
+
+p = argparse.ArgumentParser(description="non-destructive pi-fleet runtime-state migration")
+g = p.add_mutually_exclusive_group(); g.add_argument("--apply", action="store_true"); g.add_argument("--rollback", action="store_true")
+a = p.parse_args()
+home = Path.home()
+raw_root = os.environ.get("PI_FLEET_HOME", str(home / ".pi-fleet")).strip()
+root = Path(raw_root)
+if not root.is_absolute() or root == Path(root.anchor) or ".." in root.parts or str(root) != os.path.normpath(str(root)):
+    sys.exit("PI_FLEET_HOME must be a normalized, absolute, non-root path")
+if root.is_symlink(): sys.exit("PI_FLEET_HOME must not be a symlink")
+manifest = root / "state/migrations/runtime-root-v1.json"
+
+def digest(path):
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""): h.update(chunk)
+    return h.hexdigest()
+
+def reject_symlink_components(path):
+    current = root
+    parts = path.relative_to(root).parts
+    if current.is_symlink(): raise RuntimeError(f"refusing symlink path: {current}")
+    for part in parts:
+        current /= part
+        if current.is_symlink(): raise RuntimeError(f"refusing symlink path: {current}")
+
+def private_dir(path):
+    reject_symlink_components(path)
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    reject_symlink_components(path)
+    path.chmod(0o700)
+
+def candidates():
+    pairs = []
+    for source_dir in (home / ".pi/fleet/jobs", root / "jobs"):
+        if source_dir.is_dir() and not source_dir.is_symlink():
+            for source in sorted(source_dir.iterdir()):
+                if source.is_file() and not source.is_symlink() and source.suffix == ".json":
+                    pairs.append((source, root / "state/e2b/jobs" / source.name))
+    for source in (home / ".pi/fleet/secrets.env", root / "secrets.env"):
+        if source.is_file() and not source.is_symlink(): pairs.append((source, root / "secrets/secrets.env"))
+    return pairs
+
+def load_manifest():
+    try:
+        data = json.loads(manifest.read_text())
+        return data.get("created", []) if data.get("version") == 1 else []
+    except FileNotFoundError: return []
+
+if a.rollback:
+    reject_symlink_components(manifest.parent)
+    removed = preserved = 0
+    for item in load_manifest():
+        dest = Path(item["destination"])
+        try: dest.relative_to(root)
+        except ValueError: raise RuntimeError(f"manifest destination escapes runtime root: {dest}")
+        reject_symlink_components(dest)
+        if dest.is_file() and not dest.is_symlink() and digest(dest) == item["sha256"]:
+            dest.unlink(); removed += 1
+        else: preserved += 1
+    print(f"rollback: removed {removed} unchanged migration-created file(s); preserved {preserved} changed/missing file(s)")
+    sys.exit(0)
+
+pairs = candidates()
+print(f"{'apply' if a.apply else 'report-only'}: {len(pairs)} recognized legacy file(s); sources will not be deleted")
+if not a.apply:
+    for source, dest in pairs: print(f"would copy: {source} -> {dest}" if not dest.exists() else f"conflict: destination exists: {dest}")
+    sys.exit(0)
+
+private_dir(root)
+created = load_manifest()
+known = {item["destination"]: item for item in created}
+for source, dest in pairs:
+    if dest.exists() or dest.is_symlink():
+        print(f"conflict: destination exists: {dest}"); continue
+    private_dir(dest.parent)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{dest.name}.tmp.", dir=dest.parent)
+    try:
+        with os.fdopen(fd, "wb") as out, source.open("rb") as inp:
+            shutil.copyfileobj(inp, out); out.flush(); os.fsync(out.fileno())
+        os.chmod(tmp_name, 0o600); os.replace(tmp_name, dest)
+        item = {"source": str(source), "destination": str(dest), "sha256": digest(dest)}
+        known[str(dest)] = item
+    finally:
+        try: os.unlink(tmp_name)
+        except FileNotFoundError: pass
+private_dir(manifest.parent)
+payload = {"version": 1, "created": sorted(known.values(), key=lambda x: x["destination"])}
+fd, tmp_name = tempfile.mkstemp(prefix=".runtime-root-v1.", dir=manifest.parent)
+with os.fdopen(fd, "w") as f:
+    json.dump(payload, f, indent=2); f.write("\n"); f.flush(); os.fsync(f.fileno())
+os.chmod(tmp_name, 0o600); os.replace(tmp_name, manifest)
+print(f"apply: manifest records {len(payload['created'])} migration-created file(s); no sources deleted")

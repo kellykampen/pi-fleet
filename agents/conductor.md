@@ -53,3 +53,5 @@ Rules:
   ("Model usage, roster overrides, and the machine-load guard") — run `check-model-usage` on a
   ~30-min cadence, act on OVER_PACE/EXHAUSTED, propagate any time-boxed roster override to every
   lead, and make sure leads know the current load-guard threshold (you don't run builds yourself).
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

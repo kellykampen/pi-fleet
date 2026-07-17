@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
+export PI_FLEET_HOME="$TMPDIR/fleet-home"
 TASKS="$TMPDIR/tasks.json"
 printf '{"version":2,"tasks":[]}\n' >"$TASKS"
 
@@ -39,8 +40,29 @@ LEAK_OUTPUT="$(PI_SCHEDULER_TASKS_FILE="$LEAKED" "$ROOT/bin/lib/scheduler-status
 [[ "$LEAK_OUTPUT" == *"0 global scheduled actions"* ]]
 [[ "$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["tasks"]))' "$LEAKED")" == "0" ]]
 shopt -s nullglob
-backups=("$LEAKED".bak.*)
+backups=("$PI_FLEET_HOME/state/scheduler/backups"/*.json)
 shopt -u nullglob
 [[ "${#backups[@]}" -ge 1 ]]
+[[ "$(stat -f '%Lp' "$PI_FLEET_HOME/state/scheduler/backups")" == 700 ]]
+[[ "$(stat -f '%Lp' "${backups[0]}")" == 600 ]]
 [[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tasks"][0]["name"])' "${backups[0]}")" == "social-x-checkup" ]]
-printf 'ok - scheduler-status.sh purges leaked global tasks and preserves a backup for evidence\n'
+printf 'ok - scheduler-status.sh purges leaked global tasks and preserves a private bounded backup\n'
+
+printf '{"version":2,"tasks":[{"id":"one"}]}' >"$LEAKED"
+PI_SCHEDULER_TASKS_FILE="$LEAKED" "$ROOT/bin/lib/scheduler-status.sh" >/dev/null &
+p1=$!
+PI_SCHEDULER_TASKS_FILE="$LEAKED" "$ROOT/bin/lib/scheduler-status.sh" >/dev/null &
+p2=$!
+wait "$p1"
+wait "$p2"
+[[ "$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["tasks"]))' "$LEAKED")" == 0 ]]
+
+printf 'not-json' >"$LEAKED"
+before="$(shasum "$LEAKED")"
+PI_SCHEDULER_TASKS_FILE="$LEAKED" "$ROOT/bin/lib/scheduler-status.sh" >/dev/null
+[[ "$(shasum "$LEAKED")" == "$before" ]]
+shopt -s nullglob
+corrupt=("$PI_FLEET_HOME/state/scheduler/quarantine"/*)
+shopt -u nullglob
+[[ "${#corrupt[@]}" -eq 1 && "$(stat -f '%Lp' "${corrupt[0]}")" == 600 ]]
+printf 'ok - scheduler cleanup is locked, atomic, and preserves corrupt input\n'

@@ -28,3 +28,5 @@ Rules:
   If it's clean, say so plainly — don't invent issues.
 - You do not fix anything and you do not approve merges; you hand your findings back to the
   project lead, which decides. Hierarchy: CEO → conductor → project lead → worker (you).
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

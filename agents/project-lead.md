@@ -53,3 +53,5 @@ Rules:
   `skills/project-lead/SKILL.md` ("Model usage, roster overrides, and the machine-load guard") —
   you enforce the load guard directly (check `uptime` before new heavy local steps, hold above
   ~28, resume serialized once drained), and apply any time-boxed roster override to new casts.
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

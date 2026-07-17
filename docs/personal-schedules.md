@@ -38,8 +38,8 @@ Run automatically by `bin/pi-personal-assistant` on every invocation (non-fatal 
 broken sync must not block getting into a session). For each enabled schedule:
 
 1. Compute the desired `~/Library/LaunchAgents/dev.pi-fleet.personal.<name>.plist` content.
-2. Use the stable `~/code/pi-fleet` runner when available rather than capturing a disposable
-   feature-worktree path.
+2. Use `PI_FLEET_REPO_ROOT` or the stable `~/code/pi-fleet` runner when available rather than
+   capturing a disposable feature-worktree path. `PI_FLEET_HOME` is reserved for runtime state.
 3. Preserve the validated sync-time `PATH` in `EnvironmentVariables`, because launchd does not
    inherit the interactive shell environment and otherwise may fail to find `outfitter` (status 127).
 4. Write changed plist content atomically, then always `launchctl bootout` + `launchctl bootstrap`.
@@ -49,7 +49,8 @@ The wrapper marks sync with `PI_FLEET_PROFILE=personal-assistant`; an explicitly
 is rejected. Direct manual sync remains supported when the marker is unset. Set
 `PI_SCHEDULE_SYNC_ENABLED=0` to unload and remove the personal LaunchAgents without editing JSON.
 Testing/isolation overrides: `PI_SCHEDULE_SYNC_AGENTS_DIR`, `PI_SCHEDULE_SYNC_LOG_DIR`,
-`PI_SCHEDULE_SYNC_SCHEDULES_JSON`, `PI_SCHEDULE_SYNC_RUNNER`, and
+`PI_SCHEDULE_SYNC_LOG_MAX_BYTES`, `PI_SCHEDULE_SYNC_SCHEDULES_JSON`,
+`PI_SCHEDULE_SYNC_RUNNER`, and
 `PI_SCHEDULE_SYNC_DRY_RUN=1` (writes/diffs plists, skips real `launchctl` calls).
 
 ## How a fire works (`bin/pi-personal-schedule-run <name>`)
@@ -74,4 +75,4 @@ escalation instructions, and the current task ID if one is on file), and runs it
 
 ## Logs
 
-`~/Library/Logs/pi-fleet/<name>.log` (stdout) and `<name>.error.log` (stderr).
+`~/.pi-fleet/logs/personal/<name>.log` (stdout) and `<name>.error.log` (stderr). Logs are private and rotate at 5 MiB with three generations.

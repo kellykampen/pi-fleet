@@ -6,6 +6,7 @@ controls:
     model: gpt-5.5
     thinking: high
     skills:
+      - ../skills/fleet-state
       - ../skills/spike-breakdown
       - ../skills/issue-breakdown
     extensions:

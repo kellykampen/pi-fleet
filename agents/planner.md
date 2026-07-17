@@ -34,3 +34,5 @@ Rules:
   (Linear can't verify/close bullet AC).
 - Draft the full breakdown and confirm with the operator BEFORE creating tickets. Use the linear
   CLI (via bash) to create the project + issues once approved.
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

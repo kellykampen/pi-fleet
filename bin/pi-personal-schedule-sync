@@ -6,17 +6,24 @@
 #   PI_SCHEDULE_SYNC_ENABLED=0      - unload and remove personal LaunchAgents
 #   PI_FLEET_PROFILE                - when set, must be "personal-assistant"
 #   PI_SCHEDULE_SYNC_AGENTS_DIR     - LaunchAgents dir (default: ~/Library/LaunchAgents)
-#   PI_SCHEDULE_SYNC_LOG_DIR        - stdout/stderr dir (default: ~/Library/Logs/pi-fleet)
+#   PI_SCHEDULE_SYNC_LOG_DIR        - stdout/stderr dir (default: <runtime-root>/logs/personal)
+#   PI_SCHEDULE_SYNC_LOG_MAX_BYTES  - rotate logs above this size (default: 5242880)
+#   PI_FLEET_REPO_ROOT              - stable pi-fleet checkout (default: ~/code/pi-fleet)
 #   PI_SCHEDULE_SYNC_DRY_RUN=1      - write/diff plists but do not call launchctl
 #   PI_SCHEDULE_SYNC_SCHEDULES_JSON - schedules source (default: this repo)
 #   PI_SCHEDULE_SYNC_RUNNER         - stable executable runner path
 set -euo pipefail
+umask 077
 
 SELF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/runtime-state.sh
+. "$SELF_ROOT/bin/lib/runtime-state.sh"
+RUNTIME_ROOT="$(pi_fleet_runtime_root)"
 PROFILE="${PI_FLEET_PROFILE:-}"
 ENABLED="${PI_SCHEDULE_SYNC_ENABLED:-1}"
 AGENTS_DIR="${PI_SCHEDULE_SYNC_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
-LOG_DIR="${PI_SCHEDULE_SYNC_LOG_DIR:-$HOME/Library/Logs/pi-fleet}"
+LOG_DIR="${PI_SCHEDULE_SYNC_LOG_DIR:-$RUNTIME_ROOT/logs/personal}"
+LOG_MAX_BYTES="${PI_SCHEDULE_SYNC_LOG_MAX_BYTES:-5242880}"
 DRY_RUN="${PI_SCHEDULE_SYNC_DRY_RUN:-0}"
 LABEL_PREFIX="dev.pi-fleet.personal"
 
@@ -27,14 +34,30 @@ fi
 
 # A LaunchAgent must not capture a disposable feature-worktree path. Prefer the conventional,
 # stable checkout used by pi-fleet-bootstrap; fall back to this checkout for other installations.
-DEFAULT_ROOT="${PI_FLEET_HOME:-$HOME/code/pi-fleet}"
-if [[ ! -x "$DEFAULT_ROOT/bin/pi-personal-schedule-run" ]]; then
-  DEFAULT_ROOT="$SELF_ROOT"
+REPO_ROOT="${PI_FLEET_REPO_ROOT:-$HOME/code/pi-fleet}"
+if [[ ! -x "$REPO_ROOT/bin/pi-personal-schedule-run" ]]; then
+  REPO_ROOT="$SELF_ROOT"
 fi
-SCHEDULES_JSON="${PI_SCHEDULE_SYNC_SCHEDULES_JSON:-$DEFAULT_ROOT/profiles/personal-assistant/schedules.json}"
-RUNNER="${PI_SCHEDULE_SYNC_RUNNER:-$DEFAULT_ROOT/bin/pi-personal-schedule-run}"
+SCHEDULES_JSON="${PI_SCHEDULE_SYNC_SCHEDULES_JSON:-$REPO_ROOT/profiles/personal-assistant/schedules.json}"
+RUNNER="${PI_SCHEDULE_SYNC_RUNNER:-$REPO_ROOT/bin/pi-personal-schedule-run}"
 
+[[ "$LOG_MAX_BYTES" =~ ^[0-9]+$ ]] || { echo "PI_SCHEDULE_SYNC_LOG_MAX_BYTES must be an integer" >&2; exit 2; }
 mkdir -p "$AGENTS_DIR" "$LOG_DIR"
+chmod 700 "$LOG_DIR"
+# launchd does not rotate StandardOutPath. Keep three private generations, bounded on every sync.
+shopt -s nullglob
+for log in "$LOG_DIR"/*.log; do
+  [[ -f "$log" && ! -L "$log" ]] || continue
+  size="$(stat -f '%z' "$log")"
+  if (( size > LOG_MAX_BYTES )); then
+    rm -f "$log.3"; [[ ! -e "$log.2" ]] || mv "$log.2" "$log.3"
+    [[ ! -e "$log.1" ]] || mv "$log.1" "$log.2"
+    mv "$log" "$log.1"; chmod 600 "$log.1"
+  else
+    chmod 600 "$log"
+  fi
+done
+shopt -u nullglob
 
 # Runtime enforcement: personal launchd schedules must never bleed into pi's global scheduler
 # store. Other pi runtimes (e.g. remote-pi/dev.remotepi.supervisord) can still write to it from
