@@ -168,7 +168,10 @@ test("buildRunnerScript anchors Outfitter profile resolution to /work/pi-fleet/p
 	// profile.yml extensions (`../extensions/<x>`) are resolved by pi against its
 	// cwd (/work/repo) → /work/extensions/..., so the pi-fleet extensions/skills
 	// must be symlinked there or the profile fails to load its extension.
-	assert.match(script, /ln -sfn \/work\/pi-fleet\/extensions \/work\/extensions/);
+	assert.match(
+		script,
+		/ln -sfn \/work\/pi-fleet\/extensions \/work\/extensions/,
+	);
 	assert.match(script, /ln -sfn \/work\/pi-fleet\/skills \/work\/skills/);
 });
 
@@ -179,7 +182,10 @@ test("buildRunnerScript materializes ~/.pi/agent/auth.json from the env var with
 	process.env[PI_AGENT_AUTH_ENV] = "TOKEN_LITERAL_MUST_NOT_APPEAR_zzz999";
 	const script = buildRunnerScript(implementerJob());
 
-	assert.equal(script.includes(process.env[PI_AGENT_AUTH_ENV] as string), false);
+	assert.equal(
+		script.includes(process.env[PI_AGENT_AUTH_ENV] as string),
+		false,
+	);
 	// Decodes straight to a 600-locked file, never to stdout.
 	assert.match(script, /mkdir -p "\$HOME\/\.pi\/agent"/);
 	assert.match(
@@ -192,13 +198,17 @@ test("buildRunnerScript materializes ~/.pi/agent/auth.json from the env var with
 });
 
 test("sanitizeSecrets redacts the pi agent auth blob value", () => {
-	process.env[PI_AGENT_AUTH_ENV] = "eyJvYXV0aCI6ICJzdXBlci1zZWNyZXQtdG9rZW4ifQ==";
+	process.env[PI_AGENT_AUTH_ENV] =
+		"eyJvYXV0aCI6ICJzdXBlci1zZWNyZXQtdG9rZW4ifQ==";
 
 	const sanitized = sanitizeSecrets(
 		`auth=${process.env[PI_AGENT_AUTH_ENV]} done`,
 	);
 
-	assert.equal(sanitized.includes(process.env[PI_AGENT_AUTH_ENV] as string), false);
+	assert.equal(
+		sanitized.includes(process.env[PI_AGENT_AUTH_ENV] as string),
+		false,
+	);
 	assert.equal(sanitized, "auth=*** done");
 });
 
@@ -283,7 +293,10 @@ test("buildRunnerScript uses the normalized per-cast repo for every target clone
 	assert.match(branchScript, /export TARGET_REPO='kellykampen\/pi-fleet'/);
 	assert.match(branchScript, /clone_target\s*$/m);
 	assert.equal(branchScript.includes("clone_target --depth"), false);
-	assert.equal(branchScript.includes("github.com/kellykampen/pi-fleet.git"), false);
+	assert.equal(
+		branchScript.includes("github.com/kellykampen/pi-fleet.git"),
+		false,
+	);
 });
 
 test("buildRunnerScript keeps the per-cast target separate from FLEET_REPO_URL", () => {
@@ -328,7 +341,10 @@ test("buildRunnerScript fetches and checks out the branch for codeAccess=branch"
 	assert.match(script, /export BRANCH_NAME='feature\/x'/);
 	assert.match(script, /^checkout_branch$/m);
 	assert.match(script, /git fetch origin "\$BRANCH_NAME"/);
-	assert.match(script, /git checkout -b "\$BRANCH_NAME" "origin\/\$BRANCH_NAME"/);
+	assert.match(
+		script,
+		/git checkout -b "\$BRANCH_NAME" "origin\/\$BRANCH_NAME"/,
+	);
 });
 
 test("buildRunnerScript wraps codeAccess=branch checkout so a bad branch fails fast instead of falling through to pi-implementer", () => {
@@ -341,7 +357,10 @@ test("buildRunnerScript wraps codeAccess=branch checkout so a bad branch fails f
 	// bad target repo: on failure, mark it, finalize a terminal result, and exit
 	// immediately — never fall through to running pi-implementer, which is what
 	// left the job hanging until the sandbox's own timeout.
-	assert.match(script, /checkout_branch\(\)\s*\{[\s\S]*?BRANCH_CHECKOUT_FAILED=1[\s\S]*?finalize_result[\s\S]*?exit "\$EXIT"[\s\S]*?\}/);
+	assert.match(
+		script,
+		/checkout_branch\(\)\s*\{[\s\S]*?BRANCH_CHECKOUT_FAILED=1[\s\S]*?finalize_result[\s\S]*?exit "\$EXIT"[\s\S]*?\}/,
+	);
 	assert.match(script, /^checkout_branch$/m);
 
 	const checkoutFnIdx = script.indexOf("checkout_branch() {");
@@ -352,7 +371,11 @@ test("buildRunnerScript wraps codeAccess=branch checkout so a bad branch fails f
 test("buildRunnerScript extracts the pre-uploaded source archive for codeAccess=clone instead of cloning with credentials (FLT-9)", () => {
 	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
 	const script = buildRunnerScript(
-		implementerJob({ codeAccess: "clone", repo: "owner/private-app", branch: "fleet/my-branch" }),
+		implementerJob({
+			codeAccess: "clone",
+			repo: "owner/private-app",
+			branch: "fleet/my-branch",
+		}),
 	);
 
 	// No read path requires the sandbox to hold credentials: clone_target (the
@@ -405,7 +428,9 @@ test("buildResultFinalizer surfaces a clear, sanitized error for a failed source
 			SOURCE_ARCHIVE_EXTRACT_FAILED: "1",
 		});
 
-		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		const result = JSON.parse(
+			await readFile(join(work, "result.json"), "utf8"),
+		);
 		assert.equal(result.status, "failed");
 		assert.match(result.error, /owner\/private-app/);
 		assert.equal(result.error.includes(TARGET_REPO_ACCESS_ERROR_HINT), false);
@@ -459,7 +484,9 @@ test("buildResultFinalizer writes needs_input result.json when the needs-input m
 			BRANCH: "fleet/needs-input",
 		});
 
-		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		const result = JSON.parse(
+			await readFile(join(work, "result.json"), "utf8"),
+		);
 		assert.equal(result.status, "needs_input");
 		assert.deepEqual(result.questions, [
 			"Which auth provider should the login flow use?",
@@ -517,7 +544,9 @@ test("buildResultFinalizer leaves an existing result.json untouched when a needs
 			},
 		).toString();
 
-		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		const result = JSON.parse(
+			await readFile(join(work, "result.json"), "utf8"),
+		);
 		assert.deepEqual(result, ownResult);
 
 		// The log line must reflect the persisted (succeeded) result, not the
@@ -531,7 +560,8 @@ test("buildResultFinalizer leaves an existing result.json untouched when a needs
 test("buildResultFinalizer surfaces a clear sanitized target-repo access error", async () => {
 	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
 	try {
-		const token = "github_pat_cloneFailureSecret_abcdefghijklmnopqrstuvwxyz123456";
+		const token =
+			"github_pat_cloneFailureSecret_abcdefghijklmnopqrstuvwxyz123456";
 		process.env.FLEET_GITHUB_TOKEN = token;
 		runFinalizer(work, {
 			JOB_ID: "job-clone-denied",
@@ -565,7 +595,9 @@ test("buildResultFinalizer surfaces a clear error for a bad/nonexistent branch i
 			BRANCH_NAME: "feature/does-not-exist",
 		});
 
-		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		const result = JSON.parse(
+			await readFile(join(work, "result.json"), "utf8"),
+		);
 		assert.equal(result.status, "failed");
 		assert.match(result.error, /feature\/does-not-exist/);
 		assert.match(result.error, /owner\/repo/);
@@ -689,7 +721,9 @@ test("sanitizeSecrets redacts the GitHub App private key value when it leaks int
 test("collectWorkerEnv uses an explicitly supplied githubToken instead of the raw PAT env value (FLT-6)", () => {
 	process.env.GH_TOKEN = "ghp_rawPatMustNotBeForwarded1234567890abcd";
 
-	const envs = collectWorkerEnv({ githubToken: "ghs_mintedAppInstallationToken" });
+	const envs = collectWorkerEnv({
+		githubToken: "ghs_mintedAppInstallationToken",
+	});
 
 	assert.equal(envs.FLEET_GITHUB_TOKEN, "ghs_mintedAppInstallationToken");
 	assert.equal(
@@ -718,7 +752,8 @@ test("githubCredentialSourceConfigured is true when only FLEET_GITHUB_TOKEN/GH_T
 test("githubCredentialSourceConfigured is true when the GitHub App is fully configured (FLT-6)", () => {
 	process.env[GITHUB_APP_ID_ENV] = "123";
 	process.env[GITHUB_APP_INSTALLATION_ID_ENV] = "456";
-	process.env[GITHUB_APP_PRIVATE_KEY_ENV] = "-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----";
+	process.env[GITHUB_APP_PRIVATE_KEY_ENV] =
+		"-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----";
 	assert.equal(githubCredentialSourceConfigured(), true);
 });
 
@@ -728,7 +763,10 @@ test("githubCredentialSourceConfigured throws a clear error when the GitHub App 
 	// installationId and private key deliberately left unset — misconfiguration
 	// must be a hard error, never silently masked by a valid PAT fallback.
 
-	assert.throws(() => githubCredentialSourceConfigured(), /partially configured/i);
+	assert.throws(
+		() => githubCredentialSourceConfigured(),
+		/partially configured/i,
+	);
 });
 
 test("resolveInjectedGithubToken mints a GitHub App installation token instead of returning the raw PAT when the App is configured (FLT-6)", async () => {
@@ -739,9 +777,15 @@ test("resolveInjectedGithubToken mints a GitHub App installation token instead o
 
 	const token = await resolveInjectedGithubToken({
 		fetchImpl: (async () =>
-			new Response(JSON.stringify({ token: "ghs_mintedToken", expires_at: "2026-01-01T00:00:00Z" }), {
-				status: 201,
-			})) as typeof fetch,
+			new Response(
+				JSON.stringify({
+					token: "ghs_mintedToken",
+					expires_at: "2026-01-01T00:00:00Z",
+				}),
+				{
+					status: 201,
+				},
+			)) as typeof fetch,
 	});
 
 	assert.equal(token, "ghs_mintedToken");
@@ -758,13 +802,18 @@ test("resolveInjectedGithubToken narrows the minted App token to the cast's targ
 		fetchImpl: (async (_url: string, init: RequestInit) => {
 			capturedBody = init.body as string | undefined;
 			return new Response(
-				JSON.stringify({ token: "ghs_mintedToken", expires_at: "2026-01-01T00:00:00Z" }),
+				JSON.stringify({
+					token: "ghs_mintedToken",
+					expires_at: "2026-01-01T00:00:00Z",
+				}),
 				{ status: 201 },
 			);
 		}) as typeof fetch,
 	});
 
-	assert.deepEqual(JSON.parse(capturedBody ?? "{}"), { repositories: ["some-other-repo"] });
+	assert.deepEqual(JSON.parse(capturedBody ?? "{}"), {
+		repositories: ["some-other-repo"],
+	});
 });
 
 test("resolveInjectedGithubToken fails closed (throws) on a malformed cast repo instead of minting with the installation's full access (FLT-12 review fix)", async () => {
@@ -780,7 +829,10 @@ test("resolveInjectedGithubToken fails closed (throws) on a malformed cast repo 
 				fetchImpl: (async () => {
 					fetchCalled = true;
 					return new Response(
-						JSON.stringify({ token: "ghs_mintedToken", expires_at: "2026-01-01T00:00:00Z" }),
+						JSON.stringify({
+							token: "ghs_mintedToken",
+							expires_at: "2026-01-01T00:00:00Z",
+						}),
 						{ status: 201 },
 					);
 				}) as typeof fetch,
@@ -908,10 +960,9 @@ interface RecordingSandbox extends RunnableSandbox {
 	killed: number;
 }
 
-function recordingSandbox(opts: {
-	sandboxId?: string;
-	failOn?: RegExp;
-} = {}): RecordingSandbox {
+function recordingSandbox(
+	opts: { sandboxId?: string; failOn?: RegExp } = {},
+): RecordingSandbox {
 	const calls: string[] = [];
 	const sandbox: RecordingSandbox = {
 		sandboxId: "sandboxId" in opts ? opts.sandboxId : "sbx-mock",
@@ -1033,7 +1084,9 @@ test("isOpaqueVersionError detects the SDK envd version crash across phrasings",
 	assert.equal(isOpaqueVersionError("null has no property version"), false);
 	// Unrelated SDK errors must pass through untouched.
 	assert.equal(
-		isOpaqueVersionError(new Error("Unauthorized, please check your credentials")),
+		isOpaqueVersionError(
+			new Error("Unauthorized, please check your credentials"),
+		),
 		false,
 	);
 	assert.equal(
@@ -1183,9 +1236,13 @@ function reviewerJob(overrides: Partial<FleetJob> = {}): FleetJob {
 
 test("resolveGithubReviewerToken prefers FLEET_GITHUB_REVIEWER_TOKEN over the implementer's push token", () => {
 	process.env.FLEET_GITHUB_TOKEN = "ghp_implementerPushToken1234567890abcdef";
-	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerScopedToken1234567890abcdef";
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN =
+		"ghp_reviewerScopedToken1234567890abcdef";
 
-	assert.equal(resolveGithubReviewerToken(), process.env.FLEET_GITHUB_REVIEWER_TOKEN);
+	assert.equal(
+		resolveGithubReviewerToken(),
+		process.env.FLEET_GITHUB_REVIEWER_TOKEN,
+	);
 	assert.equal(githubReviewerTokenPresent(), true);
 });
 
@@ -1204,7 +1261,8 @@ test("githubReviewerTokenPresent is false when no GitHub token env var is set", 
 
 test("resolveInjectedGithubToken resolves the reviewer-scoped token for profile=reviewer when no GitHub App is configured", async () => {
 	process.env.FLEET_GITHUB_TOKEN = "ghp_implementerPushToken1234567890abcdef";
-	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerScopedToken1234567890abcdef";
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN =
+		"ghp_reviewerScopedToken1234567890abcdef";
 
 	assert.equal(
 		await resolveInjectedGithubToken({ profile: "reviewer" }),
@@ -1218,7 +1276,8 @@ test("resolveInjectedGithubToken resolves the reviewer-scoped token for profile=
 
 test("collectWorkerEnv ships the reviewer-resolved token under the canonical FLEET_GITHUB_TOKEN name", async () => {
 	process.env.FLEET_GITHUB_TOKEN = "ghp_implementerPushToken1234567890abcdef";
-	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerScopedToken1234567890abcdef";
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN =
+		"ghp_reviewerScopedToken1234567890abcdef";
 	process.env.OPENAI_API_KEY = "sk-worker-openai";
 
 	const githubToken = await resolveInjectedGithubToken({ profile: "reviewer" });
@@ -1232,7 +1291,8 @@ test("githubCredentialSourceConfigured checks the reviewer-scoped token for prof
 	assert.equal(githubCredentialSourceConfigured("reviewer"), false);
 	assert.equal(githubCredentialSourceConfigured("implementer"), false);
 
-	process.env.FLEET_GITHUB_REVIEWER_TOKEN = "ghp_reviewerScopedToken1234567890abcdef";
+	process.env.FLEET_GITHUB_REVIEWER_TOKEN =
+		"ghp_reviewerScopedToken1234567890abcdef";
 	assert.equal(githubCredentialSourceConfigured("reviewer"), true);
 	// The reviewer-scoped token alone must not satisfy the implementer's check.
 	assert.equal(githubCredentialSourceConfigured("implementer"), false);
@@ -1244,10 +1304,7 @@ test("buildReviewerRunnerScript never embeds token values", () => {
 		"github_pat_thisSecretMustNotAppearInTheReviewerScript12345";
 	const script = buildReviewerRunnerScript(reviewerJob());
 
-	assert.equal(
-		script.includes(process.env.FLEET_GITHUB_REVIEWER_TOKEN),
-		false,
-	);
+	assert.equal(script.includes(process.env.FLEET_GITHUB_REVIEWER_TOKEN), false);
 	assert.match(script, /FLEET_GITHUB_TOKEN/);
 	assert.match(
 		script,
@@ -1257,13 +1314,21 @@ test("buildReviewerRunnerScript never embeds token values", () => {
 
 test("buildReviewerRunnerScript fetches the PR read-only and never runs a code-mutating command", () => {
 	process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
-	const script = buildReviewerRunnerScript(reviewerJob({ repo: "owner/private-app", prNumber: 7 }));
+	const script = buildReviewerRunnerScript(
+		reviewerJob({ repo: "owner/private-app", prNumber: 7 }),
+	);
 
 	assert.match(script, /export TARGET_REPO='owner\/private-app'/);
 	assert.match(script, /export PR_NUMBER='7'/);
 	assert.match(script, /gh pr view "\$PR_NUMBER" --repo "\$TARGET_REPO"/);
-	assert.match(script, /gh pr diff "\$PR_NUMBER" --repo "\$TARGET_REPO" > \/work\/pr-diff\.patch/);
-	assert.match(script, /gh pr comment "\$PR_NUMBER" --repo "\$TARGET_REPO" --body-file/);
+	assert.match(
+		script,
+		/gh pr diff "\$PR_NUMBER" --repo "\$TARGET_REPO" > \/work\/pr-diff\.patch/,
+	);
+	assert.match(
+		script,
+		/gh pr comment "\$PR_NUMBER" --repo "\$TARGET_REPO" --body-file/,
+	);
 
 	// The distinguishing guarantee of a reviewer cast: no command that could
 	// mutate the target repo or the PR's merge state ever appears. Cloning the
@@ -1313,7 +1378,10 @@ test("buildReviewerRunnerScript cd's into a /work subdirectory before invoking p
 	const script = buildReviewerRunnerScript(reviewerJob());
 
 	const cdMatch = script.match(/^cd (\/work\/\S+)$/m);
-	assert.ok(cdMatch, "expected an explicit `cd /work/<subdir>` before invoking pi-reviewer");
+	assert.ok(
+		cdMatch,
+		"expected an explicit `cd /work/<subdir>` before invoking pi-reviewer",
+	);
 	const reviewerCwd = cdMatch![1];
 
 	// The actual invariant that broke: pi resolves a profile's `../extensions/x`
@@ -1334,7 +1402,12 @@ test("buildReviewerRunnerScript cd's into a /work subdirectory before invoking p
 	assert.ok(cdIdx !== -1 && cdIdx < invokeIdx);
 
 	// mkdir -p must precede the cd, or a fresh sandbox has nothing to cd into.
-	assert.match(script, new RegExp(`mkdir -p ${reviewerCwd.replace(/\//g, "\\/")}\\ncd ${reviewerCwd.replace(/\//g, "\\/")}`));
+	assert.match(
+		script,
+		new RegExp(
+			`mkdir -p ${reviewerCwd.replace(/\//g, "\\/")}\\ncd ${reviewerCwd.replace(/\//g, "\\/")}`,
+		),
+	);
 });
 
 test("buildReviewerRunnerScript logs each read-only gh call to the evidence file", () => {
@@ -1344,7 +1417,10 @@ test("buildReviewerRunnerScript logs each read-only gh call to the evidence file
 	assert.match(script, />> "\$EVIDENCE"/);
 	assert.match(script, /gh pr view .* \(read-only\)/);
 	assert.match(script, /gh pr diff .* \(read-only\)/);
-	assert.match(script, /gh pr comment .* \(comment only, no approve\/request-changes authority\)/);
+	assert.match(
+		script,
+		/gh pr comment .* \(comment only, no approve\/request-changes authority\)/,
+	);
 });
 
 test("buildReviewerRunnerScript logs the same job-lifecycle lines the implementer runner uses, so reconnect's log-based jobId fallback still matches", () => {
@@ -1352,13 +1428,19 @@ test("buildReviewerRunnerScript logs the same job-lifecycle lines the implemente
 	const script = buildReviewerRunnerScript(reviewerJob());
 
 	assert.match(script, /^echo "fleet e2b job \$JOB_ID starting"$/m);
-	assert.match(script, /echo "fleet e2b job \$JOB_ID finished status=\$STATUS"/);
+	assert.match(
+		script,
+		/echo "fleet e2b job \$JOB_ID finished status=\$STATUS"/,
+	);
 });
 
 test("buildReviewerResultFinalizer writes a succeeded result with verdict/findings/reviewUrl/evidence", async () => {
 	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
 	try {
-		await writeFile(join(work, "review-output.txt"), "VERDICT: APPROVE\nLooks good.");
+		await writeFile(
+			join(work, "review-output.txt"),
+			"VERDICT: APPROVE\nLooks good.",
+		);
 		await writeFile(
 			join(work, "readonly-evidence.log"),
 			"gh pr view 42 --repo owner/repo (read-only)\ngh pr diff 42 --repo owner/repo (read-only)\n",
@@ -1375,14 +1457,19 @@ test("buildReviewerResultFinalizer writes a succeeded result with verdict/findin
 			EVIDENCE: join(work, "readonly-evidence.log"),
 		});
 
-		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		const result = JSON.parse(
+			await readFile(join(work, "result.json"), "utf8"),
+		);
 		assert.equal(result.status, "succeeded");
 		assert.equal(result.profile, "reviewer");
 		assert.equal(result.jobId, "job-review-ok");
 		assert.equal(result.prNumber, 42);
 		assert.equal(result.verdict, "APPROVE");
 		assert.match(result.findingsSummary, /VERDICT: APPROVE/);
-		assert.equal(result.reviewUrl, "https://github.com/owner/repo/pull/42#issuecomment-1");
+		assert.equal(
+			result.reviewUrl,
+			"https://github.com/owner/repo/pull/42#issuecomment-1",
+		);
 		assert.deepEqual(result.readOnlyEvidence, [
 			"gh pr view 42 --repo owner/repo (read-only)",
 			"gh pr diff 42 --repo owner/repo (read-only)",
@@ -1421,7 +1508,10 @@ test("buildReviewerResultFinalizer surfaces a clear error when the PR fetch fail
 test("buildReviewerResultFinalizer marks the job failed when the review succeeded but posting the comment failed", async () => {
 	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
 	try {
-		await writeFile(join(work, "review-output.txt"), "VERDICT: REQUEST-CHANGES\nMissing null check.");
+		await writeFile(
+			join(work, "review-output.txt"),
+			"VERDICT: REQUEST-CHANGES\nMissing null check.",
+		);
 
 		runReviewerFinalizer(work, {
 			JOB_ID: "job-review-comment-failed",
@@ -1433,7 +1523,9 @@ test("buildReviewerResultFinalizer marks the job failed when the review succeede
 			REVIEW_OUTPUT: join(work, "review-output.txt"),
 		});
 
-		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		const result = JSON.parse(
+			await readFile(join(work, "result.json"), "utf8"),
+		);
 		assert.equal(result.status, "failed");
 		// The review itself is still reported even though posting it failed —
 		// useful diagnostic, not silently dropped.
@@ -1456,7 +1548,9 @@ test("buildReviewerResultFinalizer falls back to a generic exit-code error and U
 			PR_NUMBER: "3",
 		});
 
-		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		const result = JSON.parse(
+			await readFile(join(work, "result.json"), "utf8"),
+		);
 		assert.equal(result.status, "failed");
 		assert.equal(result.verdict, "UNKNOWN");
 		assert.match(result.error, /pi-reviewer exited 1/);
