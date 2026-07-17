@@ -127,7 +127,9 @@ check_eq "$(plist_count)" "0" "still zero plists after disabling an already-empt
 
 echo "6) nested personal-log symlinks are rejected without outside writes"
 OUTSIDE_LOGS="$TMPDIR/outside-logs"
-rm -rf "$FAKE_HOME/.pi-fleet/logs"; mkdir "$OUTSIDE_LOGS"; ln -s "$OUTSIDE_LOGS" "$FAKE_HOME/.pi-fleet/logs"
+rm -rf "$FAKE_HOME/.pi-fleet/logs"
+mkdir "$OUTSIDE_LOGS"
+ln -s "$OUTSIDE_LOGS" "$FAKE_HOME/.pi-fleet/logs"
 if run_sync >/dev/null 2>&1; then check false "nested log symlink is rejected"; else check true "nested log symlink is rejected"; fi
 [[ -z "$(find "$OUTSIDE_LOGS" -mindepth 1 -print -quit)" ]] && check true "no files written through log symlink" || check false "files written through log symlink"
 

@@ -162,6 +162,50 @@ test("corrupt records raise explicitly and are quarantined", async () => {
 	});
 });
 
+test("retention dry-run reports corrupt active records without mutation", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "broken", status: "running" }));
+		const path = join(jobsDir(), "broken.json");
+		await writeFile(path, "not-json");
+		await chmod(path, 0o644);
+		const before = await readdir(jobsDir());
+
+		await assert.rejects(
+			() => retainJobs({ apply: false }),
+			(error: unknown) =>
+				error instanceof CorruptJobError &&
+				error.message === "Corrupt job record: broken",
+		);
+
+		assert.deepEqual(await readdir(jobsDir()), before);
+		assert.equal(await readFile(path, "utf8"), "not-json");
+		assert.equal((await lstat(path)).mode & 0o777, 0o644);
+	});
+});
+
+test("retention apply privately quarantines corrupt active records", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "broken", status: "running" }));
+		const path = join(jobsDir(), "broken.json");
+		await writeFile(path, "not-json");
+		await chmod(path, 0o644);
+
+		await assert.rejects(() => retainJobs({ apply: true }), CorruptJobError);
+
+		await assert.rejects(() => lstat(path), { code: "ENOENT" });
+		const quarantine = join(jobsDir(), "quarantine");
+		assert.equal((await lstat(quarantine)).mode & 0o777, 0o700);
+		const files = await readdir(quarantine);
+		assert.equal(files.length, 1);
+		assert.match(files[0], /^broken\..+\.corrupt$/);
+		assert.equal((await lstat(join(quarantine, files[0]))).mode & 0o777, 0o600);
+		assert.deepEqual(await retainJobs({ apply: true }), {
+			archive: [],
+			delete: [],
+		});
+	});
+});
+
 test("retention is dry-run by default, preserves active, archives terminal, then deletes old archives", async () => {
 	await withTempStore(async () => {
 		const old = "2025-01-01T00:00:00.000Z";

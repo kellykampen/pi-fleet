@@ -99,6 +99,21 @@ async function atomicWrite(path: string, contents: string): Promise<void> {
 	}
 }
 
+async function quarantineRecord(jobId: string, path: string): Promise<void> {
+	const quarantine = join(jobsDir(), "quarantine");
+	await assertRuntimePathNoSymlinks(quarantine);
+	await mkdir(quarantine, { recursive: true, mode: 0o700 });
+	await assertRuntimePathNoSymlinks(quarantine);
+	await chmod(quarantine, 0o700);
+	const destination = join(
+		quarantine,
+		`${jobId}.${Date.now()}.${randomUUID()}.corrupt`,
+	);
+	await assertRuntimePathNoSymlinks(destination);
+	await rename(path, destination);
+	await chmod(destination, 0o600);
+}
+
 async function readRecord(jobId: string): Promise<FleetJob | null> {
 	const path = jobPath(jobId);
 	try {
@@ -115,14 +130,7 @@ async function readRecord(jobId: string): Promise<FleetJob | null> {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
 		if (error instanceof Error && /symlink|regular file/.test(error.message))
 			throw error;
-		const quarantine = join(jobsDir(), "quarantine");
-		await assertRuntimePathNoSymlinks(quarantine);
-		await mkdir(quarantine, { recursive: true, mode: 0o700 });
-		await assertRuntimePathNoSymlinks(quarantine);
-		await chmod(quarantine, 0o700);
-		const destination = join(quarantine, `${jobId}.${Date.now()}.corrupt`);
-		await assertRuntimePathNoSymlinks(destination);
-		await rename(path, destination).catch(() => undefined);
+		await quarantineRecord(jobId, path);
 		throw new CorruptJobError(jobId, error);
 	}
 }
@@ -306,9 +314,17 @@ export async function retainJobs(
 		const stat = await lstat(path);
 		if (!stat.isFile()) throw new Error(`Unsafe job record: ${file}`);
 		let job: FleetJob;
-		try { job = JSON.parse(await readFile(path, "utf8")) as FleetJob; }
-		catch (error) { throw new CorruptJobError(id, error); }
-		if (job.jobId !== id) throw new CorruptJobError(id);
+		try {
+			job = JSON.parse(await readFile(path, "utf8")) as FleetJob;
+		} catch (error) {
+			if (options.apply) await quarantineRecord(id, path);
+			throw new CorruptJobError(id, error);
+		}
+		if (!job || job.jobId !== id) {
+			const error = new Error("record ID mismatch");
+			if (options.apply) await quarantineRecord(id, path);
+			throw new CorruptJobError(id, error);
+		}
 		if (isTerminal(job.status) && Date.parse(job.finishedAt ?? job.updatedAt) < archiveBefore)
 			result.archive.push(id);
 	}

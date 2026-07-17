@@ -430,8 +430,8 @@ export function buildRunnerScript(job: FleetJob): string {
 		].join("\n");
 	} else {
 		// codeAccess === "clone": FLT-9 — the sandbox never gets read credentials
-		// for the target repo. The host uploads a git-archive/tar snapshot of its
-		// own local checkout (see archive.ts) to REPO_SOURCE_ARCHIVE_PATH before
+		// for the target repo. The host uploads a Git-tracked commit snapshot of
+		// its local checkout (see archive.ts) to REPO_SOURCE_ARCHIVE_PATH before
 		// the runner starts; here we just unpack it and reconstruct a minimal git
 		// repo (fresh init + a baseline commit) so the rest of the flow — new
 		// branch, then push/PR via the still-injected FLEET_GITHUB_TOKEN — works

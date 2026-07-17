@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { assertRuntimePathNoSymlinks, fleetRuntimeRoot, runtimePath } from "./runtimePaths.ts";
+import {
+	assertRuntimePathNoSymlinks,
+	fleetRuntimeRoot,
+	runtimePath,
+} from "./runtimePaths.ts";
 
 const original = process.env.PI_FLEET_HOME;
 test.afterEach(() => {
@@ -15,7 +19,10 @@ test("runtime root defaults to ~/.pi-fleet and accepts an absolute override", ()
 	delete process.env.PI_FLEET_HOME;
 	assert.equal(fleetRuntimeRoot(), join(homedir(), ".pi-fleet"));
 	process.env.PI_FLEET_HOME = "/tmp/fleet-state";
-	assert.equal(runtimePath("state", "e2b", "jobs"), "/tmp/fleet-state/state/e2b/jobs");
+	assert.equal(
+		runtimePath("state", "e2b", "jobs"),
+		"/tmp/fleet-state/state/e2b/jobs",
+	);
 });
 
 test("runtime root rejects relative, filesystem-root, and traversal overrides", () => {
@@ -39,7 +46,10 @@ test("symlink boundary accepts external ancestors but rejects root and child sym
 		assert.throws(() => fleetRuntimeRoot(), /symlink/i);
 		process.env.PI_FLEET_HOME = join(temp, "ancestor", "fleet");
 		await symlink(temp, join(physical, "fleet", "state", "nested"));
-		await assert.rejects(() => assertRuntimePathNoSymlinks(runtimePath("state", "nested", "file")), /symlink/i);
+		await assert.rejects(
+			() => assertRuntimePathNoSymlinks(runtimePath("state", "nested", "file")),
+			/symlink/i,
+		);
 	} finally {
 		await rm(temp, { recursive: true, force: true });
 	}

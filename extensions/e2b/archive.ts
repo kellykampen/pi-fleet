@@ -9,7 +9,7 @@ export const REPO_SOURCE_ARCHIVE_PATH = "/work/repo-src.tar.gz.b64";
 /** Cap the captured archive at 512MiB; large enough for any real cast target. */
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
 
-export type RepoArchiveMethod = "git-archive" | "tar";
+export type RepoArchiveMethod = "git-archive";
 
 export interface RepoArchiveResult {
 	/** Base64-encoded gzip tarball of the source tree. */
@@ -19,46 +19,48 @@ export interface RepoArchiveResult {
 }
 
 export interface BuildRepoSourceArchiveOptions {
-	/** Directory to package. Defaults to the current working directory. */
+	/** Directory containing the Git checkout. Defaults to the current directory. */
 	cwd?: string;
-	/** git ref to archive (git-archive path only). Defaults to "HEAD". */
+	/** Local Git ref to archive. Defaults to "HEAD". */
 	ref?: string;
 }
 
 /**
- * Package `cwd` into a gzip tarball for upload into the sandbox, so
- * codeAccess=clone never needs the sandbox to hold read credentials for the
- * target repo (FLT-9) — the host (which already has its own git access to the
- * repo it's running from) ships a source snapshot instead of having the
- * sandbox `gh repo clone` it.
- *
- * Prefers `git archive <ref>`: fast, ref-addressable, and respects tracked
- * files. Falls back to a plain `tar` of the working tree (minus `.git`) when
- * `cwd` isn't a usable git checkout for that ref (no git binary, not a repo,
- * or the ref doesn't exist locally — this never fetches from a remote).
+ * Package a resolved Git commit into a gzip tarball for upload into the sandbox,
+ * so codeAccess=clone never needs the sandbox to hold read credentials for the
+ * target repo (FLT-9). Only content tracked in the selected commit is shipped.
+ * Missing refs, non-Git directories, and archive failures fail closed rather
+ * than falling back to packaging the working tree.
  */
 export async function buildRepoSourceArchive(
 	options: BuildRepoSourceArchiveOptions = {},
 ): Promise<RepoArchiveResult> {
 	const cwd = options.cwd ?? process.cwd();
 	const ref = options.ref?.trim() || "HEAD";
+	let commit: string;
+	try {
+		const { stdout } = await execFileAsync(
+			"git",
+			["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`],
+			{ cwd, encoding: "utf8", maxBuffer: 1024 * 1024 },
+		);
+		commit = stdout.trim();
+		if (!/^[0-9a-f]{40,64}$/i.test(commit))
+			throw new Error("Git returned an invalid commit ID");
+	} catch (error) {
+		throw new Error(`Unable to resolve Git ref ${ref} for source archive`, {
+			cause: error,
+		});
+	}
 
 	try {
 		const { stdout } = await execFileAsync(
 			"git",
-			["archive", "--format=tar.gz", ref],
+			["archive", "--format=tar.gz", commit],
 			{ cwd, encoding: "buffer", maxBuffer: MAX_ARCHIVE_BYTES },
 		);
 		return { base64: stdout.toString("base64"), method: "git-archive" };
-	} catch {
-		// Not a git checkout, ref not found locally, or git unavailable — fall
-		// back to a plain tar of the working tree so codeAccess=clone still works.
+	} catch (error) {
+		throw new Error(`Unable to archive Git ref ${ref}`, { cause: error });
 	}
-
-	const { stdout } = await execFileAsync(
-		"tar",
-		["--exclude=.git", "-czf", "-", "-C", cwd, "."],
-		{ encoding: "buffer", maxBuffer: MAX_ARCHIVE_BYTES },
-	);
-	return { base64: stdout.toString("base64"), method: "tar" };
 }

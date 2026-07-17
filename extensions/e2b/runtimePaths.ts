@@ -7,8 +7,15 @@ import { isAbsolute, join, normalize, parse, resolve, sep } from "node:path";
 export function fleetRuntimeRoot(): string {
 	const configured = process.env.PI_FLEET_HOME?.trim();
 	const root = configured || join(homedir(), ".pi-fleet");
-	if (!isAbsolute(root) || root === parse(root).root || normalize(root) !== root || root.includes("//"))
-		throw new Error("PI_FLEET_HOME must be a normalized, absolute, non-root path");
+	if (
+		!isAbsolute(root) ||
+		root === parse(root).root ||
+		normalize(root) !== root ||
+		root.includes("//")
+	)
+		throw new Error(
+			"PI_FLEET_HOME must be a normalized, absolute, non-root path",
+		);
 	try {
 		if (lstatSync(root).isSymbolicLink())
 			throw new Error("PI_FLEET_HOME must not be a symlink");
@@ -33,7 +40,10 @@ export async function assertRuntimePathNoSymlinks(path: string): Promise<void> {
 	if (path !== root && !path.startsWith(`${root}${sep}`))
 		throw new Error("runtime path escapes PI_FLEET_HOME");
 	let current = root;
-	for (const part of ["", ...path.slice(root.length).split(sep).filter(Boolean)]) {
+	for (const part of [
+		"",
+		...path.slice(root.length).split(sep).filter(Boolean),
+	]) {
 		if (part) current = join(current, part);
 		try {
 			if ((await lstat(current)).isSymbolicLink())

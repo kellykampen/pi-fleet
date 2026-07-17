@@ -531,17 +531,17 @@ lands at `/work/repo`, but *how* it gets there depends on `codeAccess`:
   persisting the token or raw authenticated URL).
 - **`codeAccess: "clone"`** — the sandbox never clones the target itself, so it needs **no git
   read credentials at all** for this step (FLT-9). Instead, the host (the `pi-project-lead` process,
-  which is already running from a local checkout of the target repo) packages that checkout with
-  `git archive <ref>` — falling back to a plain `tar` of the working tree when the directory isn't
-  a usable git checkout for that ref (no local git binary, not a repo, or the ref doesn't exist
-  locally; this never fetches from a remote) — and uploads the resulting gzip tarball into the
-  sandbox *before* the runner starts. The runner unpacks it into `/work/repo`, `git init`s a fresh
-  repo from the extracted tree, adds the target as its `origin` remote, and commits that snapshot
-  as a baseline before checking out the new working branch. Because this path skips `git archive`'s
-  ref/history plumbing, the sandbox-side repo starts from a single fresh commit — full source
-  history from the host's local checkout is not carried over, only its content at that ref.
-  `baseBranch`, when given, selects which local ref to archive (default: `HEAD`, i.e. whatever the
-  host currently has checked out); it must already exist locally, since nothing is fetched.
+  which is already running from a local checkout of the target repo) resolves a local Git commit
+  and packages only that commit's tracked content with `git archive <commit>`. It fails closed
+  rather than packaging the working tree when Git, the checkout, or the requested ref is
+  unavailable; ignored and untracked files are never uploaded. The resulting gzip tarball reaches
+  the sandbox *before* the runner starts. The runner unpacks it into `/work/repo`, `git init`s a
+  fresh repo from the extracted tree, adds the target as its `origin` remote, and commits that
+  snapshot as a baseline before checking out the new working branch. The sandbox-side repo starts
+  from a single fresh commit — full source history from the host's local checkout is not carried
+  over, only tracked content at the resolved ref. `baseBranch`, when given, selects which local ref
+  to archive (default: `HEAD`, i.e. whatever the host currently has checked out); it must already
+  exist locally, since nothing is fetched.
   The resolved GitHub credential (a minted App installation token when configured, otherwise
   `FLEET_GITHUB_TOKEN`/`GH_TOKEN`) is still injected and used exactly as before for the later
   push/PR step (via `gh pr create` and the same `insteadOf` URL rewrite) — only the initial
