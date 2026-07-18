@@ -70,6 +70,7 @@ run_wrapper_from() {
 	(cd "$cwd" && env -u FLEET_YOLO -u E2B_API_KEY -u FLEET_GITHUB_TOKEN -u GH_TOKEN \
 		-u OPENAI_API_KEY -u PI_AGENT_AUTH_JSON_B64 -u FLEET_GITHUB_APP_ID -u FLEET_CONVEX_TOKEN HOME="$FAKE_HOME" \
 		PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" PI_SCHEDULER_TASKS_FILE="$FAKE_HOME/tasks.json" \
+		PI_SCHEDULER_TASKS_BOUNDARY="$FAKE_HOME" \
 		PATH="$FAKE_BIN:$PATH" "$wrapper" --print "hi")
 }
 
@@ -137,6 +138,19 @@ check "pi-project-lead loads GitHub App secret" "ENV:FLEET_GITHUB_APP_ID=12345" 
 check "pi-project-lead loads Convex secret" "ENV:FLEET_CONVEX_TOKEN=convex-token" \
 	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:FLEET_CONVEX_TOKEN=' | head -1)"
 
+# Legacy sourced grammar is parsed as data and normalized without evaluation.
+printf 'export E2B_API_KEY="quoted legacy value"\nGH_TOKEN='"'"'quoted-token'"'"'\nOPENAI_API_KEY=$(touch %s)\n' "$FAKE_HOME/legacy-parser-executed" >"$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+chmod 600 "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+legacy_grammar_out="$(run_wrapper_from "$DIR/bin/pi-project-lead" /tmp)"
+check "pi-project-lead safely parses export-prefixed legacy secret" "ENV:E2B_API_KEY=quoted legacy value" \
+	"$(printf '%s\n' "$legacy_grammar_out" | grep '^ENV:E2B_API_KEY=' | head -1)"
+check "pi-project-lead safely parses quoted legacy secret" "ENV:GH_TOKEN=quoted-token" \
+	"$(printf '%s\n' "$legacy_grammar_out" | grep '^ENV:GH_TOKEN=' | head -1)"
+check "legacy command-substitution-like secret remains literal data" \
+	"ENV:OPENAI_API_KEY=\$(touch $FAKE_HOME/legacy-parser-executed)" \
+	"$(printf '%s\n' "$legacy_grammar_out" | grep '^ENV:OPENAI_API_KEY=' | head -1)"
+[[ ! -e "$FAKE_HOME/legacy-parser-executed" ]] && ok "legacy secret grammar is never evaluated" || no "legacy secret grammar executed command substitution"
+
 # The parser never shell-sources content, rejects unknown keys and insecure metadata, and ignores legacy.
 printf 'E2B_API_KEY=$(touch %s)\n' "$FAKE_HOME/parser-executed" >"$FAKE_HOME/.pi-fleet/secrets/secrets.env"
 chmod 600 "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
@@ -171,13 +185,16 @@ for profile in ac-verifier docs implementer linear personal-assistant planner re
 	assert_profile_repo_relative_linear_extension "$profile"
 done
 
-if grep -R -n '/Users/' "$DIR/profiles" >/tmp/pi-fleet-profile-absolute-paths.$$; then
+profile_matches="$(grep -R -n '/Users/' "$DIR/profiles" 2>&1)" && profile_grep_status=0 || profile_grep_status=$?
+if (( profile_grep_status == 0 )); then
 	no "profiles do not contain machine-specific /Users paths"
-	cat /tmp/pi-fleet-profile-absolute-paths.$$
-else
+	printf '%s\n' "$profile_matches"
+elif (( profile_grep_status == 1 )); then
 	ok "profiles do not contain machine-specific /Users paths"
+else
+	no "profile machine-path scan completed successfully"
+	printf '%s\n' "$profile_matches"
 fi
-rm -f /tmp/pi-fleet-profile-absolute-paths.$$
 
 echo "---"
 echo "$pass passed, $fail failed"

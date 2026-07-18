@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import stat
 import sys
 import tempfile
@@ -170,16 +171,56 @@ def acquire_lock() -> None:
             time.sleep(0.05)
 
 
+def source_bytes(source: Path, destination: Path) -> bytes:
+    """Read a regular source without following a last-component symlink; normalize legacy secrets."""
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(source, flags)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise RuntimeError(f"migration source is not a regular file: {source}")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            raw = stream.read()
+    finally:
+        os.close(descriptor)
+    if destination != root / "secrets/secrets.env":
+        return raw
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RuntimeError("legacy secrets file is not UTF-8") from error
+    normalized: list[str] = []
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            normalized.append(line)
+            continue
+        try:
+            fields = shlex.split(stripped, comments=False, posix=True)
+        except ValueError as error:
+            raise RuntimeError(f"unsupported legacy secret assignment on line {number}") from error
+        if fields and fields[0] == "export":
+            fields = fields[1:]
+        if len(fields) != 1 or "=" not in fields[0]:
+            raise RuntimeError(f"unsupported legacy secret assignment on line {number}")
+        key, value = fields[0].split("=", 1)
+        if not key or not key.replace("_", "A").isalnum() or not key[0].isalpha() or not key.upper() == key:
+            raise RuntimeError(f"unsupported legacy secret key on line {number}")
+        if "\r" in value or "\n" in value:
+            raise RuntimeError(f"unsupported legacy secret value on line {number}")
+        normalized.append(f"{key}={value}")
+    return ("\n".join(normalized) + "\n").encode()
+
+
 def publish_file(source: Path, destination: Path) -> bool:
     """Copy privately and atomically publish via hard-link, which cannot clobber an existing name."""
     validate_destination(str(destination))
     private_dir(destination.parent)
+    contents = source_bytes(source, destination)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{destination.name}.tmp.", dir=destination.parent)
     tmp = Path(tmp_name)
     try:
-        with os.fdopen(fd, "wb") as out, source.open("rb") as inp:
-            while chunk := inp.read(65536):
-                out.write(chunk)
+        with os.fdopen(fd, "wb") as out:
+            out.write(contents)
             out.flush()
             os.fsync(out.fileno())
         tmp.chmod(0o600)

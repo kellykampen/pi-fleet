@@ -300,7 +300,9 @@ export function buildResultFinalizer(): string {
 	return `WORK="\${WORK:-/work}"
 RESULT="$WORK/result.json"
 NEEDS_INPUT_FILE="$WORK/needs-input.json"
-if [ "\${TARGET_REPO_CLONE_FAILED:-0}" = "1" ]; then
+if [ "\${FLEET_REPO_CLONE_FAILED:-0}" = "1" ]; then
+  STATUS=failed
+elif [ "\${TARGET_REPO_CLONE_FAILED:-0}" = "1" ]; then
   STATUS=failed
 elif [ "\${SOURCE_ARCHIVE_EXTRACT_FAILED:-0}" = "1" ]; then
   STATUS=failed
@@ -338,7 +340,10 @@ if status == "needs_input" and marker and os.path.exists(marker):
         questions = ["pi-implementer requested input but provided no questions"]
 
 error = None
-if os.environ.get("TARGET_REPO_CLONE_FAILED") == "1":
+if os.environ.get("FLEET_REPO_CLONE_FAILED") == "1":
+    fleet_ref = os.environ.get("FLEET_REF", "unknown")
+    error = f"Failed to clone the pi-fleet runtime repository at requested ref {fleet_ref}."
+elif os.environ.get("TARGET_REPO_CLONE_FAILED") == "1":
     target_repo = os.environ.get("TARGET_REPO", "unknown")
     error = (
         f"Target repository clone failed for {target_repo}: "
@@ -465,9 +470,22 @@ ${NEEDS_INPUT_BRIEF_PREAMBLE}
 ${job.brief}
 FLEET_BRIEF_EOF
 
-# pi-fleet pin
-git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet \\
-  || git clone --depth 1 ${shellQuote(fleetRepo)} /work/pi-fleet
+export FLEET_REF=${shellQuote(fleetRef)}
+finalize_result() {
+${buildResultFinalizer()}
+}
+
+# pi-fleet pin: fail closed and persist a terminal result if the requested ref cannot be cloned.
+set +e
+git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet
+EXIT=$?
+set -e
+if [ "$EXIT" -ne 0 ]; then
+  export EXIT FLEET_REPO_CLONE_FAILED=1
+  finalize_result
+  echo "fleet e2b job $JOB_ID finished status=$STATUS"
+  exit "$EXIT"
+fi
 export PATH="/work/pi-fleet/bin:$PATH"
 
 # Anchor Outfitter profile resolution to the cloned pi-fleet repo. The bin/pi-*
@@ -508,10 +526,6 @@ if [ -n "\${${PI_AGENT_AUTH_ENV}:-}" ]; then
   printf '%s' "\${${PI_AGENT_AUTH_ENV}}" | base64 -d > "${PI_AGENT_AUTH_PATH}"
   chmod 600 "${PI_AGENT_AUTH_PATH}"
 fi
-
-finalize_result() {
-${buildResultFinalizer()}
-}
 
 # The target is always the per-cast repo, never FLEET_REPO_URL (which is only
 # the pi-fleet wrapper/profile source). Convert clone failures into a terminal,
@@ -614,7 +628,9 @@ exit "$EXIT"
 export function buildReviewerResultFinalizer(): string {
 	return `WORK="\${WORK:-/work}"
 RESULT="$WORK/result.json"
-if [ "\${PR_FETCH_FAILED:-0}" = "1" ]; then
+if [ "\${FLEET_REPO_CLONE_FAILED:-0}" = "1" ]; then
+  STATUS=failed
+elif [ "\${PR_FETCH_FAILED:-0}" = "1" ]; then
   STATUS=failed
 elif [ "\${COMMENT_POST_FAILED:-0}" = "1" ]; then
   STATUS=failed
@@ -659,7 +675,10 @@ except ValueError:
     pr_number = None
 
 error = None
-if os.environ.get("PR_FETCH_FAILED") == "1":
+if os.environ.get("FLEET_REPO_CLONE_FAILED") == "1":
+    fleet_ref = os.environ.get("FLEET_REF", "unknown")
+    error = f"Failed to clone the pi-fleet runtime repository at requested ref {fleet_ref}."
+elif os.environ.get("PR_FETCH_FAILED") == "1":
     error = (
         f"Failed to fetch PR #{pr_number_raw} for {target_repo}: "
         "${TARGET_REPO_ACCESS_ERROR_HINT}"
@@ -767,9 +786,22 @@ cat >> /work/brief.md <<'FLEET_BRIEF_EOF'
 ${job.brief}
 FLEET_BRIEF_EOF
 
-# pi-fleet pin (bin/pi-reviewer + profiles/reviewer + skills/code-review)
-git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet \\
-  || git clone --depth 1 ${shellQuote(fleetRepo)} /work/pi-fleet
+export FLEET_REF=${shellQuote(fleetRef)}
+finalize_result() {
+${buildReviewerResultFinalizer()}
+}
+
+# pi-fleet pin (bin/pi-reviewer + profiles/reviewer + skills/code-review); fail closed.
+set +e
+git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet
+EXIT=$?
+set -e
+if [ "$EXIT" -ne 0 ]; then
+  export EXIT FLEET_REPO_CLONE_FAILED=1
+  finalize_result
+  echo "fleet e2b job $JOB_ID finished status=$STATUS"
+  exit "$EXIT"
+fi
 export PATH="/work/pi-fleet/bin:$PATH"
 
 mkdir -p "$HOME/.outfitter"
@@ -794,10 +826,6 @@ if [ -n "\${${PI_AGENT_AUTH_ENV}:-}" ]; then
   printf '%s' "\${${PI_AGENT_AUTH_ENV}}" | base64 -d > "${PI_AGENT_AUTH_PATH}"
   chmod 600 "${PI_AGENT_AUTH_PATH}"
 fi
-
-finalize_result() {
-${buildReviewerResultFinalizer()}
-}
 
 # Read-only PR fetch: no clone, no checkout, nothing that could mutate the
 # target repo. A failed fetch is a terminal result immediately, mirroring

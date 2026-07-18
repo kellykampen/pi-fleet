@@ -37,7 +37,8 @@ run_wrapper() {
   local outfile="$TMP/args.txt"
   : > "$outfile"
   env -i HOME="$HOME" PATH="$TMP:$PATH" PI_FLEET_HOME="$TMP/fleet-home" \
-    PI_SCHEDULER_TASKS_FILE="$TMP/scheduler-tasks.json" PI_FLEET_MOCK_OUT="$outfile" "$@"
+    PI_SCHEDULER_TASKS_FILE="$TMP/scheduler-tasks.json" PI_SCHEDULER_TASKS_BOUNDARY="$TMP" \
+    PI_FLEET_MOCK_OUT="$outfile" "$@"
   cat "$outfile"
 }
 

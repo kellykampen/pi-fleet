@@ -38,8 +38,8 @@ Run:
 (cd extensions/e2b && npm test)
 bash evals/pi-scheduler-isolation-smoke-test.sh
 bash evals/pi-personal-schedule-sync-smoke-test.sh
-# new runtime-state/migration/structural evals
-bin/pi-fleet-eval-model-overrides
+bash evals/pi-runtime-state-smoke-test.sh
+bash evals/pi-runtime-state-structural-test.sh
 bash evals/pi-project-lead-extension-path-smoke-test.sh
 git diff --check
 ```

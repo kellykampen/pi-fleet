@@ -6,6 +6,7 @@ TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 export PI_FLEET_HOME="$TMPDIR/fleet-home"
 TASKS="$TMPDIR/tasks.json"
+export PI_SCHEDULER_TASKS_BOUNDARY="$TMPDIR"
 printf '{"version":2,"tasks":[]}\n' >"$TASKS"
 
 for wrapper in pi-conductor pi-project-lead; do
@@ -48,7 +49,8 @@ shopt -u nullglob
 [[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tasks"][0]["name"])' "${backups[0]}")" == "social-x-checkup" ]]
 printf 'ok - scheduler-status.sh purges leaked global tasks and preserves a private bounded backup\n'
 
-printf '{"version":2,"tasks":[{"id":"one"}]}' >"$LEAKED"
+before_backup_count="${#backups[@]}"
+printf '{"version":2,"tasks":[{"id":"pi-fleet-one","scope":"global","owner":"pi-fleet"}]}' >"$LEAKED"
 PI_SCHEDULER_TASKS_FILE="$LEAKED" "$ROOT/bin/lib/scheduler-status.sh" >/dev/null &
 p1=$!
 PI_SCHEDULER_TASKS_FILE="$LEAKED" "$ROOT/bin/lib/scheduler-status.sh" >/dev/null &
@@ -56,16 +58,25 @@ p2=$!
 wait "$p1"
 wait "$p2"
 [[ "$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["tasks"]))' "$LEAKED")" == 0 ]]
+shopt -s nullglob
+backups=("$PI_FLEET_HOME/state/scheduler/backups"/*.json)
+shopt -u nullglob
+[[ "${#backups[@]}" -eq "$((before_backup_count + 1))" ]]
 
-printf 'not-json' >"$LEAKED"
-before="$(shasum "$LEAKED")"
+printf '{"version":2,"tasks":[{"id":"external","scope":"global","name":"external-task"}]}' >"$LEAKED"
 PI_SCHEDULER_TASKS_FILE="$LEAKED" "$ROOT/bin/lib/scheduler-status.sh" >/dev/null
-[[ "$(shasum "$LEAKED")" == "$before" ]]
+[[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tasks"][0]["id"])' "$LEAKED")" == external ]]
+for invalid in 'not-json' '[]' 'null' '{"tasks":{}}'; do
+	printf '%s' "$invalid" >"$LEAKED"
+	before="$(shasum "$LEAKED")"
+	PI_SCHEDULER_TASKS_FILE="$LEAKED" "$ROOT/bin/lib/scheduler-status.sh" >/dev/null
+	[[ "$(shasum "$LEAKED")" == "$before" ]]
+done
 shopt -s nullglob
 corrupt=("$PI_FLEET_HOME/state/scheduler/quarantine"/*)
 shopt -u nullglob
-[[ "${#corrupt[@]}" -eq 1 && "$(stat -f '%Lp' "${corrupt[0]}")" == 600 ]]
-printf 'ok - scheduler cleanup is locked, atomic, and preserves corrupt input\n'
+[[ "${#corrupt[@]}" -eq 4 && "$(stat -f '%Lp' "${corrupt[0]}")" == 600 ]]
+printf 'ok - scheduler cleanup is locked, atomic, preserves external tasks, and quarantines invalid schemas\n'
 
 # Every nested runtime writer path rejects symlinks instead of writing through them.
 SYMLINK_ROOT="$TMPDIR/symlink-fleet"; OUTSIDE="$TMPDIR/outside"; mkdir -p "$SYMLINK_ROOT/state" "$OUTSIDE"
@@ -76,3 +87,12 @@ if PI_FLEET_HOME="$SYMLINK_ROOT" PI_SCHEDULER_TASKS_FILE="$TMPDIR/unsafe-tasks.j
 fi
 [[ -z "$(find "$OUTSIDE" -mindepth 1 -print -quit)" ]]
 printf 'ok - scheduler nested symlinks are rejected without outside writes\n'
+
+TASK_PARENT="$TMPDIR/task-parent"; TASK_OUTSIDE="$TMPDIR/task-outside"; mkdir "$TASK_PARENT" "$TASK_OUTSIDE"
+ln -s "$TASK_OUTSIDE" "$TASK_PARENT/link"
+printf '{"version":2,"tasks":[{"id":"pi-fleet-unsafe","scope":"global","owner":"pi-fleet"}]}' >"$TASK_OUTSIDE/tasks.json"
+if PI_SCHEDULER_TASKS_FILE="$TASK_PARENT/link/tasks.json" "$ROOT/bin/lib/scheduler-status.sh" >/dev/null 2>&1; then
+	echo 'not ok - scheduler task ancestor symlink accepted' >&2; exit 1
+fi
+[[ "$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["tasks"]))' "$TASK_OUTSIDE/tasks.json")" == 1 ]]
+printf 'ok - scheduler task-file ancestry is canonicalized and cannot be redirected during cleanup\n'

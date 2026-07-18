@@ -6,8 +6,10 @@ This is the canonical storage policy for pi-fleet. The versioned machine-readabl
 ## Root, ownership, and authority
 
 Pi-fleet owns exactly one runtime root: `~/.pi-fleet`. `PI_FLEET_HOME` may override it only with a
-normalized absolute path that is not `/`; unsafe and relative values fail closed. The checkout is
-not runtime state and is selected separately with `PI_FLEET_REPO_ROOT` where needed.
+normalized absolute path that is not `/`; unsafe and relative values fail closed. Symlinks in the
+configured root's ancestry are resolved once to a canonical physical root, and symlinked namespace
+components are rejected. The checkout is not runtime state and is selected separately with
+`PI_FLEET_REPO_ROOT` where needed.
 
 Every directory is mode `0700`; every state, log, manifest, backup, and secret file is `0600`.
 Callers repair modes when opening an existing namespace. State is namespaced by authority:
@@ -15,7 +17,7 @@ Callers repair modes when opening an existing namespace. State is namespaced by 
 | Namespace | Owner / authority | Sensitivity | Retention and cleanup |
 | --- | --- | --- | --- |
 | `state/e2b/jobs` | E2B job lifecycle | private; sanitized | active retained; terminal jobs are archive-eligible after 30 days; archived records are deletion-eligible after 180 days |
-| `state/scheduler/{backups,quarantine}` | global-scheduler cleanup evidence | private | newest 20 backups; quarantines require operator cleanup |
+| `state/scheduler/{backups,quarantine}` | global-scheduler cleanup evidence | private | after a validated fleet-owned cleanup, prune backups and quarantines to the newest 20; otherwise preserve quarantines for operator review |
 | `state/migrations` | migration manifests | private | retain through rollback window |
 | `archive/legacy-root` | non-authoritative copies of recognized loose legacy root content | private | operator-managed migration history; never treated as current state |
 | `secrets` | fleet-only credentials | secret | operator-managed; never print values |
@@ -37,8 +39,8 @@ explicit error and move to private quarantine rather than disappearing from list
 Retention is dry-run/report-only by default (`npm run jobs:retain` in `extensions/e2b`). Active
 jobs are never archived. Archiving requires `--apply`; deletion additionally requires
 `--delete-archived` and the age boundary. Scheduler cleanup serializes concurrent callers,
-atomically clears valid leaked tasks,
-keeps bounded private backups, and preserves corrupt external input while copying it to quarantine.
+atomically removes only validated pi-fleet-owned leaked tasks, keeps bounded private evidence, and
+preserves unrelated or corrupt external input while copying corrupt input to quarantine.
 
 ## Migration and rollback
 
@@ -54,7 +56,9 @@ implicit or destructive migration.
 ## External Pi and OS state
 
 `~/.pi/agent` is owned by Pi and stays external. Pi-fleet links configuration there and may empty
-Pi's machine-global scheduler task file, but does not move or claim Pi's auth/session state.
+validated pi-fleet-owned entries from Pi's machine-global scheduler task file while preserving
+unrelated, external, and corrupt content; it never empties or truncates the entire file. Pi-fleet
+does not move or claim Pi's auth/session state.
 `~/Library/LaunchAgents` is owned by macOS launchd; pi-fleet manages only its
 `dev.pi-fleet.personal.*` plist files. Personal logs remain in the runtime root, never an OS log
 namespace.

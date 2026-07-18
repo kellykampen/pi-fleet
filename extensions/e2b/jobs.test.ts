@@ -152,6 +152,22 @@ test("local writes are private, atomic, and concurrent updates do not lose field
 	});
 });
 
+test("abandoned job locks are reclaimed without blocking future writes", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "seed" }));
+		const lock = join(jobsDir(), ".lock-stale");
+		await mkdir(lock, { mode: 0o700 });
+		await writeFile(
+			join(lock, "owner.json"),
+			`${JSON.stringify({ token: "abandoned", pid: 999_999_999, acquiredAt: 0 })}\n`,
+		);
+
+		await writeJob(baseJob({ jobId: "stale" }));
+		assert.equal((await readJob("stale")).jobId, "stale");
+		await assert.rejects(() => lstat(lock), { code: "ENOENT" });
+	});
+});
+
 test("corrupt records raise explicitly and are quarantined", async () => {
 	await withTempStore(async () => {
 		await writeJob(baseJob({ jobId: "broken" }));
@@ -235,6 +251,47 @@ test("retention rejects archived records whose embedded ID does not match the fi
 			(error: unknown) =>
 				error instanceof CorruptJobError &&
 				error.message === "Corrupt job record: expected",
+		);
+	});
+});
+
+test("retention revalidates archive candidates under lock", async () => {
+	await withTempStore(async () => {
+		const old = "2025-01-01T00:00:00.000Z";
+		await writeJob(
+			baseJob({ jobId: "reactivated", status: "succeeded", updatedAt: old, finishedAt: old }),
+		);
+		const retained = await retainJobs({
+			now: new Date("2026-01-01"),
+			archiveAfterDays: 30,
+			apply: true,
+			beforeArchiveLock: async (id) => {
+				await updateJob(id, { status: "running" });
+			},
+		});
+
+		assert.deepEqual(retained.archive, []);
+		assert.equal((await readJob("reactivated")).status, "running");
+		await assert.rejects(() => lstat(join(jobsDir(), "archive", "reactivated.json")), {
+			code: "ENOENT",
+		});
+	});
+});
+
+test("retention apply quarantines corrupt archived records and continues", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "seed" }));
+		const archive = join(jobsDir(), "archive");
+		await mkdir(archive, { mode: 0o700 });
+		await writeFile(join(archive, "broken-archive.json"), "not-json");
+
+		assert.deepEqual(await retainJobs({ apply: true }), { archive: [], delete: [] });
+		await assert.rejects(() => lstat(join(archive, "broken-archive.json")), { code: "ENOENT" });
+		assert.equal(
+			(await readdir(join(jobsDir(), "quarantine"))).some((file) =>
+				file.startsWith("broken-archive."),
+			),
+			true,
 		);
 	});
 });

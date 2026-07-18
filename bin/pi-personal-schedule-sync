@@ -106,7 +106,7 @@ if ! command -v outfitter >/dev/null 2>&1; then
 fi
 
 python3 - "$SCHEDULES_JSON" "$AGENTS_DIR" "$LOG_DIR" "$RUNNER" "$LABEL_PREFIX" "$DRY_RUN" "$PATH" <<'PYEOF'
-import json, os, plistlib, stat, subprocess, sys
+import json, os, plistlib, re, stat, subprocess, sys
 from pathlib import Path
 
 schedules_path, agents_dir, log_dir, runner, label_prefix, dry_run, launch_path = sys.argv[1:8]
@@ -132,18 +132,30 @@ for sched in data.get("schedules", []):
     if not sched.get("enabled", True):
         continue
     name = sched["name"]
+    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", name) or name in (".", ".."):
+        print(f"pi-personal-schedule-sync: unsafe schedule name: {name!r}", file=sys.stderr)
+        sys.exit(1)
     cron_fields = sched["cron"].split()
     if len(cron_fields) != 6:
         print(f"pi-personal-schedule-sync: {name}: cron must be 6 fields (sec min hour dom month dow), got {sched['cron']!r}", file=sys.stderr)
         sys.exit(1)
-    _sec, minute, hour, dom, month, dow = cron_fields
-    if dom != "*" or month != "*" or dow != "*":
-        print(f"pi-personal-schedule-sync: {name}: only '* * *' (dom/month/dow) schedules are supported", file=sys.stderr)
+    sec, minute, hour, dom, month, dow = cron_fields
+    if sec != "0" or dom != "*" or month != "*" or dow != "*":
+        print(f"pi-personal-schedule-sync: {name}: only second 0 and '* * *' (dom/month/dow) schedules are supported", file=sys.stderr)
+        sys.exit(1)
+    try:
+        minute_value = int(minute)
+        hour_value = None if hour == "*" else int(hour)
+    except ValueError:
+        print(f"pi-personal-schedule-sync: {name}: minute/hour must be integers or supported wildcards", file=sys.stderr)
+        sys.exit(1)
+    if not 0 <= minute_value <= 59 or (hour_value is not None and not 0 <= hour_value <= 23):
+        print(f"pi-personal-schedule-sync: {name}: minute/hour is out of range", file=sys.stderr)
         sys.exit(1)
 
-    calendar_interval = {"Minute": int(minute)}
-    if hour != "*":
-        calendar_interval["Hour"] = int(hour)
+    calendar_interval = {"Minute": minute_value}
+    if hour_value is not None:
+        calendar_interval["Hour"] = hour_value
 
     label = f"{label_prefix}.{name}"
     plist_path = os.path.join(agents_dir, f"{label}.plist")

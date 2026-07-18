@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path, { join } from "node:path";
 
@@ -309,6 +309,8 @@ test("buildRunnerScript keeps the per-cast target separate from FLEET_REPO_URL",
 		script,
 		/git clone --depth 1 --branch 'main' 'https:\/\/github\.com\/fleet-org\/pi-fleet\.git' \/work\/pi-fleet/,
 	);
+	assert.doesNotMatch(script, /\|\|\s*git\s+clone\b/);
+	assert.match(script, /FLEET_REPO_CLONE_FAILED=1/);
 	assert.match(script, /export TARGET_REPO='customer-org\/private-app'/);
 	// codeAccess=clone no longer calls clone_target (that requires the sandbox
 	// to hold read credentials); it extracts the pre-uploaded source archive
@@ -552,6 +554,27 @@ test("buildResultFinalizer leaves an existing result.json untouched when a needs
 		// The log line must reflect the persisted (succeeded) result, not the
 		// needs_input the marker file alone would imply.
 		assert.match(output, /FINAL_STATUS=succeeded/);
+	} finally {
+		await rm(work, { recursive: true, force: true });
+	}
+});
+
+test("buildResultFinalizer persists a terminal error when the requested fleet ref cannot be cloned", async () => {
+	const work = await mkdtemp(join(tmpdir(), "pi-fleet-work-"));
+	try {
+		runFinalizer(work, {
+			JOB_ID: "job-fleet-clone-failed",
+			EXIT: "1",
+			FLEET_REF: "missing-ref",
+			FLEET_REPO_CLONE_FAILED: "1",
+		});
+
+		const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+		assert.equal(result.status, "failed");
+		assert.equal(
+			result.error,
+			"Failed to clone the pi-fleet runtime repository at requested ref missing-ref.",
+		);
 	} finally {
 		await rm(work, { recursive: true, force: true });
 	}
@@ -1234,6 +1257,42 @@ function reviewerJob(overrides: Partial<FleetJob> = {}): FleetJob {
 	};
 }
 
+test("generated implementer and reviewer runners persist terminal fleet-clone failures", async () => {
+	const previousFleetRepoUrl = process.env.FLEET_REPO_URL;
+	try {
+		process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
+		for (const [profile, script] of [
+			["implementer", buildRunnerScript(implementerJob())],
+			["reviewer", buildReviewerRunnerScript(reviewerJob())],
+		] as const) {
+			const fixture = await mkdtemp(join(tmpdir(), `pi-fleet-${profile}-clone-fail-`));
+			try {
+				const work = join(fixture, "work");
+				const bin = join(fixture, "bin");
+				const home = join(fixture, "home");
+				await mkdir(bin);
+				await mkdir(home);
+				await writeFile(join(bin, "git"), "#!/usr/bin/env bash\nexit 42\n");
+				await chmod(join(bin, "git"), 0o700);
+				const localized = script.replaceAll("/work", work);
+				const run = spawnSync("bash", ["-c", localized], {
+					env: { ...process.env, HOME: home, PATH: `${bin}:/usr/bin:/bin` },
+					encoding: "utf8",
+				});
+				assert.equal(run.status, 42, `${profile}: ${run.stderr}`);
+				const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
+				assert.equal(result.status, "failed");
+				assert.match(result.error, /requested ref main/);
+			} finally {
+				await rm(fixture, { recursive: true, force: true });
+			}
+		}
+	} finally {
+		if (previousFleetRepoUrl === undefined) delete process.env.FLEET_REPO_URL;
+		else process.env.FLEET_REPO_URL = previousFleetRepoUrl;
+	}
+});
+
 test("resolveGithubReviewerToken prefers FLEET_GITHUB_REVIEWER_TOKEN over the implementer's push token", () => {
 	process.env.FLEET_GITHUB_TOKEN = "ghp_implementerPushToken1234567890abcdef";
 	process.env.FLEET_GITHUB_REVIEWER_TOKEN =
@@ -1310,6 +1369,8 @@ test("buildReviewerRunnerScript never embeds token values", () => {
 		script,
 		/git clone --depth 1 --branch 'main' 'https:\/\/github\.com\/owner\/pi-fleet\.git' \/work\/pi-fleet/,
 	);
+	assert.doesNotMatch(script, /\|\|\s*git\s+clone\b/);
+	assert.match(script, /FLEET_REPO_CLONE_FAILED=1/);
 });
 
 test("buildReviewerRunnerScript fetches the PR read-only and never runs a code-mutating command", () => {

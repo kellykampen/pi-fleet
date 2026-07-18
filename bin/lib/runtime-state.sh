@@ -7,9 +7,10 @@ pi_fleet_assert_no_symlink_path() {
 	python3 - "$path" "$boundary" <<'PY'
 import os, stat, sys
 path, boundary = sys.argv[1:]
-for value in (path, boundary):
-    if not os.path.isabs(value) or value == os.path.sep or os.path.normpath(value) != value or "//" in value:
-        raise SystemExit("runtime path must be normalized, absolute, and non-root")
+if not os.path.isabs(path) or path == os.path.sep or os.path.normpath(path) != path or "//" in path:
+    raise SystemExit("runtime path must be normalized, absolute, and non-root")
+if not os.path.isabs(boundary) or os.path.normpath(boundary) != boundary or "//" in boundary:
+    raise SystemExit("runtime boundary must be normalized and absolute")
 if os.path.commonpath((path, boundary)) != boundary:
     raise SystemExit("runtime path escapes validation boundary")
 current = boundary
@@ -38,6 +39,13 @@ pi_fleet_runtime_root() {
 		return 2
 		;;
 	esac
+	# Resolve configured ancestry once so later retargeting of an ancestor symlink cannot redirect writes.
+	root="$(python3 - "$root" <<'PY'
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+)" || return 2
+	[[ "$root" != / ]] || { echo "PI_FLEET_HOME must resolve below the filesystem root" >&2; return 2; }
 	pi_fleet_assert_no_symlink_path "$root" || return 2
 	printf '%s\n' "$root"
 }

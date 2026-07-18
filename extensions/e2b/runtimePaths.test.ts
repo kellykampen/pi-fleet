@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, unlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -15,14 +15,15 @@ test.afterEach(() => {
 	else process.env.PI_FLEET_HOME = original;
 });
 
-test("runtime root defaults to ~/.pi-fleet and accepts an absolute override", () => {
+test("runtime root defaults to ~/.pi-fleet and accepts a canonical absolute override", () => {
 	delete process.env.PI_FLEET_HOME;
 	assert.equal(fleetRuntimeRoot(), join(homedir(), ".pi-fleet"));
-	process.env.PI_FLEET_HOME = "/tmp/fleet-state";
+	process.env.PI_FLEET_HOME = "/tmp/fleet-state/";
 	assert.equal(
 		runtimePath("state", "e2b", "jobs"),
-		"/tmp/fleet-state/state/e2b/jobs",
+		`${fleetRuntimeRoot()}/state/e2b/jobs`,
 	);
+	assert.equal(fleetRuntimeRoot().endsWith("/"), false);
 });
 
 test("runtime root rejects relative, filesystem-root, and traversal overrides", () => {
@@ -32,18 +33,24 @@ test("runtime root rejects relative, filesystem-root, and traversal overrides", 
 	}
 });
 
-test("symlink boundary accepts external ancestors but rejects root and child symlinks", async () => {
+test("symlinked ancestors are canonicalized once and child symlinks are rejected", async () => {
 	const temp = await mkdtemp(join(tmpdir(), "pi-fleet-paths-"));
 	try {
 		const physical = join(temp, "physical");
 		await mkdir(join(physical, "fleet", "state"), { recursive: true });
 		await symlink(physical, join(temp, "ancestor"));
 		process.env.PI_FLEET_HOME = join(temp, "ancestor", "fleet");
-		assert.equal(fleetRuntimeRoot(), join(temp, "ancestor", "fleet"));
+		const pinnedRoot = await realpath(join(physical, "fleet"));
+		assert.equal(fleetRuntimeRoot(), pinnedRoot);
+		const retarget = join(temp, "retarget");
+		await mkdir(join(retarget, "fleet"), { recursive: true });
+		await unlink(join(temp, "ancestor"));
+		await symlink(retarget, join(temp, "ancestor"));
+		assert.equal(fleetRuntimeRoot(), pinnedRoot);
 		await assertRuntimePathNoSymlinks(runtimePath("state"));
 		await symlink(join(physical, "fleet"), join(temp, "root-link"));
 		process.env.PI_FLEET_HOME = join(temp, "root-link");
-		assert.throws(() => fleetRuntimeRoot(), /symlink/i);
+		assert.equal(fleetRuntimeRoot(), await realpath(join(physical, "fleet")));
 		process.env.PI_FLEET_HOME = join(temp, "ancestor", "fleet");
 		await symlink(temp, join(physical, "fleet", "state", "nested"));
 		await assert.rejects(

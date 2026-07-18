@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 import test from "node:test";
 
 import { buildRepoSourceArchive, REPO_SOURCE_ARCHIVE_PATH } from "./archive.ts";
@@ -76,9 +77,15 @@ test("buildRepoSourceArchive includes only committed Git-tracked content", async
 		assert.ok(entries.includes("tracked.txt"));
 		assert.equal(entries.includes("untracked.secret"), false);
 		assert.equal(entries.some((entry) => entry.startsWith("ignored/")), false);
-		const decoded = Buffer.from(archive.base64, "base64");
-		assert.equal(decoded.includes(Buffer.from("UNTRACKED_SECRET_SENTINEL")), false);
-		assert.equal(decoded.includes(Buffer.from("IGNORED_SECRET_SENTINEL")), false);
+		const decompressed = gunzipSync(Buffer.from(archive.base64, "base64"));
+		assert.equal(
+			decompressed.includes(Buffer.from("UNTRACKED_SECRET_SENTINEL")),
+			false,
+		);
+		assert.equal(
+			decompressed.includes(Buffer.from("IGNORED_SECRET_SENTINEL")),
+			false,
+		);
 	} finally {
 		await rm(repo, { recursive: true, force: true });
 	}

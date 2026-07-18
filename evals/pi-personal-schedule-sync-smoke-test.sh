@@ -16,6 +16,7 @@ FAKE_BIN="$TMPDIR/bin"
 STABLE_RUNNER="$FAKE_HOME/code/pi-fleet/bin/pi-personal-schedule-run"
 GLOBAL_TASKS="$FAKE_HOME/.pi/agent/state/scheduler/tasks.json"
 LAUNCHCTL_LOG="$TMPDIR/launchctl.log"
+export PI_SCHEDULER_TASKS_BOUNDARY="$FAKE_HOME"
 mkdir -p "$FAKE_BIN" "$(dirname "$STABLE_RUNNER")" "$(dirname "$GLOBAL_TASKS")"
 cp "$FLEET_ROOT/profiles/personal-assistant/schedules.json" "$FAKE_SCHEDULES"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STABLE_RUNNER"
@@ -125,7 +126,29 @@ HOME="$1" PI_FLEET_HOME="$1/.pi-fleet" PATH="$2:/usr/bin:/bin" PI_FLEET_PROFILE=
 check_eq "$DISABLE_AGAIN_STATUS" "0" "disabling an already-empty schedule set exits 0 on stock /bin/bash instead of crashing on unbound \${plists[@]}"
 check_eq "$(plist_count)" "0" "still zero plists after disabling an already-empty set"
 
-echo "6) nested personal-log symlinks are rejected without outside writes"
+echo "6) traversal and unsupported cron fields are rejected before writing outputs"
+cat >"$FAKE_SCHEDULES" <<'JSON'
+{"schedules":[{"name":"../escape","cron":"0 0 * * * *","enabled":true}]}
+JSON
+if run_sync >/dev/null 2>&1; then check false "traversal schedule name is rejected"; else check true "traversal schedule name is rejected"; fi
+[[ ! -e "$FAKE_HOME/.pi-fleet/logs/escape.log" \
+	&& ! -e "$FAKE_HOME/.pi-fleet/escape.log" \
+	&& ! -e "$FAKE_AGENTS_DIR/dev.pi-fleet.personal.../escape.plist" \
+	&& ! -e "$FAKE_AGENTS_DIR/escape.plist" ]] \
+	&& check true "traversal schedule creates no escaped outputs" \
+	|| check false "traversal schedule created escaped outputs"
+cat >"$FAKE_SCHEDULES" <<'JSON'
+{"schedules":[{"name":"bad-seconds","cron":"30 0 * * * *","enabled":true}]}
+JSON
+if run_sync >/dev/null 2>&1; then check false "nonzero cron seconds are rejected"; else check true "nonzero cron seconds are rejected"; fi
+[[ ! -e "$FAKE_AGENTS_DIR/dev.pi-fleet.personal.bad-seconds.plist" \
+	&& ! -e "$FAKE_LOG_DIR/bad-seconds.log" \
+	&& ! -e "$FAKE_LOG_DIR/bad-seconds.error.log" ]] \
+	&& check true "invalid cron creates no schedule outputs" \
+	|| check false "invalid cron created schedule outputs"
+cp "$FLEET_ROOT/profiles/personal-assistant/schedules.json" "$FAKE_SCHEDULES"
+
+echo "7) nested personal-log symlinks are rejected without outside writes"
 OUTSIDE_LOGS="$TMPDIR/outside-logs"
 rm -rf "$FAKE_HOME/.pi-fleet/logs"
 mkdir "$OUTSIDE_LOGS"

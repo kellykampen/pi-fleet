@@ -19,6 +19,9 @@ import { isTerminal } from "./types.js";
 
 const JOB_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const LOCK_WAIT_MS = 5_000;
+const LOCK_STALE_MS = 30_000;
+
+type LockOwner = { token: string; pid: number; acquiredAt: number };
 
 export class CorruptJobError extends Error {
 	constructor(jobId: string, cause?: unknown) {
@@ -49,32 +52,100 @@ export async function ensureJobsDir(): Promise<void> {
 	await chmod(dir, 0o700);
 }
 
+function processIsAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code === "EPERM";
+	}
+}
+
+async function readLockOwner(lock: string): Promise<LockOwner | null> {
+	try {
+		const value = JSON.parse(await readFile(join(lock, "owner.json"), "utf8")) as LockOwner;
+		if (
+			typeof value?.token === "string" &&
+			Number.isSafeInteger(value.pid) &&
+			Number.isFinite(value.acquiredAt)
+		)
+			return value;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof SyntaxError))
+			throw error;
+	}
+	return null;
+}
+
+async function reclaimStaleLock(lock: string): Promise<boolean> {
+	const stat = await lstat(lock);
+	if (stat.isSymbolicLink() || !stat.isDirectory())
+		throw new Error(`Unsafe job lock path: ${lock}`);
+	const observed = await readLockOwner(lock);
+	const acquiredAt = observed?.acquiredAt ?? stat.mtimeMs;
+	if (Date.now() - acquiredAt < LOCK_STALE_MS) return false;
+	if (observed && processIsAlive(observed.pid)) return false;
+	const stale = `${lock}.stale.${randomUUID()}`;
+	try {
+		await rename(lock, stale);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+		throw error;
+	}
+	const movedStat = await lstat(stale);
+	const movedOwner = await readLockOwner(stale);
+	const sameIdentity =
+		movedStat.dev === stat.dev &&
+		movedStat.ino === stat.ino &&
+		(observed?.token ?? null) === (movedOwner?.token ?? null);
+	if (!sameIdentity) {
+		try {
+			await rename(stale, lock);
+		} catch {
+			// A successor already owns the canonical name; leave the mismatched directory isolated.
+		}
+		return false;
+	}
+	await rm(stale, { recursive: true, force: true });
+	return true;
+}
+
 async function withLock<T>(
 	name: string,
 	operation: () => Promise<T>,
 ): Promise<T> {
 	await ensureJobsDir();
 	const lock = join(jobsDir(), `.lock-${validateJobId(name)}`);
+	const owner: LockOwner = { token: randomUUID(), pid: process.pid, acquiredAt: Date.now() };
 	await assertRuntimePathNoSymlinks(lock);
 	const deadline = Date.now() + LOCK_WAIT_MS;
 	for (;;) {
 		try {
 			await mkdir(lock, { mode: 0o700 });
 			await assertRuntimePathNoSymlinks(lock);
+			try {
+				await writeFile(join(lock, "owner.json"), `${JSON.stringify(owner)}\n`, {
+					mode: 0o600,
+					flag: "wx",
+				});
+			} catch (error) {
+				await rm(lock, { recursive: true, force: true });
+				throw error;
+			}
 			break;
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+			if (await reclaimStaleLock(lock)) continue;
 			if (Date.now() >= deadline)
-				throw new Error(`Timed out acquiring job lock: ${name}`, {
-					cause: error,
-				});
+				throw new Error(`Timed out acquiring job lock: ${name}`, { cause: error });
 			await new Promise((resolve) => setTimeout(resolve, 10));
 		}
 	}
 	try {
 		return await operation();
 	} finally {
-		await rm(lock, { recursive: true, force: true });
+		if ((await readLockOwner(lock))?.token === owner.token)
+			await rm(lock, { recursive: true, force: true });
 	}
 }
 
@@ -283,6 +354,8 @@ export interface RetentionOptions {
 	deleteAfterDays?: number;
 	apply?: boolean;
 	deleteArchived?: boolean;
+	/** Test/coordination hook invoked after scanning but before the archive lock. */
+	beforeArchiveLock?: (jobId: string) => Promise<void>;
 }
 export async function retainJobs(
 	options: RetentionOptions = {},
@@ -343,11 +416,13 @@ export async function retainJobs(
 		let archived: FleetJob;
 		try {
 			archived = JSON.parse(await readFile(path, "utf8")) as FleetJob;
+			if (!archived || archived.jobId !== id)
+				throw new Error("record ID mismatch");
 		} catch (error) {
-			throw new CorruptJobError(id, error);
+			if (!options.apply) throw new CorruptJobError(id, error);
+			await quarantineRecord(id, path);
+			continue;
 		}
-		if (!archived || archived.jobId !== id)
-			throw new CorruptJobError(id, new Error("record ID mismatch"));
 		if (Date.parse(archived.finishedAt ?? archived.updatedAt) < deleteBefore)
 			result.delete.push(id);
 	}
@@ -356,12 +431,24 @@ export async function retainJobs(
 		await mkdir(archiveDir, { recursive: true, mode: 0o700 });
 		await assertRuntimePathNoSymlinks(archiveDir);
 		await chmod(archiveDir, 0o700);
-		for (const id of result.archive)
+		const archivedNow: string[] = [];
+		for (const id of result.archive) {
+			await options.beforeArchiveLock?.(id);
 			await withLock(id, async () => {
+				const refreshed = await readRecord(id);
+				if (
+					!refreshed ||
+					!isTerminal(refreshed.status) ||
+					Date.parse(refreshed.finishedAt ?? refreshed.updatedAt) >= archiveBefore
+				)
+					return;
 				const destination = join(archiveDir, `${id}.json`);
 				await assertRuntimePathNoSymlinks(destination);
 				await rename(jobPath(id), destination);
+				archivedNow.push(id);
 			});
+		}
+		result.archive = archivedNow;
 		if (options.deleteArchived)
 			for (const id of result.delete)
 				await rm(join(archiveDir, `${id}.json`), { force: true });

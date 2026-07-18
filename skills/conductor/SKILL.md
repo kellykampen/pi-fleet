@@ -273,6 +273,7 @@ LINEAR PROJECT: <Linear project name or link>
 % DONE (done/total): <e.g. 6/10 (60%)>
 FINISHED: <what shipped since the last report>
 UP NEXT: <what's queued next>
+ACTIVE GATES / RECENT MERGES: <current gate status and recently merged PRs, or "none">
 BLOCKERS: <blockers needing CEO action, or "none">
 ACTIONS FOR CEO: <asks / decisions needed from the CEO, or "none">
 ```

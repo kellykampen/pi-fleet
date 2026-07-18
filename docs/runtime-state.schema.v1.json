@@ -2,32 +2,132 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://pi-fleet.local/schemas/runtime-state-v1.json",
   "title": "pi-fleet runtime-state contract",
-  "contractVersion": 1,
-  "root": {
-    "default": "~/.pi-fleet",
-    "override": "PI_FLEET_HOME",
-    "overrideRequirements": ["absolute", "normalized", "non-filesystem-root", "runtime-root-and-children-not-symlinks"]
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "root", "defaults", "namespaces", "externalPaths", "migration", "jobRetention", "schedulerCleanup"],
+  "properties": {
+    "contractVersion": {"const": 1},
+    "root": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default", "override", "overrideRequirements"],
+      "properties": {
+        "default": {"const": "~/.pi-fleet"},
+        "override": {"const": "PI_FLEET_HOME"},
+        "overrideRequirements": {
+          "type": "array",
+          "minItems": 5,
+          "uniqueItems": true,
+          "items": {"enum": ["absolute", "normalized", "non-filesystem-root", "canonicalized-ancestry", "namespace-components-not-symlinks"]}
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directoryMode", "fileMode", "lockTimeoutSeconds", "atomicWrite", "migrationMode"],
+      "properties": {
+        "directoryMode": {"const": "0700"},
+        "fileMode": {"const": "0600"},
+        "lockTimeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 30},
+        "atomicWrite": {"const": "temporary-file, fsync, rename"},
+        "migrationMode": {"const": "report-only"}
+      }
+    },
+    "namespaces": {
+      "type": "array",
+      "minItems": 9,
+      "items": {"$ref": "#/$defs/namespace"}
+    },
+    "externalPaths": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"$ref": "#/$defs/externalPath"}
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultMode", "applyRequired", "overwriteConflicts", "deleteSources", "manifestDigest", "rollbackRemovesOnlyUnchangedCreatedFiles"],
+      "properties": {
+        "defaultMode": {"const": "report-only"},
+        "applyRequired": {"const": true},
+        "overwriteConflicts": {"const": false},
+        "deleteSources": {"const": false},
+        "manifestDigest": {"const": "sha256"},
+        "rollbackRemovesOnlyUnchangedCreatedFiles": {"const": true}
+      }
+    },
+    "jobRetention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archiveAfterDays", "archiveRequiresApply", "deleteAfterDays", "deleteRequiresApply", "deleteRequiresFlag", "activeJobsNeverArchived"],
+      "properties": {
+        "archiveAfterDays": {"const": 30},
+        "archiveRequiresApply": {"const": true},
+        "deleteAfterDays": {"const": 180},
+        "deleteRequiresApply": {"const": true},
+        "deleteRequiresFlag": {"const": "--delete-archived"},
+        "activeJobsNeverArchived": {"const": true}
+      }
+    },
+    "schedulerCleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["removeOnlyValidatedFleetOwnedTasks", "preserveExternalTasks", "preserveCorruptInput", "evidenceLimit"],
+      "properties": {
+        "removeOnlyValidatedFleetOwnedTasks": {"const": true},
+        "preserveExternalTasks": {"const": true},
+        "preserveCorruptInput": {"const": true},
+        "evidenceLimit": {"const": 20}
+      }
+    }
   },
-  "defaults": {
-    "directoryMode": "0700",
-    "fileMode": "0600",
-    "lockTimeoutSeconds": 5,
-    "atomicWrite": "temporary-file, fsync, rename",
-    "migrationMode": "report-only"
+  "$defs": {
+    "namespace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "owner", "authority", "sensitivity", "retention"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "authority": {"type": "string", "minLength": 1},
+        "sensitivity": {"enum": ["private", "secret"]},
+        "retention": {"type": "string", "minLength": 1},
+        "stableIdPattern": {"type": "string"}
+      }
+    },
+    "externalPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "owner", "policy"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "policy": {"type": "string", "minLength": 1}
+      }
+    }
   },
-  "namespaces": [
-    {"path": "state/e2b/jobs", "owner": "pi-fleet e2b extension", "authority": "job lifecycle", "sensitivity": "private", "retention": "active forever; terminal archive after 30 days; archived delete only with explicit apply after 180 days"},
-    {"path": "state/scheduler/backups", "owner": "scheduler cleanup", "authority": "cleanup evidence", "sensitivity": "private", "retention": "newest 20"},
-    {"path": "state/scheduler/quarantine", "owner": "scheduler cleanup", "authority": "corrupt-input evidence", "sensitivity": "private", "retention": "manual cleanup"},
-    {"path": "state/migrations", "owner": "state migrator", "authority": "migration and rollback manifest", "sensitivity": "private", "retention": "until migration rollback window closes"},
-    {"path": "archive/legacy-root", "owner": "state migrator", "authority": "non-authoritative legacy inventory only", "sensitivity": "private", "retention": "operator-managed migration history"},
-    {"path": "secrets", "owner": "pi-fleet", "authority": "fleet-only credentials", "sensitivity": "secret", "retention": "operator-managed"},
-    {"path": "logs/personal", "owner": "personal scheduler", "authority": "personal schedule output", "sensitivity": "private", "retention": "5 MiB per log, three rotated generations"},
-    {"path": "handoffs/conductor", "owner": "conductor", "authority": "coordination handoff", "sensitivity": "private", "retention": "one current.md plus explicit archive"},
-    {"path": "handoffs/projects/<stable-id>", "owner": "project lead", "authority": "project coordination handoff", "sensitivity": "private", "retention": "one current.md plus explicit archive"}
-  ],
-  "externalPaths": [
-    {"path": "~/.pi/agent", "owner": "Pi", "policy": "external; pi-fleet may configure links and clean scheduler tasks but does not claim ownership"},
-    {"path": "~/Library/LaunchAgents", "owner": "macOS launchd", "policy": "external; generated dev.pi-fleet.personal plists only"}
-  ]
+  "examples": [{
+    "contractVersion": 1,
+    "root": {"default": "~/.pi-fleet", "override": "PI_FLEET_HOME", "overrideRequirements": ["absolute", "normalized", "non-filesystem-root", "canonicalized-ancestry", "namespace-components-not-symlinks"]},
+    "defaults": {"directoryMode": "0700", "fileMode": "0600", "lockTimeoutSeconds": 5, "atomicWrite": "temporary-file, fsync, rename", "migrationMode": "report-only"},
+    "namespaces": [
+      {"path": "state/e2b/jobs", "owner": "pi-fleet e2b extension", "authority": "job lifecycle", "sensitivity": "private", "retention": "archive after 30 days only with --apply; delete after 180 days only with --apply and --delete-archived"},
+      {"path": "state/scheduler/backups", "owner": "scheduler cleanup", "authority": "cleanup evidence", "sensitivity": "private", "retention": "newest 20"},
+      {"path": "state/scheduler/quarantine", "owner": "scheduler cleanup", "authority": "corrupt-input evidence", "sensitivity": "private", "retention": "newest 20"},
+      {"path": "state/migrations", "owner": "state migrator", "authority": "migration and rollback manifest", "sensitivity": "private", "retention": "until migration rollback window closes"},
+      {"path": "archive/legacy-root", "owner": "state migrator", "authority": "non-authoritative legacy inventory only", "sensitivity": "private", "retention": "operator-managed migration history"},
+      {"path": "secrets", "owner": "pi-fleet", "authority": "fleet-only credentials", "sensitivity": "secret", "retention": "operator-managed"},
+      {"path": "logs/personal", "owner": "personal scheduler", "authority": "personal schedule output", "sensitivity": "private", "retention": "5 MiB per log, three rotated generations"},
+      {"path": "handoffs/conductor", "owner": "conductor", "authority": "coordination handoff", "sensitivity": "private", "retention": "one current.md plus explicit archive"},
+      {"path": "handoffs/projects/<stable-id>", "owner": "project lead", "authority": "project coordination handoff", "sensitivity": "private", "retention": "one current.md plus explicit archive", "stableIdPattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ excluding . and .."}
+    ],
+    "externalPaths": [
+      {"path": "~/.pi/agent", "owner": "Pi", "policy": "external; pi-fleet may configure links and remove only validated pi-fleet-owned scheduler tasks"},
+      {"path": "~/Library/LaunchAgents", "owner": "macOS launchd", "policy": "external; generated dev.pi-fleet.personal plists only"}
+    ],
+    "migration": {"defaultMode": "report-only", "applyRequired": true, "overwriteConflicts": false, "deleteSources": false, "manifestDigest": "sha256", "rollbackRemovesOnlyUnchangedCreatedFiles": true},
+    "jobRetention": {"archiveAfterDays": 30, "archiveRequiresApply": true, "deleteAfterDays": 180, "deleteRequiresApply": true, "deleteRequiresFlag": "--delete-archived", "activeJobsNeverArchived": true},
+    "schedulerCleanup": {"removeOnlyValidatedFleetOwnedTasks": true, "preserveExternalTasks": true, "preserveCorruptInput": true, "evidenceLimit": 20}
+  }]
 }

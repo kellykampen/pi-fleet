@@ -8,7 +8,7 @@ export HOME
 export PI_FLEET_HOME="$HOME/.pi-fleet"
 mkdir -p "$HOME/.pi/fleet/jobs" "$PI_FLEET_HOME/jobs" "$PI_FLEET_HOME/notes/subdir"
 printf '{"jobId":"legacy"}\n' >"$HOME/.pi/fleet/jobs/legacy.json"
-printf 'TEST_SECRET=never-print-this\n' >"$HOME/.pi/fleet/secrets.env"
+printf 'export E2B_API_KEY="never-print-this quoted"\nGH_TOKEN='"'"'legacy-token'"'"'\n' >"$HOME/.pi/fleet/secrets.env"
 printf '{"jobId":"loose"}\n' >"$PI_FLEET_HOME/jobs/loose.json"
 printf 'legacy note\n' >"$PI_FLEET_HOME/note.txt"
 printf 'loose source\n' >"$PI_FLEET_HOME/conflict-note.txt"
@@ -25,6 +25,8 @@ report="$($ROOT/bin/pi-fleet-state-migrate)"
 [[ -f "$PI_FLEET_HOME/state/e2b/jobs/legacy.json" ]]
 [[ -f "$PI_FLEET_HOME/state/e2b/jobs/loose.json" ]]
 [[ -f "$PI_FLEET_HOME/secrets/secrets.env" ]]
+grep -Fxq 'E2B_API_KEY=never-print-this quoted' "$PI_FLEET_HOME/secrets/secrets.env"
+grep -Fxq 'GH_TOKEN=legacy-token' "$PI_FLEET_HOME/secrets/secrets.env"
 [[ -f "$PI_FLEET_HOME/archive/legacy-root/note.txt" ]]
 [[ "$(cat "$PI_FLEET_HOME/archive/legacy-root/conflict-note.txt")" == 'archive destination' ]]
 [[ -f "$PI_FLEET_HOME/archive/legacy-root/notes/subdir/item.txt" ]]
@@ -90,9 +92,9 @@ printf 'changed\n' >"$PI_FLEET_HOME/state/e2b/jobs/legacy.json"
 PI_FLEET_HOME=relative bash -c '. "$1/bin/lib/runtime-state.sh"; pi_fleet_runtime_root' _ "$ROOT" >/dev/null 2>&1 && exit 1
 mkdir "$TMP/real-root"
 ln -s "$TMP/real-root" "$TMP/link-root"
-PI_FLEET_HOME="$TMP/link-root" bash -c '. "$1/bin/lib/runtime-state.sh"; pi_fleet_runtime_root' _ "$ROOT" >/dev/null 2>&1 && exit 1
+[[ "$(PI_FLEET_HOME="$TMP/link-root" bash -c '. "$1/bin/lib/runtime-state.sh"; pi_fleet_runtime_root' _ "$ROOT")" == "$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$TMP/real-root")" ]]
 PI_FLEET_HOME="$TMP/link-root" "$ROOT/bin/pi-fleet-state-migrate" >/dev/null 2>&1 && exit 1
-[[ "$(PI_FLEET_HOME="$TMP/custom" bash -c '. "$1/bin/lib/runtime-state.sh"; pi_fleet_runtime_root' _ "$ROOT")" == "$TMP/custom" ]]
+[[ "$(PI_FLEET_HOME="$TMP/custom" bash -c '. "$1/bin/lib/runtime-state.sh"; pi_fleet_runtime_root' _ "$ROOT")" == "$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$TMP/custom")" ]]
 mkdir -p "$TMP/physical-parent/fleet/state"
 ln -s "$TMP/physical-parent" "$TMP/ancestor-link"
 PI_FLEET_HOME="$TMP/ancestor-link/fleet" bash -c '. "$1/bin/lib/runtime-state.sh"; pi_fleet_runtime_path state' _ "$ROOT" >/dev/null
