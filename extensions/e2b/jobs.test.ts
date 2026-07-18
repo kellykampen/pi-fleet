@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { listJobs, readJob, updateJob, writeJob } from "./jobs.ts";
+import { CorruptJobError, jobsDir, listJobs, readJob, retainJobs, updateJob, writeJob } from "./jobs.ts";
 import type { FleetJob } from "./types.ts";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -38,7 +38,7 @@ function baseJob(overrides: Partial<FleetJob>): FleetJob {
 
 async function withTempStore(fn: () => Promise<void>): Promise<void> {
 	const dir = await mkdtemp(join(tmpdir(), "pi-fleet-jobs-"));
-	process.env.FLEET_JOBS_DIR = dir;
+	process.env.PI_FLEET_HOME = dir;
 	delete process.env.FLEET_CONVEX_URL;
 	try {
 		await fn();
@@ -120,5 +120,220 @@ test("local store: updateJob still stamps finishedAt on terminal status", async 
 		assert.ok(done.finishedAt, "finishedAt should be stamped on terminal");
 		const persisted = await readJob("t");
 		assert.equal(persisted.finishedAt, done.finishedAt);
+	});
+});
+
+test("local store rejects traversal, separators, absolute IDs, and symlinks", async () => {
+	await withTempStore(async () => {
+		for (const id of ["../escape", "a/b", "a\\b", "/absolute", ".", "..", ""])
+			await assert.rejects(() => readJob(id), /job ID/i);
+		await writeJob(baseJob({ jobId: "legacy_job-01.abc" }));
+		assert.equal((await readJob("legacy_job-01.abc")).jobId, "legacy_job-01.abc");
+		const outside = join(jobsDir(), "..", "outside.json");
+		await writeFile(outside, "{}\n");
+		await symlink(outside, join(jobsDir(), "linked.json"));
+		await assert.rejects(() => readJob("linked"), /symlink/i);
+	});
+});
+
+test("local writes are private, atomic, and concurrent updates do not lose fields", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "secure", status: "running" }));
+		assert.equal((await lstat(jobsDir())).mode & 0o777, 0o700);
+		assert.equal((await lstat(join(jobsDir(), "secure.json"))).mode & 0o777, 0o600);
+		await Promise.all([
+			updateJob("secure", { branch: "one" }),
+			updateJob("secure", { commitSha: "abc" }),
+		]);
+		const job = await readJob("secure");
+		assert.equal(job.branch, "one");
+		assert.equal(job.commitSha, "abc");
+		assert.equal((await readdir(jobsDir())).some((f) => f.includes(".tmp.")), false);
+	});
+});
+
+test("abandoned job locks are reclaimed without blocking future writes", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "seed" }));
+		const lock = join(jobsDir(), ".lock-stale");
+		await mkdir(lock, { mode: 0o700 });
+		await writeFile(
+			join(lock, "owner.json"),
+			`${JSON.stringify({ token: "abandoned", pid: 999_999_999, acquiredAt: 0 })}\n`,
+		);
+
+		await writeJob(baseJob({ jobId: "stale" }));
+		assert.equal((await readJob("stale")).jobId, "stale");
+		await assert.rejects(() => lstat(lock), { code: "ENOENT" });
+	});
+});
+
+test("corrupt records raise explicitly and are quarantined", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "broken" }));
+		await chmod(join(jobsDir(), "broken.json"), 0o600);
+		await writeFile(join(jobsDir(), "broken.json"), "not-json");
+		await assert.rejects(() => readJob("broken"), CorruptJobError);
+		assert.equal((await readdir(join(jobsDir(), "quarantine"))).some((f) => f.startsWith("broken.")), true);
+	});
+});
+
+test("retention dry-run reports corrupt active records without mutation", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "broken", status: "running" }));
+		const path = join(jobsDir(), "broken.json");
+		await writeFile(path, "not-json");
+		await chmod(path, 0o644);
+		const before = await readdir(jobsDir());
+
+		await assert.rejects(
+			() => retainJobs({ apply: false }),
+			(error: unknown) =>
+				error instanceof CorruptJobError &&
+				error.message === "Corrupt job record: broken",
+		);
+
+		assert.deepEqual(await readdir(jobsDir()), before);
+		assert.equal(await readFile(path, "utf8"), "not-json");
+		assert.equal((await lstat(path)).mode & 0o777, 0o644);
+	});
+});
+
+test("retention apply privately quarantines corrupt active records", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "broken", status: "running" }));
+		const path = join(jobsDir(), "broken.json");
+		await writeFile(path, "not-json");
+		await chmod(path, 0o644);
+
+		await assert.rejects(() => retainJobs({ apply: true }), CorruptJobError);
+
+		await assert.rejects(() => lstat(path), { code: "ENOENT" });
+		const quarantine = join(jobsDir(), "quarantine");
+		assert.equal((await lstat(quarantine)).mode & 0o777, 0o700);
+		const files = await readdir(quarantine);
+		assert.equal(files.length, 1);
+		assert.match(files[0], /^broken\..+\.corrupt$/);
+		assert.equal((await lstat(join(quarantine, files[0]))).mode & 0o777, 0o600);
+		assert.deepEqual(await retainJobs({ apply: true }), {
+			archive: [],
+			delete: [],
+		});
+	});
+});
+
+test("retention rejects archived filenames that are not valid job IDs", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "seed" }));
+		const archive = join(jobsDir(), "archive");
+		await mkdir(archive, { mode: 0o700 });
+		await writeFile(
+			join(archive, "bad id.json"),
+			`${JSON.stringify(baseJob({ jobId: "bad id", status: "succeeded" }))}\n`,
+		);
+
+		await assert.rejects(() => retainJobs(), /Invalid job ID/);
+	});
+});
+
+test("retention rejects archived records whose embedded ID does not match the filename", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "seed" }));
+		const archive = join(jobsDir(), "archive");
+		await mkdir(archive, { mode: 0o700 });
+		await writeFile(
+			join(archive, "expected.json"),
+			`${JSON.stringify(baseJob({ jobId: "different", status: "succeeded" }))}\n`,
+		);
+
+		await assert.rejects(
+			() => retainJobs(),
+			(error: unknown) =>
+				error instanceof CorruptJobError &&
+				error.message === "Corrupt job record: expected",
+		);
+	});
+});
+
+test("retention revalidates archive candidates under lock", async () => {
+	await withTempStore(async () => {
+		const old = "2025-01-01T00:00:00.000Z";
+		await writeJob(
+			baseJob({ jobId: "reactivated", status: "succeeded", updatedAt: old, finishedAt: old }),
+		);
+		const retained = await retainJobs({
+			now: new Date("2026-01-01"),
+			archiveAfterDays: 30,
+			apply: true,
+			beforeArchiveLock: async (id) => {
+				await updateJob(id, { status: "running" });
+			},
+		});
+
+		assert.deepEqual(retained.archive, []);
+		assert.equal((await readJob("reactivated")).status, "running");
+		await assert.rejects(() => lstat(join(jobsDir(), "archive", "reactivated.json")), {
+			code: "ENOENT",
+		});
+	});
+});
+
+test("retention apply quarantines corrupt archived records and continues", async () => {
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "seed" }));
+		const archive = join(jobsDir(), "archive");
+		await mkdir(archive, { mode: 0o700 });
+		await writeFile(join(archive, "broken-archive.json"), "not-json");
+
+		assert.deepEqual(await retainJobs({ apply: true }), { archive: [], delete: [] });
+		await assert.rejects(() => lstat(join(archive, "broken-archive.json")), { code: "ENOENT" });
+		assert.equal(
+			(await readdir(join(jobsDir(), "quarantine"))).some((file) =>
+				file.startsWith("broken-archive."),
+			),
+			true,
+		);
+	});
+});
+
+test("retention is dry-run by default, preserves active, archives terminal, then deletes old archives", async () => {
+	await withTempStore(async () => {
+		const old = "2025-01-01T00:00:00.000Z";
+		await writeJob(baseJob({ jobId: "active", status: "running", createdAt: old, updatedAt: old }));
+		await writeJob(baseJob({ jobId: "done", status: "succeeded", createdAt: old, updatedAt: old, finishedAt: old }));
+		const before = await readdir(jobsDir());
+		const dry = await retainJobs({ now: new Date("2026-01-01"), archiveAfterDays: 30, deleteAfterDays: 90 });
+		assert.deepEqual(dry.archive, ["done"]);
+		assert.deepEqual(await readdir(jobsDir()), before, "dry-run must not create archive or lock paths");
+		assert.ok(await readFile(join(jobsDir(), "done.json"), "utf8"));
+		await retainJobs({ now: new Date("2026-01-01"), archiveAfterDays: 30, deleteAfterDays: 90, apply: true });
+		assert.equal((await readdir(join(jobsDir(), "archive"))).some((f) => f === "done.json"), true);
+		const deleted = await retainJobs({ now: new Date("2026-05-01"), archiveAfterDays: 30, deleteAfterDays: 90, apply: true, deleteArchived: true });
+		assert.deepEqual(deleted.delete, ["done"]);
+		assert.equal((await readdir(join(jobsDir(), "archive"))).includes("done.json"), false);
+	});
+});
+
+test("runtime child, archive, and quarantine paths reject nested symlinks", async () => {
+	await withTempStore(async () => {
+		const root = process.env.PI_FLEET_HOME!;
+		await mkdir(join(root, "state"));
+		await symlink(await mkdtemp(join(tmpdir(), "pi-fleet-outside-")), join(root, "state", "e2b"));
+		await assert.rejects(() => writeJob(baseJob({ jobId: "nested" })), /symlink/i);
+	});
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "done", status: "succeeded", finishedAt: "2025-01-01T00:00:00.000Z" }));
+		const outside = await mkdtemp(join(tmpdir(), "pi-fleet-archive-"));
+		await symlink(outside, join(jobsDir(), "archive"));
+		await assert.rejects(() => retainJobs({ now: new Date("2026-01-01") }), /symlink/i);
+		await rm(outside, { recursive: true, force: true });
+	});
+	await withTempStore(async () => {
+		await writeJob(baseJob({ jobId: "broken" }));
+		const outside = await mkdtemp(join(tmpdir(), "pi-fleet-quarantine-"));
+		await symlink(outside, join(jobsDir(), "quarantine"));
+		await writeFile(join(jobsDir(), "broken.json"), "bad-json");
+		await assert.rejects(() => readJob("broken"), /symlink/i);
+		await rm(outside, { recursive: true, force: true });
 	});
 });

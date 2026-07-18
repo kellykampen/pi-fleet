@@ -40,3 +40,5 @@ Rules:
   "reviewed" or "verified" — that's a different seat's job.
 - Default GPT-5.6 Sol is a fallback; the project lead picks the model per task via the
   model-classifier and may override it at spawn time. Hierarchy: CEO → conductor → project lead → worker (you).
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

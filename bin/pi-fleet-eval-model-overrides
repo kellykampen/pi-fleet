@@ -3,7 +3,9 @@
 # No real agent launch: mocks outfitter and asserts the args each wrapper would hand to Pi.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="${1:-$ROOT/evals/results/model-overrides-latest.txt}"
+TMP="$(mktemp -d)"
+OUT="${1:-$TMP/model-overrides-latest.txt}"
+trap 'rm -rf "$TMP"' EXIT
 exec > >(tee "$OUT") 2>&1
 
 pass=0; fail=0
@@ -24,8 +26,6 @@ check_not_contains() {
   fi
 }
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
 cat > "$TMP/outfitter" <<'SH'
 #!/usr/bin/env bash
 printf '%q ' "$@" > "$PI_FLEET_MOCK_OUT"
@@ -36,7 +36,9 @@ chmod +x "$TMP/outfitter"
 run_wrapper() {
   local outfile="$TMP/args.txt"
   : > "$outfile"
-  env -i HOME="$HOME" PATH="$TMP:$PATH" PI_FLEET_MOCK_OUT="$outfile" "$@"
+  env -i HOME="$HOME" PATH="$TMP:$PATH" PI_FLEET_HOME="$TMP/fleet-home" \
+    PI_SCHEDULER_TASKS_FILE="$TMP/scheduler-tasks.json" PI_SCHEDULER_TASKS_BOUNDARY="$TMP" \
+    PI_FLEET_MOCK_OUT="$outfile" "$@"
   cat "$outfile"
 }
 

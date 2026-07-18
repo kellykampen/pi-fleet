@@ -10,12 +10,13 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 FAKE_HOME="$TMPDIR/home"
 FAKE_AGENTS_DIR="$FAKE_HOME/Library/LaunchAgents"
-FAKE_LOG_DIR="$FAKE_HOME/Library/Logs/pi-fleet"
+FAKE_LOG_DIR="$FAKE_HOME/.pi-fleet/logs/personal"
 FAKE_SCHEDULES="$TMPDIR/schedules.json"
 FAKE_BIN="$TMPDIR/bin"
 STABLE_RUNNER="$FAKE_HOME/code/pi-fleet/bin/pi-personal-schedule-run"
 GLOBAL_TASKS="$FAKE_HOME/.pi/agent/state/scheduler/tasks.json"
 LAUNCHCTL_LOG="$TMPDIR/launchctl.log"
+export PI_SCHEDULER_TASKS_BOUNDARY="$FAKE_HOME"
 mkdir -p "$FAKE_BIN" "$(dirname "$STABLE_RUNNER")" "$(dirname "$GLOBAL_TASKS")"
 cp "$FLEET_ROOT/profiles/personal-assistant/schedules.json" "$FAKE_SCHEDULES"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STABLE_RUNNER"
@@ -55,11 +56,11 @@ plist_count() {
 	echo "${#plists[@]}"
 }
 run_sync() {
-	HOME="$FAKE_HOME" \
+	HOME="$FAKE_HOME" PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" \
 		PATH="$FAKE_BIN:/usr/bin:/bin:/usr/sbin:/sbin" \
 		PI_FLEET_PROFILE=personal-assistant \
 		PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
-		PI_SCHEDULE_SYNC_LOG_DIR="$FAKE_LOG_DIR" \
+		PI_SCHEDULE_SYNC_LOG_MAX_BYTES=16 \
 		PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
 		PI_SCHEDULER_TASKS_FILE="$GLOBAL_TASKS" \
 		PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
@@ -70,14 +71,18 @@ SOCIAL_PLIST="$FAKE_AGENTS_DIR/dev.pi-fleet.personal.social-x-checkup.plist"
 GMAIL_PLIST="$FAKE_AGENTS_DIR/dev.pi-fleet.personal.gmail-reply-checkup.plist"
 
 echo "1) profile guard: a non-personal role cannot install schedules"
-HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=conductor \
+HOME="$FAKE_HOME" PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=conductor \
 	PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
 	PI_SCHEDULE_SYNC_SCHEDULES_JSON="$FAKE_SCHEDULES" \
 	"$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
 check_eq "$(plist_count)" "0" "conductor invocation creates no personal schedules"
 
 echo "2) first personal sync: creates and loads stable, launchd-safe jobs"
+mkdir -p "$FAKE_LOG_DIR"
+printf 'this log is deliberately oversized\n' >"$FAKE_LOG_DIR/social-x-checkup.log"
 run_sync
+[[ "$(stat -f '%Lp' "$FAKE_LOG_DIR")" == 700 ]] && check true "personal log directory is private" || check false "personal log directory is private"
+[[ -f "$FAKE_LOG_DIR/social-x-checkup.log.1" ]] && check true "oversized personal log rotates" || check false "oversized personal log rotates"
 [[ -f "$SOCIAL_PLIST" ]] && check true "social-x-checkup plist created" || check false "social-x-checkup plist created"
 [[ -f "$GMAIL_PLIST" ]] && check true "gmail-reply-checkup plist created" || check false "gmail-reply-checkup plist created"
 check_eq "$(plutil -extract ProgramArguments.0 raw "$SOCIAL_PLIST")" "$STABLE_RUNNER" "plist uses configured stable runner"
@@ -101,8 +106,8 @@ check_eq "$(plist_count)" "2" "repeat sync creates no duplicate plists"
 check_eq "$(cat "$GLOBAL_TASKS")" "$TASKS_BEFORE" "personal sync leaves global scheduler store empty and unchanged"
 
 echo "4) PI_SCHEDULE_SYNC_ENABLED=0 unloads and removes installed schedules"
-HOME="$FAKE_HOME" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
-	PI_SCHEDULE_SYNC_ENABLED=0 \
+HOME="$FAKE_HOME" PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" PATH="$FAKE_BIN:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
+	PI_SCHEDULE_SYNC_ENABLED=0 PI_SCHEDULER_TASKS_FILE="$GLOBAL_TASKS" \
 	PI_SCHEDULE_SYNC_AGENTS_DIR="$FAKE_AGENTS_DIR" \
 	PI_TEST_LAUNCHCTL_LOG="$LAUNCHCTL_LOG" \
 	"$FLEET_ROOT/bin/pi-personal-schedule-sync" >/dev/null
@@ -112,14 +117,44 @@ check_eq "$(cat "$GLOBAL_TASKS")" "$TASKS_BEFORE" "disabled sync does not popula
 echo "5) PI_SCHEDULE_SYNC_ENABLED=0 with zero installed plists does not crash (bash 3.2 unbound-array regression)"
 DISABLE_AGAIN_STATUS=0
 /bin/bash -c '
-HOME="$1" PATH="$2:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
-	PI_SCHEDULE_SYNC_ENABLED=0 \
+HOME="$1" PI_FLEET_HOME="$1/.pi-fleet" PATH="$2:/usr/bin:/bin" PI_FLEET_PROFILE=personal-assistant \
+	PI_SCHEDULE_SYNC_ENABLED=0 PI_SCHEDULER_TASKS_FILE="$6" \
 	PI_SCHEDULE_SYNC_AGENTS_DIR="$3" \
 	PI_TEST_LAUNCHCTL_LOG="$4" \
 	"$5/bin/pi-personal-schedule-sync"
-' _ "$FAKE_HOME" "$FAKE_BIN" "$FAKE_AGENTS_DIR" "$LAUNCHCTL_LOG" "$FLEET_ROOT" >/dev/null 2>&1 || DISABLE_AGAIN_STATUS=$?
+' _ "$FAKE_HOME" "$FAKE_BIN" "$FAKE_AGENTS_DIR" "$LAUNCHCTL_LOG" "$FLEET_ROOT" "$GLOBAL_TASKS" >/dev/null 2>&1 || DISABLE_AGAIN_STATUS=$?
 check_eq "$DISABLE_AGAIN_STATUS" "0" "disabling an already-empty schedule set exits 0 on stock /bin/bash instead of crashing on unbound \${plists[@]}"
 check_eq "$(plist_count)" "0" "still zero plists after disabling an already-empty set"
+
+echo "6) traversal and unsupported cron fields are rejected before writing outputs"
+cat >"$FAKE_SCHEDULES" <<'JSON'
+{"schedules":[{"name":"../escape","cron":"0 0 * * * *","enabled":true}]}
+JSON
+if run_sync >/dev/null 2>&1; then check false "traversal schedule name is rejected"; else check true "traversal schedule name is rejected"; fi
+[[ ! -e "$FAKE_HOME/.pi-fleet/logs/escape.log" \
+	&& ! -e "$FAKE_HOME/.pi-fleet/escape.log" \
+	&& ! -e "$FAKE_AGENTS_DIR/dev.pi-fleet.personal.../escape.plist" \
+	&& ! -e "$FAKE_AGENTS_DIR/escape.plist" ]] \
+	&& check true "traversal schedule creates no escaped outputs" \
+	|| check false "traversal schedule created escaped outputs"
+cat >"$FAKE_SCHEDULES" <<'JSON'
+{"schedules":[{"name":"bad-seconds","cron":"30 0 * * * *","enabled":true}]}
+JSON
+if run_sync >/dev/null 2>&1; then check false "nonzero cron seconds are rejected"; else check true "nonzero cron seconds are rejected"; fi
+[[ ! -e "$FAKE_AGENTS_DIR/dev.pi-fleet.personal.bad-seconds.plist" \
+	&& ! -e "$FAKE_LOG_DIR/bad-seconds.log" \
+	&& ! -e "$FAKE_LOG_DIR/bad-seconds.error.log" ]] \
+	&& check true "invalid cron creates no schedule outputs" \
+	|| check false "invalid cron created schedule outputs"
+cp "$FLEET_ROOT/profiles/personal-assistant/schedules.json" "$FAKE_SCHEDULES"
+
+echo "7) nested personal-log symlinks are rejected without outside writes"
+OUTSIDE_LOGS="$TMPDIR/outside-logs"
+rm -rf "$FAKE_HOME/.pi-fleet/logs"
+mkdir "$OUTSIDE_LOGS"
+ln -s "$OUTSIDE_LOGS" "$FAKE_HOME/.pi-fleet/logs"
+if run_sync >/dev/null 2>&1; then check false "nested log symlink is rejected"; else check true "nested log symlink is rejected"; fi
+[[ -z "$(find "$OUTSIDE_LOGS" -mindepth 1 -print -quit)" ]] && check true "no files written through log symlink" || check false "files written through log symlink"
 
 echo ""
 echo "pass=$pass fail=$fail"

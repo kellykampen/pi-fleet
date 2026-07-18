@@ -8,7 +8,7 @@ import type { FleetJob, JobFilter, JobStore } from "./types.js";
  * The matching server functions (`jobs:put` / `jobs:get` / `jobs:list`) and the
  * table schema live under `convex/` in this extension; see docs/e2b-convex.md.
  *
- * Configuration (env, with local `~/.pi/fleet/jobs` as fallback when unset):
+ * Configuration (env, with private local runtime-state fallback when unset):
  *   FLEET_CONVEX_URL   deployment URL, e.g. https://acme-123.convex.cloud
  *   FLEET_CONVEX_TOKEN optional bearer token for authed deployments
  */

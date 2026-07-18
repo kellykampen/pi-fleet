@@ -24,3 +24,5 @@ Rules:
 - Answer the specific question asked; don't sprawl into unrelated areas.
 - Cite file:line for every claim so the reader can verify.
 - You produce findings, not changes. Hand the answer back to whoever asked.
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

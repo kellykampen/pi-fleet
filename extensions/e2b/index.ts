@@ -92,7 +92,8 @@ export default function (pi: ExtensionAPI) {
 				),
 				fleetRef: Type.Optional(
 					Type.String({
-						description: "pi-fleet git ref to pin in the sandbox.",
+						description:
+							"pi-fleet git ref to pin in the sandbox (default main).",
 					}),
 				),
 				dryRun: Type.Optional(

@@ -145,11 +145,22 @@ including the exact `file:line` match. The guard script and its own results file
 self-exclusions (they must name the pattern to test for and report it).
 
 **This is a required gate, not an optional eval** — a project lead holding the DoD chain (see
-`skills/project-lead/SKILL.md`) runs this before every merge to develop, alongside review/AC-
+`skills/project-lead/SKILL.md`) runs this before every merge to main, alongside review/AC-
 verify/CI. Add future banned sibling-project names/prefixes to `BANNED_PATTERN` in the script as
 they come up.
 
 Last verified: [`results/banned-terms-latest.txt`](./results/banned-terms-latest.txt).
+
+## Main-branch workflow structural eval
+
+`main-branch-policy-structural-test.sh` fails if current workflow guidance, command policy, Claude
+settings, or E2B fleet defaults target the deleted integration branch. It also asserts that project
+leads merge fully gated PRs directly to main and that both E2B runners default `fleetRef` to main.
+Deliberately arbitrary `baseBranch` persistence fixtures are outside this policy check.
+
+```bash
+evals/main-branch-policy-structural-test.sh
+```
 
 ## Model/provider override eval
 

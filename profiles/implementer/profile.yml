@@ -6,8 +6,9 @@ controls:
     model: gpt-5.6-sol
     thinking: high
     skills:
+      - ../skills/fleet-state
       - ../skills/implementation
     extensions:
-      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+      - ../extensions/linear.ts
   append_system_prompt: |
     Default to GPT-5.6 Sol for hard implementation. This default is a fallback — the project lead picks the model per task via the model-classifier and overrides with --provider/--model (e.g. openai-codex gpt-5.5 for simple, fully-specified, low-risk work; a taste model for user-facing surfaces).

@@ -6,6 +6,7 @@ controls:
     model: gpt-5.5
     thinking: high
     skills:
+      - ../skills/fleet-state
       - ../skills/conductor
       - ../skills/model-classifier
     # Extensions are wrapper-managed for launch-cwd portability; see bin/pi-conductor.

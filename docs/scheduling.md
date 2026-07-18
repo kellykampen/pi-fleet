@@ -10,15 +10,15 @@ Long-running seats — `pi-conductor`, `pi-project-lead`, and a personal-assista
 - Source of truth: `profiles/personal-assistant/schedules.json`
 - Sync: `bin/pi-personal-schedule-sync` runs on every `pi-personal-assistant` start
 - Firing: `bin/pi-personal-schedule-run <name>` is invoked by `launchd` and runs the checkup one-shot through `pi-personal-assistant`
-- Logs: `~/Library/Logs/pi-fleet/<name>.log` and `<name>.error.log`
+- Logs: `~/.pi-fleet/logs/personal/<name>.log` and `<name>.error.log` (private and rotated)
 - Installed plists: `~/Library/LaunchAgents/dev.pi-fleet.personal.*.plist`
 
 This keeps the schedules **bound to the personal-assistant instance**:
 `pi-conductor`, `pi-project-lead`, and other profiles never install or fire them, and
 `bin/lib/scheduler-status.sh` actively purges anything found in the global
 `~/.pi/agent/state/scheduler/tasks.json` on every conductor/project-lead start and every personal
-schedule sync (leaked tasks are backed up alongside the store, not silently dropped, and a warning
-names the file). This matters because other pi runtimes - notably the `remote-pi` /
+schedule sync (leaked tasks are backed up privately under `~/.pi-fleet/state/scheduler/backups`, not silently
+dropped, and a warning names the file). This matters because other pi runtimes - notably the `remote-pi` /
 `dev.remotepi.supervisord` daemon, which is outside this repo - can still write directly to that
 file; a persistently-running instance of that daemon can keep re-registering tasks faster than any
 one sync can purge them, so a recurring warning means that daemon needs a restart

@@ -49,3 +49,4 @@ Rules:
 - Draft the complete breakdown and confirm with the operator BEFORE creating tickets.
 - AC must be `- [ ]` checkboxes. No orphan issues and nothing over 3 points.
 - Never move an issue to Done; leave AC unchecked for independent verification.
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

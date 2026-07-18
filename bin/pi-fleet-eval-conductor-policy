@@ -76,7 +76,7 @@ seat_rc=$?
 # the filesystem marker is the ground truth for whether arbitrary local execution occurred.
 LEAD_REPO="$TESTDIR/lead-rce-repo"
 mkdir -p "$LEAD_REPO"
-git -C "$LEAD_REPO" init -q -b develop
+git -C "$LEAD_REPO" init -q -b main
 git -C "$LEAD_REPO" config user.email fleet-eval@example.invalid
 git -C "$LEAD_REPO" config user.name fleet-eval
 git -C "$LEAD_REPO" commit -q --allow-empty -m seed
@@ -106,17 +106,17 @@ PULL_RCE="$TESTDIR/lead-pull-rce"
 PUSH_RCE="$TESTDIR/lead-push-rce"
 run_lead_exploit_probe "git fetch --upload-pack=\"touch $FETCH_RCE;git-upload-pack\" ."
 run_lead_exploit_probe "git pull --ff-only --upload-pack=\"touch $PULL_RCE;git-upload-pack\" ."
-run_lead_exploit_probe "git push --receive-pack=\"touch $PUSH_RCE\" . develop"
+run_lead_exploit_probe "git push --receive-pack=\"touch $PUSH_RCE\" . main"
 
 legit_lead_ok=1
 for command in \
   "git fetch origin" \
-  "git pull --ff-only origin develop" \
+  "git pull --ff-only origin main" \
   "git push origin HEAD" \
   "git merge FETCH_HEAD" \
   "git merge feature/FLT-52" \
-  "git checkout develop" \
-  "git switch develop"; do
+  "git checkout main" \
+  "git switch main"; do
   lead_hook_allows "$command" || legit_lead_ok=0
 done
 

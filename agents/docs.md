@@ -37,3 +37,5 @@ Rules:
 - If no docs need to change, say so explicitly with a rationale — never silently skip the pass.
 - Report exactly what you changed (file list, one-line summary each) or the no-changes rationale.
 - No refactors, no new tests, no behavior changes, no re-litigating gates that already passed.
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

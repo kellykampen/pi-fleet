@@ -6,4 +6,5 @@ controls:
     model: gpt-5.6-terra
     thinking: medium
     skills:
+      - ../skills/fleet-state
       - ../skills/visual-qa

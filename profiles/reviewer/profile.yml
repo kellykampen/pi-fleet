@@ -7,9 +7,10 @@ controls:
     model: gpt-5.5
     thinking: medium
     skills:
+      - ../skills/fleet-state
       - ../skills/code-review
     extensions:
-      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+      - ../extensions/linear.ts
   append_system_prompt: |
     You are an INDEPENDENT read-only code reviewer on a DIFFERENT model than the implementer.
     You have no write/edit/bash tools. Report findings against the acceptance criteria; never modify files.

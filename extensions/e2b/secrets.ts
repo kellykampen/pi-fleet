@@ -300,7 +300,9 @@ export function buildResultFinalizer(): string {
 	return `WORK="\${WORK:-/work}"
 RESULT="$WORK/result.json"
 NEEDS_INPUT_FILE="$WORK/needs-input.json"
-if [ "\${TARGET_REPO_CLONE_FAILED:-0}" = "1" ]; then
+if [ "\${FLEET_REPO_CLONE_FAILED:-0}" = "1" ]; then
+  STATUS=failed
+elif [ "\${TARGET_REPO_CLONE_FAILED:-0}" = "1" ]; then
   STATUS=failed
 elif [ "\${SOURCE_ARCHIVE_EXTRACT_FAILED:-0}" = "1" ]; then
   STATUS=failed
@@ -338,7 +340,10 @@ if status == "needs_input" and marker and os.path.exists(marker):
         questions = ["pi-implementer requested input but provided no questions"]
 
 error = None
-if os.environ.get("TARGET_REPO_CLONE_FAILED") == "1":
+if os.environ.get("FLEET_REPO_CLONE_FAILED") == "1":
+    fleet_ref = os.environ.get("FLEET_REF", "unknown")
+    error = f"Failed to clone the pi-fleet runtime repository at requested ref {fleet_ref}."
+elif os.environ.get("TARGET_REPO_CLONE_FAILED") == "1":
     target_repo = os.environ.get("TARGET_REPO", "unknown")
     error = (
         f"Target repository clone failed for {target_repo}: "
@@ -396,7 +401,7 @@ export STATUS`;
 /** Build the remote runner script (secrets only via env — never embedded). */
 export function buildRunnerScript(job: FleetJob): string {
 	const fleetRepo = resolveFleetRepoUrl();
-	const fleetRef = job.fleetRef || "develop";
+	const fleetRef = job.fleetRef || "main";
 	const provider = job.provider || "";
 	const model = job.model || "";
 	const modelFlags =
@@ -408,6 +413,10 @@ export function buildRunnerScript(job: FleetJob): string {
 					? ` --model ${shellQuote(model)}`
 					: "";
 
+	const briefBase64 = Buffer.from(
+		`${NEEDS_INPUT_BRIEF_PREAMBLE}\n\n${job.brief}\n`,
+		"utf8",
+	).toString("base64");
 	let checkout: string;
 	const repo = normalizeRepoSlug(job.repo || "");
 	if (job.codeAccess === "pr") {
@@ -430,8 +439,8 @@ export function buildRunnerScript(job: FleetJob): string {
 		].join("\n");
 	} else {
 		// codeAccess === "clone": FLT-9 — the sandbox never gets read credentials
-		// for the target repo. The host uploads a git-archive/tar snapshot of its
-		// own local checkout (see archive.ts) to REPO_SOURCE_ARCHIVE_PATH before
+		// for the target repo. The host uploads a Git-tracked commit snapshot of
+		// its local checkout (see archive.ts) to REPO_SOURCE_ARCHIVE_PATH before
 		// the runner starts; here we just unpack it and reconstruct a minimal git
 		// repo (fresh init + a baseline commit) so the rest of the flow — new
 		// branch, then push/PR via the still-injected FLEET_GITHUB_TOKEN — works
@@ -459,15 +468,24 @@ mkdir -p /work
 exec > >(tee -a "$LOG") 2>&1
 echo "fleet e2b job $JOB_ID starting"
 
-cat > /work/brief.md <<'FLEET_BRIEF_EOF'
-${NEEDS_INPUT_BRIEF_PREAMBLE}
+printf '%s' ${shellQuote(briefBase64)} | base64 -d > /work/brief.md
 
-${job.brief}
-FLEET_BRIEF_EOF
+export FLEET_REF=${shellQuote(fleetRef)}
+finalize_result() {
+${buildResultFinalizer()}
+}
 
-# pi-fleet pin
-git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet \\
-  || git clone --depth 1 ${shellQuote(fleetRepo)} /work/pi-fleet
+# pi-fleet pin: fail closed and persist a terminal result if the requested ref cannot be cloned.
+set +e
+git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet
+EXIT=$?
+set -e
+if [ "$EXIT" -ne 0 ]; then
+  export EXIT FLEET_REPO_CLONE_FAILED=1
+  finalize_result
+  echo "fleet e2b job $JOB_ID finished status=$STATUS"
+  exit "$EXIT"
+fi
 export PATH="/work/pi-fleet/bin:$PATH"
 
 # Anchor Outfitter profile resolution to the cloned pi-fleet repo. The bin/pi-*
@@ -508,10 +526,6 @@ if [ -n "\${${PI_AGENT_AUTH_ENV}:-}" ]; then
   printf '%s' "\${${PI_AGENT_AUTH_ENV}}" | base64 -d > "${PI_AGENT_AUTH_PATH}"
   chmod 600 "${PI_AGENT_AUTH_PATH}"
 fi
-
-finalize_result() {
-${buildResultFinalizer()}
-}
 
 # The target is always the per-cast repo, never FLEET_REPO_URL (which is only
 # the pi-fleet wrapper/profile source). Convert clone failures into a terminal,
@@ -614,7 +628,9 @@ exit "$EXIT"
 export function buildReviewerResultFinalizer(): string {
 	return `WORK="\${WORK:-/work}"
 RESULT="$WORK/result.json"
-if [ "\${PR_FETCH_FAILED:-0}" = "1" ]; then
+if [ "\${FLEET_REPO_CLONE_FAILED:-0}" = "1" ]; then
+  STATUS=failed
+elif [ "\${PR_FETCH_FAILED:-0}" = "1" ]; then
   STATUS=failed
 elif [ "\${COMMENT_POST_FAILED:-0}" = "1" ]; then
   STATUS=failed
@@ -659,7 +675,10 @@ except ValueError:
     pr_number = None
 
 error = None
-if os.environ.get("PR_FETCH_FAILED") == "1":
+if os.environ.get("FLEET_REPO_CLONE_FAILED") == "1":
+    fleet_ref = os.environ.get("FLEET_REF", "unknown")
+    error = f"Failed to clone the pi-fleet runtime repository at requested ref {fleet_ref}."
+elif os.environ.get("PR_FETCH_FAILED") == "1":
     error = (
         f"Failed to fetch PR #{pr_number_raw} for {target_repo}: "
         "${TARGET_REPO_ACCESS_ERROR_HINT}"
@@ -720,7 +739,7 @@ export STATUS`;
  */
 export function buildReviewerRunnerScript(job: FleetJob): string {
 	const fleetRepo = resolveFleetRepoUrl();
-	const fleetRef = job.fleetRef || "develop";
+	const fleetRef = job.fleetRef || "main";
 	const provider = job.provider || "";
 	const model = job.model || "";
 	const modelFlags =
@@ -732,6 +751,15 @@ export function buildReviewerRunnerScript(job: FleetJob): string {
 					? ` --model ${shellQuote(model)}`
 					: "";
 
+	const reviewerBrief = `You are an INDEPENDENT, READ-ONLY reviewer of an EXISTING pull request. You have
+no write/edit/bash tools and cannot modify any file or run any command. Read the
+PR metadata at /work/pr-meta.json and the PR diff at /work/pr-diff.patch with
+your read tool, then reply in exactly this format:
+VERDICT: APPROVE
+or
+VERDICT: REQUEST-CHANGES
+followed by your findings (blocking issues first, each with a concrete reason).\n\n${job.brief}\n`;
+	const briefBase64 = Buffer.from(reviewerBrief, "utf8").toString("base64");
 	const repo = normalizeRepoSlug(job.repo || "");
 	const prNumber = Number(job.prNumber);
 
@@ -751,25 +779,24 @@ mkdir -p /work
 exec > >(tee -a "$LOG") 2>&1
 echo "fleet e2b job $JOB_ID starting"
 
-cat > /work/brief.md <<'FLEET_REVIEWER_PREAMBLE_EOF'
-You are an INDEPENDENT, READ-ONLY reviewer of an EXISTING pull request. You have
-no write/edit/bash tools and cannot modify any file or run any command. Read the
-PR metadata at /work/pr-meta.json and the PR diff at /work/pr-diff.patch with
-your read tool, then reply in exactly this format:
-VERDICT: APPROVE
-or
-VERDICT: REQUEST-CHANGES
-followed by your findings (blocking issues first, each with a concrete reason).
-FLEET_REVIEWER_PREAMBLE_EOF
+printf '%s' ${shellQuote(briefBase64)} | base64 -d > /work/brief.md
 
-cat >> /work/brief.md <<'FLEET_BRIEF_EOF'
+export FLEET_REF=${shellQuote(fleetRef)}
+finalize_result() {
+${buildReviewerResultFinalizer()}
+}
 
-${job.brief}
-FLEET_BRIEF_EOF
-
-# pi-fleet pin (bin/pi-reviewer + profiles/reviewer + skills/code-review)
-git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet \\
-  || git clone --depth 1 ${shellQuote(fleetRepo)} /work/pi-fleet
+# pi-fleet pin (bin/pi-reviewer + profiles/reviewer + skills/code-review); fail closed.
+set +e
+git clone --depth 1 --branch ${shellQuote(fleetRef)} ${shellQuote(fleetRepo)} /work/pi-fleet
+EXIT=$?
+set -e
+if [ "$EXIT" -ne 0 ]; then
+  export EXIT FLEET_REPO_CLONE_FAILED=1
+  finalize_result
+  echo "fleet e2b job $JOB_ID finished status=$STATUS"
+  exit "$EXIT"
+fi
 export PATH="/work/pi-fleet/bin:$PATH"
 
 mkdir -p "$HOME/.outfitter"
@@ -794,10 +821,6 @@ if [ -n "\${${PI_AGENT_AUTH_ENV}:-}" ]; then
   printf '%s' "\${${PI_AGENT_AUTH_ENV}}" | base64 -d > "${PI_AGENT_AUTH_PATH}"
   chmod 600 "${PI_AGENT_AUTH_PATH}"
 fi
-
-finalize_result() {
-${buildReviewerResultFinalizer()}
-}
 
 # Read-only PR fetch: no clone, no checkout, nothing that could mutate the
 # target repo. A failed fetch is a terminal result immediately, mirroring

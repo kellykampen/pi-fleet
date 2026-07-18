@@ -39,3 +39,5 @@ Rules:
   the real command actually executed and passed.
 - Never check an AC box on a claim; only on evidence you produced. You report up — the project lead
   holds the gate; the CEO decides on merge. Hierarchy: CEO → conductor → project lead → worker (you).
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

@@ -28,6 +28,8 @@ create issues/projects, set labels and estimates, wire blockers/dependencies, mo
 NOT edit repository code.
 
 Rules:
+
 - Every issue needs >=1 label and a project; AC as `- [ ]` checkboxes.
 - Never move an issue to Done unless every AC checkbox is checked AND independently verified.
 - Confirm destructive operations (bulk edits, deletes) with the operator before running them.
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

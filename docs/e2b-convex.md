@@ -1,10 +1,10 @@
 # E2B fleet job store — Convex support + jobs UI (FLT-7)
 
 Follow-up to the E2B v0 local job store. This moves the job store toward Convex
-**without changing the public e2b tool API**. The local `~/.pi/fleet/jobs/`
+**without changing the public e2b tool API**. The local `~/.pi-fleet/state/e2b/jobs/`
 store remains the default and fallback.
 
-Linear: https://linear.app/dojoco/issue/FLT-7
+Linear: <https://linear.app/dojoco/issue/FLT-7>
 
 ## Store selection
 
@@ -24,11 +24,11 @@ identical business logic — a store is pure persistence (`put`/`get`/`list`).
 
 ### Environment
 
-| Variable             | Purpose                                                        |
-| -------------------- | ------------------------------------------------------------- |
-| `FLEET_JOBS_DIR`     | Override the local store dir (default `~/.pi/fleet/jobs`).     |
-| `FLEET_CONVEX_URL`   | Convex deployment URL, e.g. `https://acme-123.convex.cloud`.   |
-| `FLEET_CONVEX_TOKEN` | Optional bearer token for an authed deployment.               |
+| Variable             | Purpose                                                      |
+| -------------------- | ------------------------------------------------------------ |
+| `PI_FLEET_HOME`      | Absolute runtime-root override; local jobs stay beneath it.  |
+| `FLEET_CONVEX_URL`   | Convex deployment URL, e.g. `https://acme-123.convex.cloud`. |
+| `FLEET_CONVEX_TOKEN` | Optional bearer token for an authed deployment.             |
 
 ## Convex side
 

@@ -6,17 +6,25 @@
 #   PI_SCHEDULE_SYNC_ENABLED=0      - unload and remove personal LaunchAgents
 #   PI_FLEET_PROFILE                - when set, must be "personal-assistant"
 #   PI_SCHEDULE_SYNC_AGENTS_DIR     - LaunchAgents dir (default: ~/Library/LaunchAgents)
-#   PI_SCHEDULE_SYNC_LOG_DIR        - stdout/stderr dir (default: ~/Library/Logs/pi-fleet)
+#   PI_SCHEDULE_SYNC_LOG_DIR        - stdout/stderr dir (default: <runtime-root>/logs/personal)
+#   PI_SCHEDULE_SYNC_LOG_MAX_BYTES  - rotate logs above this size (default: 5242880)
+#   PI_FLEET_REPO_ROOT              - stable pi-fleet checkout (default: ~/code/pi-fleet)
 #   PI_SCHEDULE_SYNC_DRY_RUN=1      - write/diff plists but do not call launchctl
 #   PI_SCHEDULE_SYNC_SCHEDULES_JSON - schedules source (default: this repo)
 #   PI_SCHEDULE_SYNC_RUNNER         - stable executable runner path
 set -euo pipefail
+umask 077
 
 SELF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/runtime-state.sh
+. "$SELF_ROOT/bin/lib/runtime-state.sh"
+RUNTIME_ROOT="$(pi_fleet_runtime_root)"
 PROFILE="${PI_FLEET_PROFILE:-}"
 ENABLED="${PI_SCHEDULE_SYNC_ENABLED:-1}"
 AGENTS_DIR="${PI_SCHEDULE_SYNC_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
-LOG_DIR="${PI_SCHEDULE_SYNC_LOG_DIR:-$HOME/Library/Logs/pi-fleet}"
+LOG_DIR="${PI_SCHEDULE_SYNC_LOG_DIR:-$RUNTIME_ROOT/logs/personal}"
+case "$LOG_DIR" in "$RUNTIME_ROOT"|"$RUNTIME_ROOT"/*) LOG_BOUNDARY="$RUNTIME_ROOT" ;; *) LOG_BOUNDARY="$LOG_DIR" ;; esac
+LOG_MAX_BYTES="${PI_SCHEDULE_SYNC_LOG_MAX_BYTES:-5242880}"
 DRY_RUN="${PI_SCHEDULE_SYNC_DRY_RUN:-0}"
 LABEL_PREFIX="dev.pi-fleet.personal"
 
@@ -27,14 +35,38 @@ fi
 
 # A LaunchAgent must not capture a disposable feature-worktree path. Prefer the conventional,
 # stable checkout used by pi-fleet-bootstrap; fall back to this checkout for other installations.
-DEFAULT_ROOT="${PI_FLEET_HOME:-$HOME/code/pi-fleet}"
-if [[ ! -x "$DEFAULT_ROOT/bin/pi-personal-schedule-run" ]]; then
-  DEFAULT_ROOT="$SELF_ROOT"
+REPO_ROOT="${PI_FLEET_REPO_ROOT:-$HOME/code/pi-fleet}"
+if [[ ! -x "$REPO_ROOT/bin/pi-personal-schedule-run" ]]; then
+  REPO_ROOT="$SELF_ROOT"
 fi
-SCHEDULES_JSON="${PI_SCHEDULE_SYNC_SCHEDULES_JSON:-$DEFAULT_ROOT/profiles/personal-assistant/schedules.json}"
-RUNNER="${PI_SCHEDULE_SYNC_RUNNER:-$DEFAULT_ROOT/bin/pi-personal-schedule-run}"
+SCHEDULES_JSON="${PI_SCHEDULE_SYNC_SCHEDULES_JSON:-$REPO_ROOT/profiles/personal-assistant/schedules.json}"
+RUNNER="${PI_SCHEDULE_SYNC_RUNNER:-$REPO_ROOT/bin/pi-personal-schedule-run}"
 
+[[ "$LOG_MAX_BYTES" =~ ^[0-9]+$ ]] || { echo "PI_SCHEDULE_SYNC_LOG_MAX_BYTES must be an integer" >&2; exit 2; }
+pi_fleet_assert_no_symlink_path "$AGENTS_DIR"
+pi_fleet_assert_no_symlink_path "$LOG_DIR" "$LOG_BOUNDARY"
 mkdir -p "$AGENTS_DIR" "$LOG_DIR"
+pi_fleet_assert_no_symlink_path "$AGENTS_DIR"
+pi_fleet_assert_no_symlink_path "$LOG_DIR" "$LOG_BOUNDARY"
+chmod 700 "$LOG_DIR"
+# launchd does not rotate StandardOutPath. Keep three private generations, bounded on every sync.
+shopt -s nullglob
+for log in "$LOG_DIR"/*.log; do
+  pi_fleet_assert_no_symlink_path "$log" "$LOG_DIR"
+  [[ -f "$log" && ! -L "$log" ]] || continue
+  pi_fleet_assert_no_symlink_path "$log.1" "$LOG_DIR"
+  pi_fleet_assert_no_symlink_path "$log.2" "$LOG_DIR"
+  pi_fleet_assert_no_symlink_path "$log.3" "$LOG_DIR"
+  size="$(stat -f '%z' "$log")"
+  if (( size > LOG_MAX_BYTES )); then
+    rm -f "$log.3"; [[ ! -e "$log.2" ]] || mv "$log.2" "$log.3"
+    [[ ! -e "$log.1" ]] || mv "$log.1" "$log.2"
+    mv "$log" "$log.1"; chmod 600 "$log.1"
+  else
+    chmod 600 "$log"
+  fi
+done
+shopt -u nullglob
 
 # Runtime enforcement: personal launchd schedules must never bleed into pi's global scheduler
 # store. Other pi runtimes (e.g. remote-pi/dev.remotepi.supervisord) can still write to it from
@@ -74,9 +106,20 @@ if ! command -v outfitter >/dev/null 2>&1; then
 fi
 
 python3 - "$SCHEDULES_JSON" "$AGENTS_DIR" "$LOG_DIR" "$RUNNER" "$LABEL_PREFIX" "$DRY_RUN" "$PATH" <<'PYEOF'
-import json, os, plistlib, subprocess, sys
+import json, os, plistlib, re, stat, subprocess, sys
+from pathlib import Path
 
 schedules_path, agents_dir, log_dir, runner, label_prefix, dry_run, launch_path = sys.argv[1:8]
+def no_symlinks(raw, boundary_raw=None):
+    target = Path(raw)
+    boundary = Path(boundary_raw or raw)
+    current = boundary
+    for part in ("", *target.relative_to(boundary).parts):
+        if part: current /= part
+        try: mode = current.lstat().st_mode
+        except FileNotFoundError: continue
+        if stat.S_ISLNK(mode): raise RuntimeError(f"refusing symlink path: {current}")
+no_symlinks(agents_dir); no_symlinks(log_dir)
 dry_run = dry_run == "1"
 
 with open(schedules_path) as f:
@@ -89,21 +132,36 @@ for sched in data.get("schedules", []):
     if not sched.get("enabled", True):
         continue
     name = sched["name"]
+    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", name) or name in (".", ".."):
+        print(f"pi-personal-schedule-sync: unsafe schedule name: {name!r}", file=sys.stderr)
+        sys.exit(1)
     cron_fields = sched["cron"].split()
     if len(cron_fields) != 6:
         print(f"pi-personal-schedule-sync: {name}: cron must be 6 fields (sec min hour dom month dow), got {sched['cron']!r}", file=sys.stderr)
         sys.exit(1)
-    _sec, minute, hour, dom, month, dow = cron_fields
-    if dom != "*" or month != "*" or dow != "*":
-        print(f"pi-personal-schedule-sync: {name}: only '* * *' (dom/month/dow) schedules are supported", file=sys.stderr)
+    sec, minute, hour, dom, month, dow = cron_fields
+    if sec != "0" or dom != "*" or month != "*" or dow != "*":
+        print(f"pi-personal-schedule-sync: {name}: only second 0 and '* * *' (dom/month/dow) schedules are supported", file=sys.stderr)
+        sys.exit(1)
+    try:
+        minute_value = int(minute)
+        hour_value = None if hour == "*" else int(hour)
+    except ValueError:
+        print(f"pi-personal-schedule-sync: {name}: minute/hour must be integers or supported wildcards", file=sys.stderr)
+        sys.exit(1)
+    if not 0 <= minute_value <= 59 or (hour_value is not None and not 0 <= hour_value <= 23):
+        print(f"pi-personal-schedule-sync: {name}: minute/hour is out of range", file=sys.stderr)
         sys.exit(1)
 
-    calendar_interval = {"Minute": int(minute)}
-    if hour != "*":
-        calendar_interval["Hour"] = int(hour)
+    calendar_interval = {"Minute": minute_value}
+    if hour_value is not None:
+        calendar_interval["Hour"] = hour_value
 
     label = f"{label_prefix}.{name}"
     plist_path = os.path.join(agents_dir, f"{label}.plist")
+    stdout_path = os.path.join(log_dir, f"{name}.log")
+    stderr_path = os.path.join(log_dir, f"{name}.error.log")
+    no_symlinks(plist_path, agents_dir); no_symlinks(stdout_path, log_dir); no_symlinks(stderr_path, log_dir)
     desired = {
         "Label": label,
         "ProgramArguments": [runner, name],
@@ -111,8 +169,8 @@ for sched in data.get("schedules", []):
         # outfitter, so preserve the validated PATH from sync time.
         "EnvironmentVariables": {"PATH": launch_path},
         "StartCalendarInterval": calendar_interval,
-        "StandardOutPath": os.path.join(log_dir, f"{name}.log"),
-        "StandardErrorPath": os.path.join(log_dir, f"{name}.error.log"),
+        "StandardOutPath": stdout_path,
+        "StandardErrorPath": stderr_path,
         "RunAtLoad": False,
         "PiFleetCronOriginal": sched["cron"],
         "PiFleetTaskId": sched.get("taskId", ""),
@@ -133,7 +191,8 @@ for sched in data.get("schedules", []):
         action = "updating" if os.path.exists(plist_path) else "creating"
         print(f"pi-personal-schedule-sync: {name}: {action} {plist_path}")
         tmp_path = f"{plist_path}.tmp.{os.getpid()}"
-        with open(tmp_path, "wb") as f:
+        no_symlinks(tmp_path, agents_dir)
+        with open(tmp_path, "xb") as f:
             f.write(desired_bytes)
         os.replace(tmp_path, plist_path)
 

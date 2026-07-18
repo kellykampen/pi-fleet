@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+"""Inventory/apply/rollback the v1 runtime-root migration without deleting sources."""
+import argparse
+import hashlib
+import json
+import os
+import shlex
+import stat
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+p = argparse.ArgumentParser(description="non-destructive pi-fleet runtime-state migration")
+g = p.add_mutually_exclusive_group()
+g.add_argument("--apply", action="store_true")
+g.add_argument("--rollback", action="store_true")
+a = p.parse_args()
+home = Path.home()
+raw_root = os.environ.get("PI_FLEET_HOME", str(home / ".pi-fleet")).strip()
+root = Path(raw_root)
+if (not root.is_absolute() or root == Path(root.anchor) or ".." in root.parts
+        or "." in raw_root.split(os.sep) or str(root) != os.path.normpath(str(root)) or "//" in raw_root):
+    sys.exit("PI_FLEET_HOME must be a normalized, absolute, non-root path")
+manifest = root / "state/migrations/runtime-root-v1.json"
+lock_dir = root / "state/migrations/.migration.lock"
+CANONICAL_TOP_LEVEL = {"archive", "handoffs", "logs", "secrets", "state"}
+LOCK_WAIT_SECONDS = 5.0
+
+
+def digest(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def assert_no_symlink_components(path: Path) -> None:
+    if not path.is_absolute():
+        raise RuntimeError(f"path must be absolute: {path}")
+    # The runtime root is the trust boundary. OS aliases above it (for example macOS /var) are external.
+    if path == root or root not in path.parents:
+        current = path
+        parts: tuple[str, ...] = ()
+    else:
+        current = root
+        parts = path.relative_to(root).parts
+    for part in ("", *parts):
+        if part:
+            current /= part
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(mode):
+            raise RuntimeError(f"refusing symlink path: {current}")
+
+
+def private_dir(path: Path) -> None:
+    assert_no_symlink_components(path)
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    assert_no_symlink_components(path)
+    if not path.is_dir():
+        raise RuntimeError(f"directory path is not a directory: {path}")
+    path.chmod(0o700)
+
+
+def validate_destination(raw: object) -> Path:
+    if not isinstance(raw, str) or not raw:
+        raise RuntimeError("manifest destination must be a non-empty string")
+    if any(part in (".", "..") for part in raw.split(os.sep)) or os.path.normpath(raw) != raw:
+        raise RuntimeError(f"manifest destination is not normalized: {raw}")
+    dest = Path(raw)
+    if not dest.is_absolute() or dest == root:
+        raise RuntimeError(f"manifest destination is unsafe: {raw}")
+    try:
+        if os.path.commonpath((str(root), str(dest))) != str(root):
+            raise RuntimeError(f"manifest destination escapes runtime root: {raw}")
+    except ValueError as error:
+        raise RuntimeError(f"manifest destination escapes runtime root: {raw}") from error
+    assert_no_symlink_components(dest)
+    # resolve(strict=False) follows every existing ancestor and exposes a physical symlink escape.
+    root_real = root.resolve(strict=False)
+    dest_real = dest.resolve(strict=False)
+    if os.path.commonpath((str(root_real), str(dest_real))) != str(root_real):
+        raise RuntimeError(f"manifest destination physically escapes runtime root: {raw}")
+    return dest
+
+
+def add_tree(pairs: list[tuple[Path, Path, str]], source: Path, destination: Path) -> None:
+    """Inventory regular content only; symlinks and special files are never followed or copied."""
+    try:
+        source_mode = source.lstat().st_mode
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(source_mode):
+        return
+    if stat.S_ISREG(source_mode):
+        pairs.append((source, destination, "file"))
+        return
+    if not stat.S_ISDIR(source_mode):
+        return
+    pairs.append((source, destination, "directory"))
+    for child in sorted(source.iterdir(), key=lambda item: item.name):
+        add_tree(pairs, child, destination / child.name)
+
+
+def candidates() -> list[tuple[Path, Path, str]]:
+    pairs: list[tuple[Path, Path, str]] = []
+    for source_dir in (home / ".pi/fleet/jobs", root / "jobs"):
+        try:
+            children = sorted(source_dir.iterdir(), key=lambda item: item.name)
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        if source_dir.is_symlink():
+            continue
+        for source in children:
+            if source.suffix == ".json":
+                add_tree(pairs, source, root / "state/e2b/jobs" / source.name)
+    for source in (home / ".pi/fleet/secrets.env", root / "secrets.env"):
+        add_tree(pairs, source, root / "secrets/secrets.env")
+    # All other regular loose top-level content is preserved only as non-authoritative history.
+    try:
+        loose = sorted(root.iterdir(), key=lambda item: item.name)
+    except FileNotFoundError:
+        loose = []
+    for source in loose:
+        if source.name in CANONICAL_TOP_LEVEL or source.name in {"jobs", "secrets.env"}:
+            continue
+        add_tree(pairs, source, root / "archive/legacy-root" / source.name)
+    return pairs
+
+
+def load_manifest() -> list[dict[str, str]]:
+    try:
+        mode = manifest.lstat().st_mode
+    except FileNotFoundError:
+        return []
+    if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+        raise RuntimeError("migration manifest must be a regular non-symlink file")
+    with manifest.open(encoding="utf-8") as f:
+        data = json.load(f)
+    if data.get("version") != 1 or not isinstance(data.get("created"), list):
+        raise RuntimeError("invalid migration manifest")
+    result: list[dict[str, str]] = []
+    for item in data["created"]:
+        if not isinstance(item, dict):
+            raise RuntimeError("invalid migration manifest entry")
+        destination = validate_destination(item.get("destination"))
+        kind = item.get("type", "file")
+        if kind not in ("file", "directory"):
+            raise RuntimeError("invalid migration manifest entry type")
+        if kind == "file" and (not isinstance(item.get("sha256"), str) or len(item["sha256"]) != 64):
+            raise RuntimeError("invalid migration manifest digest")
+        result.append({**item, "destination": str(destination), "type": kind})
+    return result
+
+
+def acquire_lock() -> None:
+    private_dir(lock_dir.parent)
+    deadline = time.monotonic() + LOCK_WAIT_SECONDS
+    while True:
+        try:
+            lock_dir.mkdir(mode=0o700)
+            assert_no_symlink_components(lock_dir)
+            return
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("timed out acquiring migration lock")
+            time.sleep(0.05)
+
+
+def source_bytes(source: Path, destination: Path) -> bytes:
+    """Read a regular source without following a last-component symlink; normalize legacy secrets."""
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(source, flags)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise RuntimeError(f"migration source is not a regular file: {source}")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            raw = stream.read()
+    finally:
+        os.close(descriptor)
+    if destination != root / "secrets/secrets.env":
+        return raw
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RuntimeError("legacy secrets file is not UTF-8") from error
+    normalized: list[str] = []
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            normalized.append(line)
+            continue
+        try:
+            fields = shlex.split(stripped, comments=False, posix=True)
+        except ValueError as error:
+            raise RuntimeError(f"unsupported legacy secret assignment on line {number}") from error
+        if fields and fields[0] == "export":
+            fields = fields[1:]
+        if len(fields) != 1 or "=" not in fields[0]:
+            raise RuntimeError(f"unsupported legacy secret assignment on line {number}")
+        key, value = fields[0].split("=", 1)
+        if not key or not key.replace("_", "A").isalnum() or not key[0].isalpha() or not key.upper() == key:
+            raise RuntimeError(f"unsupported legacy secret key on line {number}")
+        if "\r" in value or "\n" in value:
+            raise RuntimeError(f"unsupported legacy secret value on line {number}")
+        normalized.append(f"{key}={value}")
+    return ("\n".join(normalized) + "\n").encode()
+
+
+def publish_file(source: Path, destination: Path) -> bool:
+    """Copy privately and atomically publish via hard-link, which cannot clobber an existing name."""
+    validate_destination(str(destination))
+    private_dir(destination.parent)
+    contents = source_bytes(source, destination)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{destination.name}.tmp.", dir=destination.parent)
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(contents)
+            out.flush()
+            os.fsync(out.fileno())
+        tmp.chmod(0o600)
+        try:
+            os.link(tmp, destination)
+        except FileExistsError:
+            return False
+        dir_fd = os.open(destination.parent, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+        return True
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def publish_manifest(created: list[dict[str, str]]) -> None:
+    private_dir(manifest.parent)
+    fd, tmp_name = tempfile.mkstemp(prefix=".runtime-root-v1.", dir=manifest.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({"version": 1, "created": created}, f, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp_name, 0o600)
+        os.replace(tmp_name, manifest)
+        dir_fd = os.open(manifest.parent, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    finally:
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+
+
+# Validation is non-mutating and applies even to report-only inventory.
+assert_no_symlink_components(root)
+pairs = candidates()
+print(f"{'rollback' if a.rollback else 'apply' if a.apply else 'report-only'}: {len(pairs)} recognized legacy item(s); sources will not be deleted")
+if not a.apply and not a.rollback:
+    for source, dest, _kind in pairs:
+        print(f"would copy: {source} -> {dest}" if not dest.exists() else f"conflict: destination exists: {dest}")
+    raise SystemExit(0)
+
+private_dir(root)
+acquire_lock()
+try:
+    if a.rollback:
+        created = load_manifest()
+        removed = preserved = 0
+        files = [item for item in created if item["type"] == "file"]
+        directories = [item for item in created if item["type"] == "directory"]
+        for item in files:
+            dest = validate_destination(item["destination"])
+            if dest.is_file() and not dest.is_symlink() and digest(dest) == item["sha256"]:
+                dest.unlink()
+                removed += 1
+            else:
+                preserved += 1
+        for item in sorted(directories, key=lambda entry: len(Path(entry["destination"]).parts), reverse=True):
+            dest = validate_destination(item["destination"])
+            try:
+                dest.rmdir()
+                removed += 1
+            except (FileNotFoundError, OSError):
+                preserved += 1
+        print(f"rollback: removed {removed} unchanged migration-created item(s); preserved {preserved} changed/missing/nonempty item(s)")
+    else:
+        created = load_manifest()
+        known = {item["destination"]: item for item in created}
+        for source, dest, kind in pairs:
+            validate_destination(str(dest))
+            if dest.exists() or dest.is_symlink():
+                print(f"conflict: destination exists: {dest}")
+                continue
+            if kind == "directory":
+                private_dir(dest.parent)
+                try:
+                    dest.mkdir(mode=0o700)
+                except FileExistsError:
+                    print(f"conflict: destination exists: {dest}")
+                    continue
+                known[str(dest)] = {"source": str(source), "destination": str(dest), "type": "directory"}
+            elif publish_file(source, dest):
+                known[str(dest)] = {"source": str(source), "destination": str(dest), "type": "file", "sha256": digest(dest)}
+            else:
+                print(f"conflict: destination exists: {dest}")
+        payload = sorted(known.values(), key=lambda item: item["destination"])
+        publish_manifest(payload)
+        print(f"apply: manifest records {len(payload)} migration-created item(s); no sources deleted")
+finally:
+    try:
+        lock_dir.rmdir()
+    except FileNotFoundError:
+        pass

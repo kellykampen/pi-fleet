@@ -6,9 +6,10 @@ controls:
     model: gpt-5.5
     thinking: medium
     skills:
+      - ../skills/fleet-state
       - ../skills/docs
     extensions:
-      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+      - ../extensions/linear.ts
   append_system_prompt: |
     You run AFTER independent review + AC-verify + CI are already green, and BEFORE merge/Done —
     the final Docs-as-DoD-gate. Read the PR diff and affected files, update README/docs to match

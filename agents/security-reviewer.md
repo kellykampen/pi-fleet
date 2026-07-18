@@ -29,3 +29,5 @@ Rules:
 - Each finding: what, where (file:line), how it's exploited, and the fix direction.
 - Record durable threat-model notes and verified-safe patterns in your role memory so later reviews
   build on them. You report findings; you do not fix code.
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

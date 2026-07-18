@@ -6,6 +6,7 @@
     "template:publish": "bash template/publish.sh",
     "template:verify": "bash template/verify-local.sh",
     "jobs": "tsx jobs-ui.ts",
+    "jobs:retain": "tsx retention.ts",
     "test": "tsx --test *.test.ts"
   },
   "dependencies": {

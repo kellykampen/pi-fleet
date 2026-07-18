@@ -199,7 +199,7 @@ function allowLeadGit(args, cwd) {
   const rest = args.slice(1);
   if (hasGitExecutableOption(rest)) return false;
   if (subcommand === "checkout" || subcommand === "switch") {
-    return rest.length === 1 && rest[0] === "develop";
+    return rest.length === 1 && rest[0] === "main";
   }
   if (subcommand === "fetch") {
     return parseOriginOperation(rest, FETCH_OPTIONS) !== undefined;

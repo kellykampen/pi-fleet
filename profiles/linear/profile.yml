@@ -6,6 +6,7 @@ controls:
     model: gpt-5.5
     thinking: low
     skills:
+      - ../skills/fleet-state
       - ../skills/linear-management
     extensions:
-      - /Users/kellykampen/code/pi-fleet/extensions/linear.ts
+      - ../extensions/linear.ts

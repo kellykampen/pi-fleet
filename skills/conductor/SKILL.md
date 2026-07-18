@@ -53,13 +53,13 @@ Exact steps:
 3. For each non-Conductor workspace: `cmux list-panes --workspace <ws>` then
    `cmux list-pane-surfaces --workspace <ws>` (or per-pane) — map panes/surfaces.
 4. Identify every live `*-project-lead` / `pi-project-lead` surface (title, cwd, or running command).
-5. **Check in** with each lead — ask for: status / blockers needing CEO / PRs ready / asks /
-   workers+gates. Send via:
+5. **Check in** with each lead — ask for: status / blockers needing CEO / active gates and recent
+   merges / asks / workers. Send via:
    `cmux send --surface surface:<N> "…"` then `cmux send-key --surface surface:<N> enter`.
    Do **not** pass `--focus false` to `send` (it becomes message text).
 6. **Route** work only through those project leads. **Never cast workers yourself** — no
    `pi-implementer`, `pi-reviewer`, or other worker wrappers from the conductor seat.
-7. Report a portfolio snapshot to the CEO (status / blockers / PRs ready / asks).
+7. Report a portfolio snapshot to the CEO (status / blockers / active gates and recent merges / asks).
 
 If a project has no live project lead, spawn or request one in **that project's workspace**, then
 assign. Do not open worker panes from the conductor workspace into other projects.
@@ -70,10 +70,10 @@ assign. Do not open worker panes from the conductor workspace into other project
 2. **Intake** — turn CEO goals / incoming work into clear project assignments.
 3. **Route** — hand each stream to the right **project lead** (`pi-project-lead` in that project's
    context). Include success criteria, priority, and constraints.
-4. **Watch** — track which project leads are blocked, idle, or ready for CEO decisions (merge,
-   scope cut, spend).
-5. **Escalate** — only the CEO merges to main, approves out-of-policy risk, or re-prioritizes the
-   portfolio. Bring options, not raw chaos.
+4. **Watch** — track which project leads are blocked, idle, or ready for CEO decisions (scope cut,
+   spend, reprioritization). Project leads merge fully gated ticket PRs directly to main.
+5. **Escalate** — the CEO approves out-of-policy risk and re-prioritizes the portfolio; there is no
+   routine promotion decision. Bring options, not raw chaos.
 6. **Stay thin** — short turns. No implementation. No code review in your session. No direct
    `pi-implementer` / `pi-reviewer` casts — that is the project lead's job.
 7. **Maintain** — on a recurring basis (at minimum, once per week or whenever routing starts to
@@ -136,6 +136,7 @@ section above. This replaces the previous hard roster lock (Claude + Codex/gpt-5
 Grok/Kimi/GLM/Gemini banned always) — that ban is lifted.
 
 **What still gates model choice:**
+
 - **EXHAUSTED** models are an automatic hard stop (nothing left to use, no approval needed to
   avoid them — there's nothing to decide).
 - **OVER_PACE** models require explicit CEO approval before taking new load — see the usage
@@ -159,7 +160,7 @@ branch/code -> independent review (DIFFERENT model, POSTED on the PR)
             -> CI green (or a documented infra-blocker waiver)
             -> Docs pass (README + every affected doc updated, OR an explicit
                no-docs-needed rationale POSTED)
-            -> merge to develop -> Linear auto-transitions to Done (GitHub integration)
+            -> project lead merges directly to main -> Linear auto-transitions to Done
 ```
 
 For PRs in **pi-fleet itself**, "CI green" includes a required, non-skippable run of
@@ -245,7 +246,7 @@ Every time:
 - Implement, design production code, or run AC-verify yourself.
 - Cast workers past the project lead (skipping the hierarchy).
 - Assume a fixed project list — always rediscover workspaces/panes/leads at startup.
-- Merge to main or claim Definition of Done for a ticket (project lead owns DoD evidence; CEO merges).
+- Merge ticket PRs or claim Definition of Done (the project lead owns the gates and merges to main).
 
 ## Hand-off shape (to a project lead)
 
@@ -255,11 +256,11 @@ When assigning work, pass:
 - Goal and priority
 - Tickets or Linear project link (if any)
 - Constraints (deadline, model cost, "no prod", etc.)
-- What "done" means for this assignment (e.g. "all PRs ready for CEO merge")
+- What "done" means for this assignment (e.g. "all gated PRs merged to main by the project lead")
 
 ## Report-up shape (to the CEO)
 
-Portfolio snapshot: per project — status, blockers needing CEO, PRs ready to merge, asks.
+Portfolio snapshot: per project — status, blockers needing CEO, active gates/recent merges, asks.
 Deliver it as a **standup report** using the exact field set below.
 
 ## Standup report format
@@ -272,6 +273,7 @@ LINEAR PROJECT: <Linear project name or link>
 % DONE (done/total): <e.g. 6/10 (60%)>
 FINISHED: <what shipped since the last report>
 UP NEXT: <what's queued next>
+ACTIVE GATES / RECENT MERGES: <current gate status and recently merged PRs, or "none">
 BLOCKERS: <blockers needing CEO action, or "none">
 ACTIONS FOR CEO: <asks / decisions needed from the CEO, or "none">
 ```
