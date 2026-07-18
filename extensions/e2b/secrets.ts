@@ -413,6 +413,10 @@ export function buildRunnerScript(job: FleetJob): string {
 					? ` --model ${shellQuote(model)}`
 					: "";
 
+	const briefBase64 = Buffer.from(
+		`${NEEDS_INPUT_BRIEF_PREAMBLE}\n\n${job.brief}\n`,
+		"utf8",
+	).toString("base64");
 	let checkout: string;
 	const repo = normalizeRepoSlug(job.repo || "");
 	if (job.codeAccess === "pr") {
@@ -464,11 +468,7 @@ mkdir -p /work
 exec > >(tee -a "$LOG") 2>&1
 echo "fleet e2b job $JOB_ID starting"
 
-cat > /work/brief.md <<'FLEET_BRIEF_EOF'
-${NEEDS_INPUT_BRIEF_PREAMBLE}
-
-${job.brief}
-FLEET_BRIEF_EOF
+printf '%s' ${shellQuote(briefBase64)} | base64 -d > /work/brief.md
 
 export FLEET_REF=${shellQuote(fleetRef)}
 finalize_result() {
@@ -751,6 +751,15 @@ export function buildReviewerRunnerScript(job: FleetJob): string {
 					? ` --model ${shellQuote(model)}`
 					: "";
 
+	const reviewerBrief = `You are an INDEPENDENT, READ-ONLY reviewer of an EXISTING pull request. You have
+no write/edit/bash tools and cannot modify any file or run any command. Read the
+PR metadata at /work/pr-meta.json and the PR diff at /work/pr-diff.patch with
+your read tool, then reply in exactly this format:
+VERDICT: APPROVE
+or
+VERDICT: REQUEST-CHANGES
+followed by your findings (blocking issues first, each with a concrete reason).\n\n${job.brief}\n`;
+	const briefBase64 = Buffer.from(reviewerBrief, "utf8").toString("base64");
 	const repo = normalizeRepoSlug(job.repo || "");
 	const prNumber = Number(job.prNumber);
 
@@ -770,21 +779,7 @@ mkdir -p /work
 exec > >(tee -a "$LOG") 2>&1
 echo "fleet e2b job $JOB_ID starting"
 
-cat > /work/brief.md <<'FLEET_REVIEWER_PREAMBLE_EOF'
-You are an INDEPENDENT, READ-ONLY reviewer of an EXISTING pull request. You have
-no write/edit/bash tools and cannot modify any file or run any command. Read the
-PR metadata at /work/pr-meta.json and the PR diff at /work/pr-diff.patch with
-your read tool, then reply in exactly this format:
-VERDICT: APPROVE
-or
-VERDICT: REQUEST-CHANGES
-followed by your findings (blocking issues first, each with a concrete reason).
-FLEET_REVIEWER_PREAMBLE_EOF
-
-cat >> /work/brief.md <<'FLEET_BRIEF_EOF'
-
-${job.brief}
-FLEET_BRIEF_EOF
+printf '%s' ${shellQuote(briefBase64)} | base64 -d > /work/brief.md
 
 export FLEET_REF=${shellQuote(fleetRef)}
 finalize_result() {

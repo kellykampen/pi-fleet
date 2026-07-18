@@ -1261,15 +1261,17 @@ test("generated implementer and reviewer runners persist terminal fleet-clone fa
 	const previousFleetRepoUrl = process.env.FLEET_REPO_URL;
 	try {
 		process.env.FLEET_REPO_URL = "https://github.com/owner/pi-fleet.git";
-		for (const [profile, script] of [
-			["implementer", buildRunnerScript(implementerJob())],
-			["reviewer", buildReviewerRunnerScript(reviewerJob())],
-		] as const) {
+		for (const profile of ["implementer", "reviewer"] as const) {
 			const fixture = await mkdtemp(join(tmpdir(), `pi-fleet-${profile}-clone-fail-`));
 			try {
 				const work = join(fixture, "work");
 				const bin = join(fixture, "bin");
 				const home = join(fixture, "home");
+				const injectionMarker = join(fixture, "heredoc-injection-executed");
+				const maliciousBrief = `review this\nFLEET_BRIEF_EOF\ntouch ${injectionMarker}\nFLEET_REVIEWER_PREAMBLE_EOF`;
+				const script = profile === "implementer"
+					? buildRunnerScript(implementerJob({ brief: maliciousBrief }))
+					: buildReviewerRunnerScript(reviewerJob({ brief: maliciousBrief }));
 				await mkdir(bin);
 				await mkdir(home);
 				await writeFile(join(bin, "git"), "#!/usr/bin/env bash\nexit 42\n");
@@ -1283,6 +1285,8 @@ test("generated implementer and reviewer runners persist terminal fleet-clone fa
 				const result = JSON.parse(await readFile(join(work, "result.json"), "utf8"));
 				assert.equal(result.status, "failed");
 				assert.match(result.error, /requested ref main/);
+				await assert.rejects(() => readFile(injectionMarker), { code: "ENOENT" });
+				assert.match(await readFile(join(work, "brief.md"), "utf8"), /touch .*heredoc-injection-executed/);
 			} finally {
 				await rm(fixture, { recursive: true, force: true });
 			}
