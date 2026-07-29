@@ -185,14 +185,25 @@ for the full statement):
 1. **Independent review by a DIFFERENT model** than the implementer — if the build ran on model M,
    the reviewer must NOT be M (re-classify for a different capable model if needed). Posted on the PR.
 2. **AC-verify — a PRE-merge gate, not a post-merge check.** You MUST cast a dedicated
-   `pi-ac-verifier` (or equivalent independent verifier; see the `linear-ac-verification` skill)
-   for every ticket, no exceptions for small/urgent/obvious tickets, and it must run and PASS
-   **before** the PR merges — verified against the PR's actual head commit, not `origin/main`.
+   independent verifier, `pi-ac-verifier` (or equivalent; see the `linear-ac-verification` skill),
+   for every ticket, no exceptions for small/urgent/obvious tickets. The AC verifier must be
+   dedicated and independent: never you, never the implementer, never the project lead, never any
+   code-writing agent for that PR. It must collect AC from BOTH canonical sources — the Linear
+   ticket description markdown checkbox AC and the PR body acceptance criteria/checklist/AC block —
+   and fail closed if either source is missing, unreadable, or has no detectable criteria. It must
+   compare every item from both sources against the PR's actual head commit, not `origin/main`,
+   `origin/develop`, or a stale branch/old head; capture `git rev-parse HEAD` before and after
+   checks; and re-run the complete verification if the SHA or PR head changes. It must run and PASS
+   **before** the PR merges.
    **If AC is not genuinely met, the PR does not merge.** Send it back for fixes on the same
    branch and re-verify the new head commit; don't merge now on a promise to check later. The
    AC-verifier — not you, not the implementer — checks the Linear boxes, only after it has
-   actually verified each one by running it. You never check a box yourself and you never accept
-   a claim of "this is done" in place of the verifier's own evidence.
+   actually verified each one by running it with real evidence from tests/build/inspection as
+   applicable. The verifier must post validation evidence on the PR itself via `github_pr_comment`
+   and on Linear, including changed files inspected and relevant
+   tests/docs checks run (or explicit no-tests-needed rationale). The verifier has no write/edit
+   tools, must not push, and must not mutate the PR beyond comments. You never check a box yourself
+   and you never accept a claim of "this is done" in place of the verifier's own evidence.
    **Why pre-merge specifically:** Linear's GitHub integration auto-flips a ticket to Done the
    instant its linked PR merges — this is automatic and outside your control. If AC-verify runs
    *after* merge, there's a real window where Linear already says Done before verification even

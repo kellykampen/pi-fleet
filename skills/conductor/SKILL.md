@@ -152,9 +152,18 @@ Every ticket's path to Done, in order, no step skipped or reordered:
 
 ```
 branch/code -> independent review (DIFFERENT model, POSTED on the PR)
-            -> AC-verify — PRE-MERGE GATE (dedicated pi-ac-verifier seat, verified against
-               the PR's own head commit, real commands run against real code, every Linear
-               checkbox flipped BY THE VERIFIER ONLY, evidence POSTED). FAIL = do not merge.
+            -> AC-verify — PRE-MERGE GATE (dedicated independent pi-ac-verifier seat;
+               never the implementer, never the project lead, never any code-writing agent
+               for that PR; collects BOTH Linear ticket description markdown checkbox AC
+               and PR body acceptance criteria/checklist/AC block (fail closed if either
+               source is missing/unreadable/empty); verifies every item from both sources
+               against the PR's actual head commit, not origin/main/develop or a stale
+               branch; records the verified SHA; real commands run against real code; every Linear checkbox
+               flipped BY THE VERIFIER ONLY; validation evidence POSTED by the verifier on the PR
+               (via github_pr_comment) and Linear with changed files
+               inspected and tests/docs checks run or no-tests-needed rationale; no write/edit
+               tools, no pushes, no PR mutation beyond comments).
+               FAIL = do not merge.
             -> Visual-QA — PRE-MERGE GATE for any UI-touching ticket (screenshot vs the design
                comp, independent seat, evidence POSTED). FAIL/no-check = do not merge.
             -> CI green (or a documented infra-blocker waiver)
@@ -195,10 +204,15 @@ This exact failure was found happening in practice: tickets marked Done with unc
 despite the AC-verify gate already being written down. A rule stated only in a skill file is not
 enough on its own — you are the cross-project vantage point that can catch this drift, so during
 every check-in, spot-check a sample of any tickets a lead reports as newly Done: read the Linear
-description directly and confirm every `- [ ]` is actually checked. Any Done ticket with an
-unchecked box is a real defect — tell the lead to correct the ticket's status to match reality and
-get genuine independent AC-verification (a dedicated `pi-ac-verifier` seat, never the lead or
-implementer self-checking), not a promise it'll get fixed later.
+description directly and confirm every `- [ ]` is actually checked, then compare the verifier's PR
+evidence against the PR body acceptance criteria/checklist/AC block too. AC verification is dual
+source: Linear ticket description markdown checkbox AC plus PR body AC/checklist. Any Done ticket
+with an unchecked Linear box, missing PR-body AC verification, stale-head verification, or no PR
+validation evidence is a real defect — tell the lead to reopen/correct the ticket's status to match
+reality, correct the merged change through a rollback or follow-up PR, and get genuine independent
+AC-verification against the final head (a dedicated `pi-ac-verifier` seat, never the lead, never the
+implementer, never any code-writing agent for that PR) before restoring Done. A future promise or
+retroactive verification alone is not sufficient.
 
 ## Pane/seat hygiene
 

@@ -65,6 +65,22 @@ paths from the wrapper location. It also checks remaining profile-managed Linear
 stay portable (`../extensions/linear.ts`) and that profiles contain no machine-specific `/Users/...`
 paths.
 
+## Dual-source AC verification structural eval
+
+```bash
+evals/ac-verification-dual-source-structural-test.sh
+```
+
+This FLT-54 guard is deterministic and non-interactive. It checks the tracked verifier, profile,
+project-lead, and conductor sources for the dual-source rule: collect AC from both Linear ticket
+description checkbox items and the PR body AC/checklist block; verify every item against the PR's
+actual head commit (not main/develop/stale branch); require a dedicated independent verifier (never
+implementer, project lead, or code-writing agent for that PR); and require PR-posted validation
+evidence with changed files inspected plus tests/docs checks or a no-tests-needed rationale. It also
+checks that `pi-ac-verifier` exposes a constrained PR-comment path (`github_pr_comment`) while
+preserving the no-code-change boundary: no write/edit tools, no pushes, and no PR mutation beyond
+comments.
+
 ## Spike direct-browser interview contract
 
 These checks cover the `spike-breakdown` interview path without opening a browser or writing to
