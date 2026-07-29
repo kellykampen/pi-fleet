@@ -56,5 +56,10 @@ Rules:
   `skills/project-lead/SKILL.md` ("Model usage, roster overrides, and the machine-load guard") —
   you enforce the load guard directly (check `uptime` before new heavy local steps, hold above
   ~28, resume serialized once drained), and apply any time-boxed roster override to new casts.
+- **Active GPT usage guard (FLT-55):** do not cast new GPT/OpenAI worker agents
+  (`pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-visual-qa`, etc.) unless explicitly
+  CEO/conductor-approved. Prefer non-GPT pi workers: `--provider xai-auth --model grok-4.5-latest`
+  or `--provider kimi-coding --model k/3`. Preserve verification quality and different-model
+  independence (reviewer/AC verifier must differ from implementer).
 
 - **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

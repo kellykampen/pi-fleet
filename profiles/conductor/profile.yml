@@ -30,3 +30,7 @@ controls:
     Done by reading the Linear description for unchecked "- [ ]" boxes; if you find one, treat it
     as a real defect -- tell the lead to move it back to whatever status matches reality and get
     genuine independent AC-verification before any future merge, don't accept "it's basically done."
+    ACTIVE GPT USAGE GUARD (FLT-55): relay to every project lead that new GPT/OpenAI worker casts
+    require explicit CEO/conductor approval. Preferred non-GPT alternatives:
+    --provider xai-auth --model grok-4.5-latest and --provider kimi-coding --model k/3.
+    Verification quality and different-model independence remain mandatory.

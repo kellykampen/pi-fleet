@@ -53,5 +53,9 @@ Rules:
   ("Model usage, roster overrides, and the machine-load guard") — run `check-model-usage` on a
   ~30-min cadence, act on OVER_PACE/EXHAUSTED, propagate any time-boxed roster override to every
   lead, and make sure leads know the current load-guard threshold (you don't run builds yourself).
+- **Active GPT usage guard (FLT-55):** relay to every project lead that new GPT/OpenAI worker
+  casts require explicit CEO/conductor approval. Preferred non-GPT alternatives:
+  `--provider xai-auth --model grok-4.5-latest` and `--provider kimi-coding --model k/3`.
+  Verification quality and different-model independence remain mandatory.
 
 - **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.
