@@ -21,7 +21,7 @@ top.
 - [Pi](https://pi.dev) and [outfitter](https://pi.dev/packages/@ai-outfitter/outfitter) installed
 - Node.js 20+ and global pi packages: `pi-mcp-adapter`, `pi-subagents`, `@gotgenes/pi-permission-system`
 - Repo-local tools installed by `setup.sh`, including exact-pinned `agent-interview-cli@0.1.0`
-- At least one allowed provider/model authenticated in Pi (recommended: `openai-codex` with `gpt-5.5`/`gpt-5.6`)
+- At least one allowed provider/model authenticated in Pi (`openai-codex` with `gpt-5.5`/`gpt-5.6` is the default, but new worker casts currently require explicit CEO/conductor approval due to the GPT usage guard — see [`docs/model-overrides.md`](docs/model-overrides.md))
 - *Optional*, for long-running `pi-conductor`/`pi-project-lead` seats that self-schedule checkups:
   `@jl1990/pi-scheduler` — see [docs/scheduling.md](docs/scheduling.md). **Avoid `pi-schedule-prompt`**;
   its full-screen overlay can get stuck and block input to the pane.
@@ -45,6 +45,12 @@ every install it knows how to do. See `./setup.sh --help` for details.
 
 Models in the profiles are **defaults, not locks** — override per launch with `--provider/--model`,
 or let the `pi-conductor`/`pi-project-lead` pick one via the bundled `model-classifier` skill.
+
+> **Active GPT usage guard (FLT-55):** new `pi-*` worker/reviewer/AC-verifier/QA casts must not
+> use `openai-codex` / GPT without explicit CEO/conductor approval while the guard is active.
+> Preferred non-GPT alternatives: `--provider xai-auth --model grok-4.5-latest` and
+> `--provider kimi-coding --model k/3`. See [`docs/model-overrides.md`](docs/model-overrides.md)
+> for the full override guidance.
 
 Pi-fleet runtime data lives only under private `~/.pi-fleet` (or an absolute `PI_FLEET_HOME`).
 See the canonical [runtime-state contract](docs/runtime-state.md). Bootstrap creates/repairs this

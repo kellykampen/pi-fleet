@@ -112,6 +112,28 @@ headroom). When one is declared:
    the new permanent default. If a project lead asks whether it's still active past the deadline,
    confirm before assuming yes.
 
+### GPT usage guard — active model-routing override (FLT-55)
+
+**Effective immediately, new GPT/OpenAI worker casts are blocked unless explicitly CEO/conductor-approved while this guard is active.** Weekly GPT/OpenAI usage is nearly exhausted. This applies portfolio-wide to any new `pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-visual-qa`, or other worker/QA cast that would normally route to `openai-codex` / GPT.
+
+- The conductor **relays this guard** to every project lead at check-in and treats it as a standing constraint, not a suggestion.
+- **Do not approve** a new GPT/OpenAI worker cast casually. Approval must be explicit (e.g., the CEO says "use Codex for this specific ticket" or the conductor records an override covering the seat + ticket + time/condition).
+- **Preferred alternatives** for new pi worker/reviewer/AC/QA casts:
+  - Grok 4.5: `--provider xai-auth --model grok-4.5-latest`
+  - Kimi K3: `--provider kimi-coding --model k/3`
+
+  Example casts to propagate to leads:
+
+  ```bash
+  cd <worktree> && pi-implementer --provider xai-auth --model grok-4.5-latest
+  cd <worktree> && pi-reviewer --provider kimi-coding --model k/3
+  cd <worktree> && pi-ac-verifier --provider xai-auth --model grok-4.5-latest
+  ```
+
+- **Verification quality is unchanged:** review and AC verification must still produce real evidence, compare Linear-ticket and PR-body AC against the PR's actual head commit, and post that evidence on the PR and Linear.
+- **Preserve model independence:** the reviewer/AC verifier must be a different model than the implementer. If the implementer ran on Grok, prefer Kimi for review/verification (and vice versa). Only deviate if the explicit override says otherwise.
+- This guard is temporary. It does not revoke the "no fixed name-based roster lock" rule; it adds a usage-based constraint on **GPT/OpenAI** specifically. Non-GPT models remain available unless they are EXHAUSTED or OVER_PACE.
+
 **Machine-load guard:** local build/test/typecheck/dev-server/codegen/e2e steps are real load on
 a shared machine — serialize them, don't fire-and-forget:
 

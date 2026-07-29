@@ -26,13 +26,16 @@ ${bold}PROFILES${reset}  ${dim}(run the command; cd to your target dir first)${r
 ${bold}EXTERNAL-HARNESS SEATS${reset}  ${dim}(not pi — no pi- prefix; cast into panes, monitored the same way)${reset}
   ${cyan}claude-reviewer${reset}         Claude Code · read-only   Independent review on a different harness
   ${cyan}claude-worker${reset}           Claude Code · rw+bash     Generic build worker (harness diversity)
-  ${dim}agy-* disabled by roster lock; use claude-* or pi-* seats with openai-codex instead.${reset}
+  ${dim}GPT usage guard active: new pi-* worker casts prefer xai-auth/grok-4.5-latest or kimi-coding/k/3.${reset}
+  ${dim}GPT/OpenAI requires explicit CEO/conductor approval while the guard is active.${reset}
 
 ${bold}USAGE${reset}
   cd ~/some/project && pi-<role>              start a seat in that directory
   pi-<role> --provider openai-codex --model X override the model for this run
-  PI_MODEL=gpt-5.5 pi-<role>                  env default (CLI flags still win)
-  pi-<role> -p "do this thing"                one-shot, non-interactive
+  pi-implementer --provider xai-auth --model grok-4.5-latest  non-GPT worker during guard
+  pi-reviewer --provider kimi-coding --model k/3              non-GPT review during guard
+  PI_MODEL=gpt-5.5 pi-<role>                                  env default (CLI flags still win)
+  pi-<role> -p "do this thing"                                one-shot, non-interactive
   outfitter profile list                      list profiles from outfitter directly
 
 ${bold}INSTALLED WRAPPERS${reset}
