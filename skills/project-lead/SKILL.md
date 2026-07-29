@@ -118,6 +118,28 @@ otherwise it's fair game the same as Claude or Codex.
 **Cast example:** `cd <worktree> && pi-implementer --provider openai-codex --model gpt-5.6-sol`
 (then send the brief, capture results). Use the verb **cast** for spinning up a worker seat.
 
+### GPT usage guard — active model-routing override (FLT-55)
+
+**Effective immediately, new GPT/OpenAI worker casts are blocked unless explicitly CEO/conductor-approved while this guard is active.** Weekly GPT/OpenAI usage is nearly exhausted. Do not route a new `pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-visual-qa`, or other worker/QA seat to `openai-codex` / any GPT model without explicit approval.
+
+- This is a **temporary usage guard**, not a permanent roster change. It overrides the default-model table above for **new casts** until it is lifted.
+- **Preferred non-GPT alternatives** (exact Pi flags):
+  - Grok 4.5: `--provider xai-auth --model grok-4.5-latest`
+  - Kimi K3: `--provider kimi-coding --model k/3`
+
+  Example casts:
+
+  ```bash
+  cd <worktree> && pi-implementer --provider xai-auth --model grok-4.5-latest
+  cd <worktree> && pi-reviewer --provider kimi-coding --model k/3
+  cd <worktree> && pi-ac-verifier --provider kimi-coding --model k/3
+  cd <worktree> && pi-visual-qa --provider kimi-coding --model k/3
+  ```
+
+- **Approval required for GPT casts:** if `model-classifier` or the task genuinely points to a GPT model, escalate to the conductor/CEO and get explicit approval before casting. A profile default is not approval.
+- **Verification quality is unchanged:** independent review must still be posted on the PR; the AC verifier must still collect Linear-ticket and PR-body AC, verify every item against the PR's **actual head commit**, record the SHA, fail closed if validation dirties the worktree, and post evidence to the PR and Linear.
+- **Preserve model independence:** the reviewer and AC verifier must run on a different model than the implementer. If the implementer ran on Grok, prefer Kimi for reviewer/verifier (and vice versa). Only deviate if the explicit override says otherwise.
+
 ## Remote casts (E2B) — optional per job
 
 You may run an implementer **in E2B** instead of a local worktree when offload/isolation helps.
