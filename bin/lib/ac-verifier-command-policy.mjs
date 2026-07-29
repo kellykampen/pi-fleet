@@ -114,7 +114,12 @@ function allowGh(args) {
 }
 
 function isArgumentLikeScriptName(value) {
-	return typeof value === "string" && value.length > 0 && !value.startsWith("-") && !value.includes("/");
+	return (
+		typeof value === "string" &&
+		value.length > 0 &&
+		!value.startsWith("-") &&
+		!value.includes("/")
+	);
 }
 
 function allowPnpm(args) {
@@ -131,7 +136,9 @@ function allowNpm(args) {
 }
 
 function allowNode(args) {
-	return args.length >= 2 && SAFE_NODE_FLAGS.has(args[0]) && !args[1].startsWith("-");
+	return (
+		args.length >= 2 && SAFE_NODE_FLAGS.has(args[0]) && !args[1].startsWith("-")
+	);
 }
 
 export function evaluateAcVerifierCommand(command) {
@@ -159,8 +166,17 @@ export function evaluateAcVerifierCommand(command) {
 			? { allowed: true }
 			: denied("GitHub command is outside the AC-verifier allowlist");
 	if (executable === "linear-cli") return { allowed: true };
-	if (executable === "pnpm") return allowPnpm(args) ? { allowed: true } : denied("pnpm command is outside the AC-verifier allowlist");
-	if (executable === "npm") return allowNpm(args) ? { allowed: true } : denied("npm command is outside the AC-verifier allowlist");
-	if (executable === "node") return allowNode(args) ? { allowed: true } : denied("node command is outside the AC-verifier allowlist");
+	if (executable === "pnpm")
+		return allowPnpm(args)
+			? { allowed: true }
+			: denied("pnpm command is outside the AC-verifier allowlist");
+	if (executable === "npm")
+		return allowNpm(args)
+			? { allowed: true }
+			: denied("npm command is outside the AC-verifier allowlist");
+	if (executable === "node")
+		return allowNode(args)
+			? { allowed: true }
+			: denied("node command is outside the AC-verifier allowlist");
 	return denied("command executable is outside the AC-verifier allowlist");
 }
