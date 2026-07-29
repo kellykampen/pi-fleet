@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
 set -euo pipefail
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "$DIR/lib/pi-model-env.sh"
+FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$FLEET_ROOT/bin/lib/pi-model-env.sh"
 pi_model_override_args ac-verifier "" "$@"
 YOLO=""
 [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--approve"
-exec outfitter run --profile ac-verifier --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
+exec outfitter run --profile ac-verifier --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO \
+  --no-extensions \
+  --extension "$FLEET_ROOT/extensions/linear.ts" \
+  --extension "$FLEET_ROOT/extensions/github-pr.ts" \
+  --extension "$FLEET_ROOT/extensions/ac-verifier-policy.ts" \
+  --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,github_pr_view,github_pr_comment "$@"

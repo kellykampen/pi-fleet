@@ -36,6 +36,22 @@ The permission package's `path` surface is access-mode-blind: a path denial bloc
 Runtime probing confirmed it cannot preserve broad reads while selectively allowing coordination writes.
 Consequently, conductor seats have no general file-mutation tool.
 
+## AC verifier comment-only PR evidence policy
+
+`bin/pi-ac-verifier` has a verifier-specific boundary for PR verification:
+
+1. Its `--tools` list omits `write` and `edit`.
+2. It exposes `github_pr_view` and `github_pr_comment` from `extensions/github-pr.ts` so the verifier can
+   read the PR body/head SHA and MUST post AC evidence to the PR itself.
+3. `github_pr_comment` is comment-only: it shells out to `gh pr comment` and does not expose approve,
+   request-changes, merge, edit, close, push, or review authority.
+4. `extensions/ac-verifier-policy.ts` blocks Bash shell control flow/redirects, denies Git writes
+   (`commit`, `checkout`, `switch`, `merge`, `rebase`, `push`), and denies raw `gh pr comment` so PR
+   comments can only go through the dedicated tool.
+
+This preserves the no-code-change boundary while fixing the previous failure mode where a verifier could
+verify AC but had no constrained path to post evidence on GitHub.
+
 ## Validated coordination notes
 
 Both conductor and native project-lead seats can invoke `fleet-note` through their restricted Bash policy.
@@ -95,6 +111,12 @@ For conductor restrictions, run:
 
 ```bash
 bin/pi-fleet-eval-conductor-policy
+```
+
+For AC-verifier PR-evidence and dual-source AC rules, run:
+
+```bash
+evals/ac-verification-dual-source-structural-test.sh
 ```
 
 ## Layout rule
