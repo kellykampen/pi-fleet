@@ -194,6 +194,18 @@ bin/pi-fleet-eval-model-overrides        # writes evals/results/model-overrides-
 See [`../docs/model-overrides.md`](../docs/model-overrides.md) for the full env-name and default
 model table.
 
+## GPT usage guard structural eval (FLT-55)
+
+Deterministic check that the active GPT usage guard is codified in canonical source-of-truth files
+(skills, agents, profiles, docs, README, and `bin/pi-fleet`) rather than only scratch handoff notes.
+It asserts the core guard statement, exact non-GPT invocation examples for
+`--provider xai-auth --model grok-4.5-latest` and `--provider kimi-coding --model k/3`, and that
+verification quality and different-model independence remain explicit.
+
+```bash
+evals/gpt-usage-guard-structural-test.sh
+```
+
 ## Gotchas
 
 - **Model auth ≠ tool boundary.** A subagent whose default/fallback models aren't authed in pi
