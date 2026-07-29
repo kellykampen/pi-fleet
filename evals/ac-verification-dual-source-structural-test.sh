@@ -19,14 +19,13 @@ no() {
 }
 assert_file_contains() {
 	local desc="$1" file="$2" pattern="$3"
-	if python3 - "$DIR/$file" "$pattern" <<'PY'
+	if python3 - "$DIR/$file" "$pattern" <<'PY'; then
 import re
 import sys
 path, pattern = sys.argv[1], sys.argv[2]
 text = open(path, encoding="utf-8").read()
 sys.exit(0 if re.search(pattern, text, re.MULTILINE | re.DOTALL) else 1)
 PY
-	then
 		ok "$desc"
 	else
 		no "$desc"
@@ -94,7 +93,8 @@ assert_file_contains "github_pr_comment is comment-only" "extensions/github-pr.t
 	'[Cc]omment-only[\s\S]*(does not approve|no review/merge authority|merge)'
 assert_file_contains "github_pr tools validate PR selector" "extensions/github-pr.ts" \
 	'function prSelector[\s\S]*startsWith\("-"\)'
-if (cd "$DIR" && node --input-type=module <<'NODE'
+if (
+	cd "$DIR" && node --input-type=module <<'NODE'
 import assert from "node:assert/strict";
 import { evaluateAcVerifierCommand } from "./bin/lib/ac-verifier-command-policy.mjs";
 assert.equal(evaluateAcVerifierCommand("gh pr view 54").allowed, true);
@@ -107,8 +107,7 @@ assert.equal(evaluateAcVerifierCommand("gh pr merge 54").allowed, false);
 assert.equal(evaluateAcVerifierCommand("gh pr review 54 --approve").allowed, false);
 assert.equal(evaluateAcVerifierCommand("echo bad > file").allowed, false);
 NODE
-)
-then
+); then
 	ok "AC verifier policy decisions enforce comment-only/no-push boundary"
 else
 	no "AC verifier policy decisions enforce comment-only/no-push boundary"
@@ -122,7 +121,7 @@ assert_file_contains "evals README documents the FLT-54 structural guard" "evals
 # (not filenames). git grep exits 1 for no matches, so handle that separately from scan errors.
 grep_status=0
 flt54_files="$(git -C "$DIR" grep -l 'FLT-54' -- . 2>/tmp/flt54-grep.err)" || grep_status=$?
-if (( grep_status > 1 )); then
+if ((grep_status > 1)); then
 	no "tracked FLT-54 content scan completed successfully"
 	cat /tmp/flt54-grep.err
 else
