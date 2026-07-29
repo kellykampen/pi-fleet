@@ -81,6 +81,8 @@ checks that `pi-ac-verifier` exposes a constrained PR-comment path (`github_pr_c
 preserving the no-code-change boundary: no write/edit tools, no pushes, and no PR mutation beyond
 comments.
 
+Last verified: [`results/ac-verification-dual-source-latest.txt`](./results/ac-verification-dual-source-latest.txt) — **61/61 PASS**.
+
 ## Spike direct-browser interview contract
 
 These checks cover the `spike-breakdown` interview path without opening a browser or writing to

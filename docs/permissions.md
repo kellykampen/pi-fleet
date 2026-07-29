@@ -48,7 +48,9 @@ Consequently, conductor seats have no general file-mutation tool.
 4. `extensions/ac-verifier-policy.ts` blocks Bash shell control flow/redirects, denies Git writes
    (`commit`, `checkout`, `switch`, `merge`, `rebase`, `push`), denies raw `gh pr comment` so PR
    comments can only go through the dedicated tool, and rejects arbitrary package-manager/interpreter
-   execution such as `node -e`, `npx`, installs, or `pnpm exec`.
+   execution such as code-eval flags (`-e`, `-c`, `--eval`, `--print`), arbitrary `npx`, installs, or `pnpm exec`. Only explicit validation
+   subcommands such as `pnpm test`, `pnpm build`, `pnpm typecheck`, `npx vitest run`, and
+   `npx tsc --noEmit` are allowed.
 
 This preserves the no-code-change boundary while fixing the previous failure mode where a verifier could
 verify AC but had no constrained path to post evidence on GitHub.

@@ -25,10 +25,15 @@ permission:
     "npm run lint*": allow
     "npm run typecheck*": allow
     "npm run build*": allow
+    "npx vitest run*": allow
+    "npx tsc --noEmit*": allow
     "npx *": deny
     "node --check *": allow
     "node --test *": allow
     "node -e *": deny
+    "node -c *": deny
+    "node --eval *": deny
+    "node --print *": deny
     "node -p *": deny
     "node *": deny
     "gh pr view *": allow
@@ -79,8 +84,9 @@ Rules:
   locate changed files inspected (cite file:line where possible), run the real command that proves it,
   and record the exact command, exit status, and available stdout/stderr. Verification commands must
   be constrained validation commands (`pnpm test|lint|typecheck|build`, `npm test`, `npm run
-  test|lint|typecheck|build`, read-only git/gh, or `node --check/--test`); never use arbitrary
-  interpreters, inline `node -e`, `npx`, package installs, or repo-local scripts as a workaround.
+  test|lint|typecheck|build`, `npx vitest run`, `npx tsc --noEmit`, read-only git/gh, or
+  `node --check/--test`); never use arbitrary interpreters, code-eval flags (`-e`, `-c`, `--eval`,
+  `--print`), arbitrary `npx`, package installs, or repo-local scripts as a workaround.
   Check `git diff --quiet` before and after validation commands; if validation dirties the worktree,
   fail the gate instead of cleaning or pushing. Empty stdout from a meaningful successful command (for
   example `git diff --check` or a quiet lint run) can still be valid evidence; reject only commands

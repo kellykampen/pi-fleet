@@ -25,6 +25,7 @@ const SAFE_PNPM_SCRIPTS = new Set(["test", "lint", "typecheck", "build"]);
 const SAFE_NPM_SCRIPTS = new Set(["test", "run"]);
 const SAFE_NPM_RUN_TARGETS = new Set(["test", "lint", "typecheck", "build"]);
 const SAFE_NODE_FLAGS = new Set(["--check", "--test"]);
+const CODE_EVAL_FLAGS = new Set(["-e", "-c", "--eval", "--print", "-p"]);
 
 function denied(reason) {
 	return { allowed: false, reason };
@@ -122,14 +123,23 @@ function isArgumentLikeScriptName(value) {
 	);
 }
 
+function hasCodeEvalFlag(args) {
+	return args.some((arg) => CODE_EVAL_FLAGS.has(arg));
+}
+
 function allowPnpm(args) {
-	if (args.length === 0) return false;
+	if (args.length === 0 || hasCodeEvalFlag(args)) return false;
 	if (args[0] === "exec") return false;
 	return SAFE_PNPM_SCRIPTS.has(args[0]);
 }
 
 function allowNpm(args) {
-	if (args.length === 0 || !SAFE_NPM_SCRIPTS.has(args[0])) return false;
+	if (
+		args.length === 0 ||
+		hasCodeEvalFlag(args) ||
+		!SAFE_NPM_SCRIPTS.has(args[0])
+	)
+		return false;
 	if (args[0] === "test") return true;
 	const target = args[1];
 	return isArgumentLikeScriptName(target) && SAFE_NPM_RUN_TARGETS.has(target);
@@ -137,8 +147,23 @@ function allowNpm(args) {
 
 function allowNode(args) {
 	return (
-		args.length >= 2 && SAFE_NODE_FLAGS.has(args[0]) && !args[1].startsWith("-")
+		args.length >= 2 &&
+		!hasCodeEvalFlag(args) &&
+		SAFE_NODE_FLAGS.has(args[0]) &&
+		!args[1].startsWith("-")
 	);
+}
+
+function allowNpx(args) {
+	if (args.length === 0 || hasCodeEvalFlag(args)) return false;
+	const [tool, ...toolArgs] = args;
+	if (tool === "vitest") {
+		return toolArgs[0] === "run";
+	}
+	if (tool === "tsc") {
+		return toolArgs.includes("--noEmit");
+	}
+	return false;
 }
 
 export function evaluateAcVerifierCommand(command) {
@@ -178,5 +203,9 @@ export function evaluateAcVerifierCommand(command) {
 		return allowNode(args)
 			? { allowed: true }
 			: denied("node command is outside the AC-verifier allowlist");
+	if (executable === "npx")
+		return allowNpx(args)
+			? { allowed: true }
+			: denied("npx command is outside the AC-verifier allowlist");
 	return denied("command executable is outside the AC-verifier allowlist");
 }
