@@ -199,7 +199,8 @@ for the full statement):
    branch and re-verify the new head commit; don't merge now on a promise to check later. The
    AC-verifier — not you, not the implementer — checks the Linear boxes, only after it has
    actually verified each one by running it with real evidence from tests/build/inspection as
-   applicable. The verifier must post validation evidence on the PR itself via `github_pr_comment`
+   applicable, using constrained validation commands only and failing the gate if validation dirties
+   the worktree. The verifier must post validation evidence on the PR itself via `github_pr_comment`
    and on Linear, including changed files inspected and relevant
    tests/docs checks run (or explicit no-tests-needed rationale). The verifier has no write/edit
    tools, must not push, and must not mutate the PR beyond comments. You never check a box yourself

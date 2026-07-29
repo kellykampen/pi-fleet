@@ -58,6 +58,8 @@ assert_dual_source_contract() {
 		'not (origin/)?(main|develop)|stale branch'
 	assert_file_contains "$file $role records the verified SHA" "$file" \
 		'git rev-parse HEAD|verified SHA'
+	assert_file_contains "$file $role requires constrained validation commands" "$file" \
+		'constrained validation commands|constrained validation commands run against real code'
 	assert_file_contains "$file $role requires tests/build or typecheck/build/docs checks" "$file" \
 		'tests/build/inspection|tests/typecheck/build|tests/docs checks|real commands run against real code'
 	assert_file_contains "$file $role requires changed-files inspection or no-tests rationale" "$file" \
@@ -99,6 +101,22 @@ import assert from "node:assert/strict";
 import { evaluateAcVerifierCommand } from "./bin/lib/ac-verifier-command-policy.mjs";
 assert.equal(evaluateAcVerifierCommand("gh pr view 54").allowed, true);
 assert.equal(evaluateAcVerifierCommand("git status").allowed, true);
+assert.equal(evaluateAcVerifierCommand("pnpm test -- --runInBand").allowed, true);
+assert.equal(evaluateAcVerifierCommand("npm run lint").allowed, true);
+assert.equal(evaluateAcVerifierCommand("node --check extensions/github-pr.ts").allowed, true);
+assert.equal(evaluateAcVerifierCommand("npx vitest run tests/foo.test.ts").allowed, true);
+assert.equal(evaluateAcVerifierCommand("npx tsc --noEmit").allowed, true);
+assert.equal(evaluateAcVerifierCommand("node -e 'require(\\\"fs\\\").writeFileSync(\\\"x\\\",\\\"y\\\")'").allowed, false);
+assert.equal(evaluateAcVerifierCommand("node --eval 'console.log(1)'").allowed, false);
+assert.equal(evaluateAcVerifierCommand("node --print 'process.cwd()'").allowed, false);
+assert.equal(evaluateAcVerifierCommand("node -c 'print(1)'").allowed, false);
+assert.equal(evaluateAcVerifierCommand("npx vitest run -e jsdom").allowed, false);
+assert.equal(evaluateAcVerifierCommand("npx tsx script.ts").allowed, false);
+assert.equal(evaluateAcVerifierCommand("npx cowsay pwned").allowed, false);
+assert.equal(evaluateAcVerifierCommand("npm --eval foo test").allowed, false);
+assert.equal(evaluateAcVerifierCommand("npm install").allowed, false);
+assert.equal(evaluateAcVerifierCommand("pnpm --print test").allowed, false);
+assert.equal(evaluateAcVerifierCommand("pnpm exec vitest").allowed, false);
 assert.equal(evaluateAcVerifierCommand("gh pr comment 54 --body evidence").allowed, false);
 assert.equal(evaluateAcVerifierCommand("gh pr comment 54 --edit-last --body bad").allowed, false);
 assert.equal(evaluateAcVerifierCommand("git push origin HEAD").allowed, false);

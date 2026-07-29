@@ -1,0 +1,63 @@
+PASS: agents/ac-verifier.md verifier source collects AC from Linear description checkboxes
+PASS: agents/ac-verifier.md verifier source collects AC from the PR body
+PASS: agents/ac-verifier.md verifier source fails closed when either AC source is missing
+PASS: agents/ac-verifier.md verifier source compares every AC from both sources
+PASS: agents/ac-verifier.md verifier source verifies against the PR actual head commit
+PASS: agents/ac-verifier.md verifier source rejects stale base-branch verification
+PASS: agents/ac-verifier.md verifier source records the verified SHA
+PASS: agents/ac-verifier.md verifier source requires constrained validation commands
+PASS: agents/ac-verifier.md verifier source requires tests/build or typecheck/build/docs checks
+PASS: agents/ac-verifier.md verifier source requires changed-files inspection or no-tests rationale
+PASS: agents/ac-verifier.md verifier source requires PR-posted validation evidence
+PASS: agents/ac-verifier.md verifier source makes verifier independence explicit
+PASS: profiles/ac-verifier/profile.yml verifier source collects AC from Linear description checkboxes
+PASS: profiles/ac-verifier/profile.yml verifier source collects AC from the PR body
+PASS: profiles/ac-verifier/profile.yml verifier source fails closed when either AC source is missing
+PASS: profiles/ac-verifier/profile.yml verifier source compares every AC from both sources
+PASS: profiles/ac-verifier/profile.yml verifier source verifies against the PR actual head commit
+PASS: profiles/ac-verifier/profile.yml verifier source rejects stale base-branch verification
+PASS: profiles/ac-verifier/profile.yml verifier source records the verified SHA
+PASS: profiles/ac-verifier/profile.yml verifier source requires constrained validation commands
+PASS: profiles/ac-verifier/profile.yml verifier source requires tests/build or typecheck/build/docs checks
+PASS: profiles/ac-verifier/profile.yml verifier source requires changed-files inspection or no-tests rationale
+PASS: profiles/ac-verifier/profile.yml verifier source requires PR-posted validation evidence
+PASS: profiles/ac-verifier/profile.yml verifier source makes verifier independence explicit
+PASS: skills/project-lead/SKILL.md gate-holder source collects AC from Linear description checkboxes
+PASS: skills/project-lead/SKILL.md gate-holder source collects AC from the PR body
+PASS: skills/project-lead/SKILL.md gate-holder source fails closed when either AC source is missing
+PASS: skills/project-lead/SKILL.md gate-holder source compares every AC from both sources
+PASS: skills/project-lead/SKILL.md gate-holder source verifies against the PR actual head commit
+PASS: skills/project-lead/SKILL.md gate-holder source rejects stale base-branch verification
+PASS: skills/project-lead/SKILL.md gate-holder source records the verified SHA
+PASS: skills/project-lead/SKILL.md gate-holder source requires constrained validation commands
+PASS: skills/project-lead/SKILL.md gate-holder source requires tests/build or typecheck/build/docs checks
+PASS: skills/project-lead/SKILL.md gate-holder source requires changed-files inspection or no-tests rationale
+PASS: skills/project-lead/SKILL.md gate-holder source requires PR-posted validation evidence
+PASS: skills/project-lead/SKILL.md gate-holder source makes verifier independence explicit
+PASS: skills/conductor/SKILL.md gate-holder source collects AC from Linear description checkboxes
+PASS: skills/conductor/SKILL.md gate-holder source collects AC from the PR body
+PASS: skills/conductor/SKILL.md gate-holder source fails closed when either AC source is missing
+PASS: skills/conductor/SKILL.md gate-holder source compares every AC from both sources
+PASS: skills/conductor/SKILL.md gate-holder source verifies against the PR actual head commit
+PASS: skills/conductor/SKILL.md gate-holder source rejects stale base-branch verification
+PASS: skills/conductor/SKILL.md gate-holder source records the verified SHA
+PASS: skills/conductor/SKILL.md gate-holder source requires constrained validation commands
+PASS: skills/conductor/SKILL.md gate-holder source requires tests/build or typecheck/build/docs checks
+PASS: skills/conductor/SKILL.md gate-holder source requires changed-files inspection or no-tests rationale
+PASS: skills/conductor/SKILL.md gate-holder source requires PR-posted validation evidence
+PASS: skills/conductor/SKILL.md gate-holder source makes verifier independence explicit
+PASS: profile/ac-verifier declares github-pr extension
+PASS: agent/ac-verifier declares github_pr_comment tool
+PASS: bin/pi-ac-verifier exposes github_pr_comment
+PASS: bin/pi-ac-verifier omits write/edit tools
+PASS: bin/pi-ac-verifier loads constrained GitHub PR extension
+PASS: bin/pi-ac-verifier loads AC verifier bash policy
+PASS: github_pr_comment is comment-only
+PASS: github_pr tools validate PR selector
+PASS: AC verifier policy decisions enforce comment-only/no-push boundary
+PASS: evals README documents the FLT-54 structural guard
+PASS: tracked FLT-54 content scan completed successfully
+PASS: FLT-54 rule has canonical tracked-file evidence
+PASS: FLT-54 rule is not stored only in a local handoff/notes file
+---
+61 passed, 0 failed
