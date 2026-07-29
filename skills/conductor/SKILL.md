@@ -158,7 +158,8 @@ branch/code -> independent review (DIFFERENT model, POSTED on the PR)
                and PR body acceptance criteria/checklist/AC block (fail closed if either
                source is missing/unreadable/empty); verifies every item from both sources
                against the PR's actual head commit, not origin/main/develop or a stale
-               branch; records the verified SHA; real commands run against real code; every Linear checkbox
+               branch; records the verified SHA; constrained validation commands run against real code;
+               dirty-worktree validation fails the gate; every Linear checkbox
                flipped BY THE VERIFIER ONLY; validation evidence POSTED by the verifier on the PR
                (via github_pr_comment) and Linear with changed files
                inspected and tests/docs checks run or no-tests-needed rationale; no write/edit

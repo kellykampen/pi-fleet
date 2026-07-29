@@ -16,10 +16,21 @@ permission:
   ls: allow
   bash:
     "*": ask
-    "pnpm *": allow
-    "npm *": allow
-    "npx *": allow
-    "node *": allow
+    "pnpm test*": allow
+    "pnpm lint*": allow
+    "pnpm typecheck*": allow
+    "pnpm build*": allow
+    "npm test*": allow
+    "npm run test*": allow
+    "npm run lint*": allow
+    "npm run typecheck*": allow
+    "npm run build*": allow
+    "npx *": deny
+    "node --check *": allow
+    "node --test *": allow
+    "node -e *": deny
+    "node -p *": deny
+    "node *": deny
     "gh pr view *": allow
     "gh pr list *": allow
     "gh pr checks *": allow
@@ -66,10 +77,14 @@ Rules:
   re-run the complete verification whenever either local HEAD or the PR `headRefOid` changes.
 - For each acceptance-criterion item, use real evidence from tests/build/inspection as applicable:
   locate changed files inspected (cite file:line where possible), run the real command that proves it,
-  and record the exact command, exit status, and available stdout/stderr. Empty stdout from a
-  meaningful successful command (for example `git diff --check` or a quiet lint run) can still be
-  valid evidence; reject only commands that were not executed, were no-ops, or lacked meaningful
-  validation semantics.
+  and record the exact command, exit status, and available stdout/stderr. Verification commands must
+  be constrained validation commands (`pnpm test|lint|typecheck|build`, `npm test`, `npm run
+  test|lint|typecheck|build`, read-only git/gh, or `node --check/--test`); never use arbitrary
+  interpreters, inline `node -e`, `npx`, package installs, or repo-local scripts as a workaround.
+  Check `git diff --quiet` before and after validation commands; if validation dirties the worktree,
+  fail the gate instead of cleaning or pushing. Empty stdout from a meaningful successful command (for
+  example `git diff --check` or a quiet lint run) can still be valid evidence; reject only commands
+  that were not executed, were no-ops, or lacked meaningful validation semantics.
 - Report each criterion as PASS/FAIL with the command + evidence. A criterion is verified ONLY when
   the real command actually executed and passed, or when a non-code/docs criterion has concrete
   inspection evidence and an explicit no-tests-needed rationale.

@@ -46,8 +46,9 @@ Consequently, conductor seats have no general file-mutation tool.
 3. `github_pr_comment` is comment-only: it shells out to `gh pr comment` and does not expose approve,
    request-changes, merge, edit, close, push, or review authority.
 4. `extensions/ac-verifier-policy.ts` blocks Bash shell control flow/redirects, denies Git writes
-   (`commit`, `checkout`, `switch`, `merge`, `rebase`, `push`), and denies raw `gh pr comment` so PR
-   comments can only go through the dedicated tool.
+   (`commit`, `checkout`, `switch`, `merge`, `rebase`, `push`), denies raw `gh pr comment` so PR
+   comments can only go through the dedicated tool, and rejects arbitrary package-manager/interpreter
+   execution such as `node -e`, `npx`, installs, or `pnpm exec`.
 
 This preserves the no-code-change boundary while fixing the previous failure mode where a verifier could
 verify AC but had no constrained path to post evidence on GitHub.
