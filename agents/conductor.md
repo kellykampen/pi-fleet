@@ -56,6 +56,7 @@ Rules:
 - **Active GPT usage guard (FLT-55):** relay to every project lead that new GPT/OpenAI worker
   casts require explicit CEO/conductor approval. Preferred non-GPT alternatives:
   `--provider xai-auth --model grok-4.5-latest` and `--provider kimi-coding --model k/3`.
-  Verification quality and different-model independence remain mandatory.
+  Verification quality remains mandatory: the reviewer and AC verifier must run on a different
+  model than the implementer.
 
 - **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

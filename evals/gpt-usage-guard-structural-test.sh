@@ -97,6 +97,20 @@ assert_file_contains "profiles/conductor/profile.yml propagates guard" \
 	"profiles/conductor/profile.yml" \
 	'ACTIVE GPT USAGE GUARD \(FLT-55\)'
 
+# Agent/profile guard assertions validate the full semantics inside one bounded block.
+assert_file_contains "agents/project-lead.md enforces approval, alternatives, and model independence" \
+	"agents/project-lead.md" \
+	'Active GPT usage guard \(FLT-55\):[\s\S]{0,700}?unless explicitly\s+CEO/conductor-approved[\s\S]{0,700}?--provider xai-auth --model grok-4\.5-latest[\s\S]{0,700}?reviewer and AC\s+verifier must run on a different model than the implementer'
+assert_file_contains "agents/conductor.md enforces approval, alternatives, and model independence" \
+	"agents/conductor.md" \
+	'Active GPT usage guard \(FLT-55\):[\s\S]{0,700}?require explicit CEO/conductor approval[\s\S]{0,700}?--provider kimi-coding --model k/3[\s\S]{0,700}?reviewer and AC verifier must run on a different\s+model than the implementer'
+assert_file_contains "profiles/project-lead/profile.yml enforces approval, alternatives, and model independence" \
+	"profiles/project-lead/profile.yml" \
+	'ACTIVE GPT USAGE GUARD \(FLT-55\):[\s\S]{0,700}?without explicit CEO/conductor approval[\s\S]{0,700}?--provider kimi-coding --model k/3[\s\S]{0,700}?reviewer/AC verifier must\s+run on a different model than the implementer'
+assert_file_contains "profiles/conductor/profile.yml enforces approval, alternatives, and model independence" \
+	"profiles/conductor/profile.yml" \
+	'ACTIVE GPT USAGE GUARD \(FLT-55\):[\s\S]{0,700}?require explicit CEO/conductor approval[\s\S]{0,700}?--provider xai-auth --model grok-4\.5-latest[\s\S]{0,700}?reviewer and AC verifier must run on a different\s+model than the implementer'
+
 # README and quick-reference surfaces the guard.
 assert_file_contains "README.md surfaces guard" \
 	"README.md" \
