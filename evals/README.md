@@ -77,9 +77,9 @@ description checkbox items and the PR body AC/checklist block; verify every item
 actual head commit (not main/develop/stale branch); require a dedicated independent verifier (never
 implementer, project lead, or code-writing agent for that PR); and require PR-posted validation
 evidence with changed files inspected plus tests/docs checks or a no-tests-needed rationale. It also
-checks that `pi-ac-verifier` exposes a constrained PR-comment path (`github_pr_comment`) while
-preserving the no-code-change boundary: no write/edit tools, no pushes, and no PR mutation beyond
-comments.
+checks that `pi-ac-verifier` exposes a constrained PR-comment path (`github_pr_comment`) and permits
+only explicit validation commands, while preserving the no-code-change boundary: no write/edit tools,
+no pushes, and no PR mutation beyond comments. Validation that dirties the worktree fails the AC gate.
 
 Last verified: [`results/ac-verification-dual-source-latest.txt`](./results/ac-verification-dual-source-latest.txt) — **61/61 PASS**.
 
