@@ -127,7 +127,7 @@ headroom). When one is declared:
   ```bash
   cd <worktree> && pi-implementer --provider xai-auth --model grok-4.5-latest
   cd <worktree> && pi-reviewer --provider kimi-coding --model k/3
-  cd <worktree> && pi-ac-verifier --provider xai-auth --model grok-4.5-latest
+  cd <worktree> && pi-ac-verifier --provider kimi-coding --model k/3
   ```
 
 - **Verification quality is unchanged:** review and AC verification must still produce real evidence, compare Linear-ticket and PR-body AC against the PR's actual head commit, and post that evidence on the PR and Linear.

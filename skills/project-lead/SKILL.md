@@ -132,7 +132,7 @@ otherwise it's fair game the same as Claude or Codex.
   ```bash
   cd <worktree> && pi-implementer --provider xai-auth --model grok-4.5-latest
   cd <worktree> && pi-reviewer --provider kimi-coding --model k/3
-  cd <worktree> && pi-ac-verifier --provider xai-auth --model grok-4.5-latest
+  cd <worktree> && pi-ac-verifier --provider kimi-coding --model k/3
   cd <worktree> && pi-visual-qa --provider kimi-coding --model k/3
   ```
 

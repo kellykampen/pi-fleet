@@ -29,20 +29,18 @@ When the task allows, cast non-GPT pi workers using these exact provider/model p
 | Grok 4.5 | `--provider xai-auth --model grok-4.5-latest` | `pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-visual-qa` |
 | Kimi K3 | `--provider kimi-coding --model k/3` | `pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-visual-qa` |
 
-Exact invocation examples:
+Exact cross-model workflows:
 
 ```bash
-# Grok implementer
+# Workflow A: Grok implementation, Kimi review/verification
 cd <worktree> && pi-implementer --provider xai-auth --model grok-4.5-latest
-
-# Grok reviewer
-cd <worktree> && pi-reviewer --provider xai-auth --model grok-4.5-latest
-
-# Kimi implementer
-cd <worktree> && pi-implementer --provider kimi-coding --model k/3
-
-# Kimi AC verifier
+cd <worktree> && pi-reviewer --provider kimi-coding --model k/3
 cd <worktree> && pi-ac-verifier --provider kimi-coding --model k/3
+
+# Workflow B: Kimi implementation, Grok review/verification
+cd <worktree> && pi-implementer --provider kimi-coding --model k/3
+cd <worktree> && pi-reviewer --provider xai-auth --model grok-4.5-latest
+cd <worktree> && pi-ac-verifier --provider xai-auth --model grok-4.5-latest
 ```
 
 ### Verification quality and model diversity
