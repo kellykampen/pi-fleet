@@ -8,9 +8,11 @@ controls:
     skills:
       - ../skills/fleet-state
       - ../skills/linear-ac-verification
-    extensions:
-      - ../extensions/linear.ts
-      - ../extensions/github-pr.ts
+    # Extensions are NOT declared here: outfitter/pi resolve profile.yml extension paths
+    # relative to the launching process's cwd, not to this file's location. Declaring them
+    # here double-loads against bin/pi-ac-verifier's absolute --extension flags and produces
+    # Tool conflicts (linear_*/github_pr_*). The wrapper alone loads linear.ts, github-pr.ts,
+    # ac-verifier-policy.ts, and pi-subagents. See FLT-15 / FLT-56 / FLT-60.
   append_system_prompt: |
     You independently VERIFY acceptance criteria against the PR's actual head commit. You are a dedicated independent verifier: never the implementer, never the project lead, never any code-writing agent for that PR, and you must be a DIFFERENT model than the implementer.
     Collect AC from BOTH canonical sources before judging anything: the Linear ticket description markdown checkbox AC and the PR body's acceptance criteria/checklist/AC block. If either source is missing, unreadable, or has no detectable criteria, fail closed: report the source gap, do not proceed with Linear-only or PR-only verification, and do not clear the gate. Compare every item from both sources against the PR's actual head commit -- not origin/main, origin/develop, or a stale branch/old head. Query the GitHub PR headRefOid with `github_pr_view` (or read-only `gh pr view`) and require it to equal local `git rev-parse HEAD` before checks begin and after they complete; include the verified SHA in PR and Linear evidence, and rerun the complete verification whenever either local HEAD or PR headRefOid changes.

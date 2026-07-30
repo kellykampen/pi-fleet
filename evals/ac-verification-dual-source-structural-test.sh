@@ -79,8 +79,28 @@ for file in "skills/project-lead/SKILL.md" "skills/conductor/SKILL.md"; do
 	assert_dual_source_contract "$file" "gate-holder source"
 done
 
-assert_file_contains "profile/ac-verifier declares github-pr extension" "profiles/ac-verifier/profile.yml" \
-	'../extensions/github-pr\.ts'
+assert_file_lacks() {
+	local desc="$1" file="$2" pattern="$3"
+	if python3 - "$DIR/$file" "$pattern" <<'PY'
+import re
+import sys
+path, pattern = sys.argv[1], sys.argv[2]
+text = open(path, encoding="utf-8").read()
+sys.exit(0 if not re.search(pattern, text, re.MULTILINE | re.DOTALL) else 1)
+PY
+	then
+		ok "$desc"
+	else
+		no "$desc"
+		echo "  unexpected pattern: $pattern"
+		echo "  in: $file"
+	fi
+}
+# FLT-56/FLT-60: wrapper alone owns absolute --extension paths; profile must not double-load.
+assert_file_lacks "profile/ac-verifier omits profile-managed extensions (wrapper-owned)" "profiles/ac-verifier/profile.yml" \
+	'^[[:space:]]*extensions:'
+assert_file_contains "profile/ac-verifier documents wrapper-owned extensions" "profiles/ac-verifier/profile.yml" \
+	'wrapper alone loads|NOT declared here'
 assert_file_contains "agent/ac-verifier declares github_pr_comment tool" "agents/ac-verifier.md" \
 	'github_pr_view, github_pr_comment'
 assert_file_contains "agent/ac-verifier declares subagent tool for AC fanout" "agents/ac-verifier.md" \

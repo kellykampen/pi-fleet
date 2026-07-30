@@ -18,7 +18,7 @@ mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/unattended-reviewer-ac-latest.txt"
 trap 'rm -rf "$FAKE_BIN"' EXIT
 
-cat > "$FAKE_BIN/outfitter" <<'EOF'
+cat >"$FAKE_BIN/outfitter" <<'EOF'
 #!/usr/bin/env bash
 printf 'ARG=%s\n' "$@"
 EOF
@@ -26,50 +26,65 @@ chmod +x "$FAKE_BIN/outfitter"
 
 # Minimal pi-subagents package so pi-ac-verifier can resolve its explicit extension.
 mkdir -p "$FAKE_BIN/agent/npm/node_modules/pi-subagents"
-printf '{}\n' > "$FAKE_BIN/agent/npm/node_modules/pi-subagents/package.json"
-printf '// mock\n' > "$FAKE_BIN/agent/npm/node_modules/pi-subagents/index.ts"
+printf '{}\n' >"$FAKE_BIN/agent/npm/node_modules/pi-subagents/package.json"
+printf '// mock\n' >"$FAKE_BIN/agent/npm/node_modules/pi-subagents/index.ts"
 # Also satisfy permission-system resolution for conductor/project-lead negative checks.
 mkdir -p "$FAKE_BIN/agent/npm/node_modules/@gotgenes/pi-permission-system"
 
 pass=0
 fail=0
-ok() { echo "PASS: $1"; pass=$((pass + 1)); }
-no() { echo "FAIL: $1"; fail=$((fail + 1)); }
+ok() {
+	echo "PASS: $1"
+	pass=$((pass + 1))
+}
+no() {
+	echo "FAIL: $1"
+	fail=$((fail + 1))
+}
 
 contains_line() {
 	local desc="$1" expected="$2" output="$3"
-	if printf '%s\n' "$output" | grep -Fqx -- "$expected"; then ok "$desc"
+	if printf '%s\n' "$output" | grep -Fqx -- "$expected"; then
+		ok "$desc"
 	else no "$desc (missing: $expected)"; fi
 }
 contains_any() {
 	local desc="$1" pattern="$2" output="$3"
-	if printf '%s\n' "$output" | grep -Eq -- "$pattern"; then ok "$desc"
+	if printf '%s\n' "$output" | grep -Eq -- "$pattern"; then
+		ok "$desc"
 	else no "$desc (missing pattern: $pattern)"; fi
 }
 rejects() {
 	local desc="$1" pattern="$2" output="$3"
-	if printf '%s\n' "$output" | grep -Eq -- "$pattern"; then no "$desc (found: $pattern)"
+	if printf '%s\n' "$output" | grep -Eq -- "$pattern"; then
+		no "$desc (found: $pattern)"
 	else ok "$desc"; fi
 }
 assert_file_lacks() {
 	local desc="$1" file="$2" pattern="$3"
-	if python3 - "$DIR/$file" "$pattern" <<'PY'
+	if python3 - "$DIR/$file" "$pattern" <<'PY'; then
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 sys.exit(0 if not re.search(sys.argv[2], text, re.MULTILINE | re.DOTALL) else 1)
 PY
-	then ok "$desc"
-	else no "$desc"; echo "  unexpected pattern: $pattern in $file"; fi
+		ok "$desc"
+	else
+		no "$desc"
+		echo "  unexpected pattern: $pattern in $file"
+	fi
 }
 assert_file_contains() {
 	local desc="$1" file="$2" pattern="$3"
-	if python3 - "$DIR/$file" "$pattern" <<'PY'
+	if python3 - "$DIR/$file" "$pattern" <<'PY'; then
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 sys.exit(0 if re.search(sys.argv[2], text, re.MULTILINE | re.DOTALL) else 1)
 PY
-	then ok "$desc"
-	else no "$desc"; echo "  missing pattern: $pattern in $file"; fi
+		ok "$desc"
+	else
+		no "$desc"
+		echo "  missing pattern: $pattern in $file"
+	fi
 }
 
 run_reviewer() {
@@ -129,7 +144,7 @@ run_ac() {
 	echo "3) agent frontmatter has no ask gates"
 	for f in agents/reviewer.md agents/ac-verifier.md agents/ac-criterion-verifier.md; do
 		# Only the YAML permission frontmatter may set allow/ask/deny — ignore prose "ask".
-		if python3 - "$DIR/$f" <<'PY'
+		if python3 - "$DIR/$f" <<'PY'; then
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
@@ -143,11 +158,30 @@ if re.search(r":\s*ask\b", fm):
     sys.exit(1)
 sys.exit(0)
 PY
-		then ok "$f has no permission ask state"
+			ok "$f has no permission ask state"
 		else no "$f has no permission ask state"; fi
 		assert_file_contains "$f deny-by-default permission fallback" "$f" \
 			'permission:[\s\S]*"\*":\s*deny'
 	done
+
+	echo
+	echo "3b) profiles omit extensions (no double-load against wrapper --extension)"
+	for f in profiles/reviewer/profile.yml profiles/ac-verifier/profile.yml; do
+		assert_file_lacks "$f has no profile-managed extensions:" "$f" \
+			'^[[:space:]]*extensions:'
+		assert_file_contains "$f documents wrapper-owned extensions" "$f" \
+			'wrapper alone loads|NOT declared here'
+	done
+	# Mocked launch argv still has exactly one linear/github-pr extension each (wrapper-owned).
+	linear_count=$(printf '%s\n' "$rev_out" | grep -cF "ARG=$DIR/extensions/linear.ts" || true)
+	[ "$linear_count" -eq 1 ] && ok "reviewer launch has exactly one linear.ts extension" \
+		|| no "reviewer launch linear.ts count=$linear_count (want 1)"
+	ac_linear=$(printf '%s\n' "$ac_out" | grep -cF "ARG=$DIR/extensions/linear.ts" || true)
+	ac_gh=$(printf '%s\n' "$ac_out" | grep -cF "ARG=$DIR/extensions/github-pr.ts" || true)
+	[ "$ac_linear" -eq 1 ] && ok "ac-verifier launch has exactly one linear.ts extension" \
+		|| no "ac-verifier launch linear.ts count=$ac_linear (want 1)"
+	[ "$ac_gh" -eq 1 ] && ok "ac-verifier launch has exactly one github-pr.ts extension" \
+		|| no "ac-verifier launch github-pr.ts count=$ac_gh (want 1)"
 
 	echo
 	echo "4) conductor / project-lead boundaries NOT weakened"
@@ -188,7 +222,8 @@ PY
 			# Non-fatal soft check if model/API unavailable; structural checks above are hard.
 			if grep -qiE 'permission|allow this|approve this|y/n|\[y/N\]|ui_prompt' "$probe_log" 2>/dev/null; then
 				no "headless tool probe hit a permission prompt"
-				echo "  log tail:"; tail -20 "$probe_log" | sed 's/^/  /'
+				echo "  log tail:"
+				tail -20 "$probe_log" | sed 's/^/  /'
 			else
 				ok "headless tool probe emitted no permission prompt (API/model may be unavailable)"
 			fi

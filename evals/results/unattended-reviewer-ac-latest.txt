@@ -29,6 +29,15 @@ PASS: agents/ac-verifier.md deny-by-default permission fallback
 PASS: agents/ac-criterion-verifier.md has no permission ask state
 PASS: agents/ac-criterion-verifier.md deny-by-default permission fallback
 
+3b) profiles omit extensions (no double-load against wrapper --extension)
+PASS: profiles/reviewer/profile.yml has no profile-managed extensions:
+PASS: profiles/reviewer/profile.yml documents wrapper-owned extensions
+PASS: profiles/ac-verifier/profile.yml has no profile-managed extensions:
+PASS: profiles/ac-verifier/profile.yml documents wrapper-owned extensions
+PASS: reviewer launch has exactly one linear.ts extension
+PASS: ac-verifier launch has exactly one linear.ts extension
+PASS: ac-verifier launch has exactly one github-pr.ts extension
+
 4) conductor / project-lead boundaries NOT weakened
 PASS: pi-conductor still loads permission-system
 PASS: pi-project-lead still loads permission-system
@@ -42,5 +51,5 @@ PASS: allowlisted bash tool ran without permission-system (sentinel written)
 PASS: no permission-system ask gate in headless probe log
 
 ---
-31 passed, 0 failed
+38 passed, 0 failed
 VERDICT: PASS
