@@ -8,6 +8,7 @@ controls:
     skills:
       - ../skills/fleet-state
       - ../skills/implementation
+      - ../skills/fleet-mail
     extensions:
       - ../extensions/linear.ts
   append_system_prompt: |

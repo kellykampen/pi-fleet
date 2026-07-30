@@ -8,6 +8,7 @@ controls:
     skills:
       - ../skills/fleet-state
       - ../skills/conductor
+      - ../skills/fleet-mail
       - ../skills/model-classifier
     # Extensions are wrapper-managed for launch-cwd portability; see bin/pi-conductor.
   append_system_prompt: |

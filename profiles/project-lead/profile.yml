@@ -8,6 +8,7 @@ controls:
     skills:
       - ../skills/fleet-state
       - ../skills/project-lead
+      - ../skills/fleet-mail
       - ../skills/model-classifier
     # Extensions are NOT declared here: outfitter/pi resolve profile.yml extension paths
     # relative to the launching process's cwd, not to this file's location (pi has no

@@ -4,15 +4,20 @@ First-class async inbox between pi-fleet seats. **Status uplink no longer requir
 `cmux send` drip.** Workers mail their owning project lead; leads post compact
 rollups to the conductor.
 
-## Decision: pi-messenger
+## Decision: pi-messenger + batch/append (FLT-58 / FLT-59 / FLT-63)
 
-See [pi-messenger-decision.md](./pi-messenger-decision.md). **Custom `fleet-mail`**
-(file-backed under `~/.pi-fleet/mail`) was chosen over adopting
-[`npm:pi-messenger`](https://github.com/nicobailon/pi-messenger) as-is. Gaps:
-free-form chat + steering-wakeup can reintroduce queue spam; no role topology;
-no structured status/blocker/done/ask/review/ac types; no unread/ack; no
-replaceable STATUS slots; requires a Pi extension (`--extension`) while
-lead/conductor often run with `--no-extensions`.
+See [pi-messenger-decision.md](./pi-messenger-decision.md) and
+[batch-append-messaging.md](./batch-append-messaging.md).
+
+**Custom `fleet-mail`** (file-backed under `~/.pi-fleet/mail`) is the one multi-harness
+backend. Do **not** adopt [`npm:pi-messenger`](https://github.com/nicobailon/pi-messenger)
+as-is (steering-wakeup spam; no role topology; no structured types/ack/status slots;
+Pi extension only). Do **not** make a Pi-only `followUp`/`sendUserMessage` extension the
+transport of record — Pi *does* support non-steer delivery (`deliverAs: "followUp"` |
+`"nextTurn"`), but that is session-queue injection, not a durable fleet inbox, and it
+does not serve Codex or Claude Code.
+
+**Lead policy:** pull inbox on idle/cadence; **do not** cmux-send mid-turn status drips.
 
 ## CLI
 
@@ -104,13 +109,24 @@ Atomic write (temp → fsync → rename), cross-process lock (5s), directory mod
 
 ## Seat usage
 
-- **Workers** (`pi-implementer`, reviewer, AC-verifier, …): set
-  `FLEET_MAIL_TO=project-lead` (or project-scoped lead). Report status/blocker/done
-  via `fleet-mail send`. Do **not** `cmux send` status drip to the conductor.
-- **Project lead**: `fleet-mail inbox --unread` on a cadence; ack processed mail;
-  send **compact rollups** to `conductor`. Do not forward raw worker spam.
+- **Workers** (Pi `pi-implementer`, Claude `claude-worker`, Codex CLI, reviewer,
+  AC-verifier, …): set `FLEET_MAIL_TO=project-lead` (or project-scoped lead). Report
+  status/blocker/done via `fleet-mail send`. Do **not** `cmux send` status drip to the
+  conductor or thrash the lead mid-turn.
+- **Project lead**: `fleet-mail inbox --unread` when **idle** or on cadence — **not**
+  mid-tool-batch steers for routine mail. Ack processed mail; send **compact rollups**
+  to `conductor`. Do not forward raw worker spam. Optional: one idle nudge / handoff
+  file if blocked on the lead — never a steer storm.
 - **Conductor**: only read lead rollups; never accept/route worker mail. If a
   worker tries `to=conductor`, the CLI fails closed.
+
+### Multi-harness install
+
+| Harness | Path |
+| --- | --- |
+| Pi | `skills/fleet-mail`, implementer/lead/conductor skills |
+| Claude Code | `skills/claude-worker/PROMPT.md` + `Bash(fleet-mail:*)` on `claude-worker` |
+| Codex CLI | [codex-fleet-mail.md](./codex-fleet-mail.md) + [AGENTS.fleet-mail.md](./AGENTS.fleet-mail.md) |
 
 Optional presence tooling is independent; mail works without it.
 
@@ -119,4 +135,5 @@ Optional presence tooling is independent; mail works without it.
 ```bash
 evals/pi-fleet-mail-smoke-test.sh
 node --test evals/fleet-mail.test.mjs
+evals/batch-mail-structural-test.sh
 ```

@@ -8,3 +8,6 @@ whole point.
   it's clean, say so — don't invent issues.
 - You do not fix and you do not merge. Hand your findings back to the project lead, who decides.
 - If asked to post to a PR, output the review text for the project lead to attach as PR evidence.
+- If you have shell access in a non-default setup, report final review outcome via
+  `fleet-mail send --from reviewer --to project-lead --type review --ticket <T> --body "…"`
+  rather than mid-turn status drip to the conductor. Default this seat is read-only (no Bash).

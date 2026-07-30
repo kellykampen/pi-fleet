@@ -57,8 +57,11 @@ See the canonical [runtime-state contract](docs/runtime-state.md). Bootstrap cre
 root but never silently migrates old data; use `bin/pi-fleet-state-migrate` to report first.
 
 **Agent mail:** seats exchange structured async status via `fleet-mail` (not cmux send drip).
-Workers mail the owning project lead only; leads post compact rollups to the conductor. See
-[`docs/agent-mail.md`](docs/agent-mail.md) and the pi-messenger decision record
+Workers mail the owning project lead only; leads **pull** the inbox on idle/cadence (no mid-turn
+status steers) and post compact rollups to the conductor. Same CLI for Pi, Claude Code, and Codex.
+See [`docs/agent-mail.md`](docs/agent-mail.md), multi-harness notes
+[`docs/codex-fleet-mail.md`](docs/codex-fleet-mail.md),
+[`docs/batch-append-messaging.md`](docs/batch-append-messaging.md), and the pi-messenger decision
 [`docs/pi-messenger-decision.md`](docs/pi-messenger-decision.md).
 
 ## Hierarchy
