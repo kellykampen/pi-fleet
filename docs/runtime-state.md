@@ -24,6 +24,7 @@ Callers repair modes when opening an existing namespace. State is namespaced by 
 | `logs/personal` | personal LaunchAgent output | private | rotate above 5 MiB; keep three generations |
 | `handoffs/conductor` | conductor coordination | private | exactly one `current.md`; older handoffs in `archive/` |
 | `handoffs/projects/<stable-id>` | one stable project owner | private | exactly one `current.md`; older handoffs in `archive/` |
+| `mail/<mailbox>` | fleet-mail (async seat inbox) | private | unacked retained; acked pruned when inbox exceeds bound; rate files under `mail/rate/` |
 
 No ad-hoc top-level files are allowed. Add a named namespace and update the schema before adding a
 writer. Durable policy belongs in repository docs/skills, not copied into handoffs.

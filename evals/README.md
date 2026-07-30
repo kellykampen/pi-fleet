@@ -242,6 +242,20 @@ bin/pi-fleet-eval-model-overrides        # writes evals/results/model-overrides-
 See [`../docs/model-overrides.md`](../docs/model-overrides.md) for the full env-name and default
 model table.
 
+## Agent mail (fleet-mail) smoke + unit tests (FLT-58)
+
+Durable async inbox between seats — status uplink without cmux send drip. Decision
+record for not adopting `npm:pi-messenger` as-is: [`docs/pi-messenger-decision.md`](../docs/pi-messenger-decision.md).
+Contract: [`docs/agent-mail.md`](../docs/agent-mail.md).
+
+```bash
+evals/pi-fleet-mail-smoke-test.sh
+node --test evals/fleet-mail.test.mjs
+```
+
+Proves send/inbox/show/ack between two local seats, worker→conductor topology deny,
+STATUS slot replacement per ticket, rate limit on non-status, and private file modes.
+
 ## GPT usage guard structural eval (FLT-55)
 
 Deterministic check that the active GPT usage guard is codified in canonical source-of-truth files

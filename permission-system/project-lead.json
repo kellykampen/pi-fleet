@@ -71,6 +71,7 @@
       "jq *": "allow",
       "uptime": "allow",
       "fleet-note *": "allow",
+      "fleet-mail *": "allow",
       "git clone *": "deny",
       "git commit *": "deny",
       "gh pr review *": "deny",

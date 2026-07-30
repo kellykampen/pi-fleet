@@ -20,6 +20,8 @@ namespace components.
   matches `[A-Za-z0-9][A-Za-z0-9._-]{0,127}` but is never `.` or `..`.
 - Move superseded handoffs explicitly to that owner's `archive/` directory; exactly one
   `current.md` may remain.
+- Async seat mail lives only under `<root>/mail/<mailbox>/` via `fleet-mail` (see
+  [`docs/agent-mail.md`](../../docs/agent-mail.md)); never invent ad-hoc inbox files.
 - Migration and retention are report-only by default. Require an explicit apply action, never
   overwrite a conflict or delete a migration source, and roll back only unchanged created files.
   The sole bounded-evidence exception is scheduler cleanup: after it explicitly removes validated

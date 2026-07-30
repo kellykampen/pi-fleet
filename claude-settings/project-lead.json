@@ -41,7 +41,8 @@
       "Bash(find:*)",
       "Bash(jq:*)",
       "Bash(uptime)",
-      "Bash(fleet-note:*)"
+      "Bash(fleet-note:*)",
+      "Bash(fleet-mail:*)"
     ],
     "deny": [
       "Edit",

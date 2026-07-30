@@ -40,6 +40,10 @@ test("allows the conductor orchestration and read command set", () => {
 		"find . -maxdepth 2 -type f",
 		"jq -r .state issue.json",
 		"fleet-note append .claude/orchestration/MORNING-ESCALATIONS.md status",
+		"fleet-mail inbox --mailbox conductor --unread",
+		"fleet-mail show --mailbox conductor",
+		"fleet-mail ack --mailbox conductor --id abc123",
+		'fleet-mail send --from project-lead --to conductor --type status --ticket FLT-58 --body rollup',
 	])
 		allow(command);
 });
