@@ -217,9 +217,10 @@ run_ac() {
 	contains_any "conductor loads permission-system package" \
 		'ARG=.*/@gotgenes/pi-permission-system|ARG=.*/pi-permission-system' "$cond_out"
 	contains_line "conductor loads conductor-policy" "ARG=$DIR/extensions/conductor-policy.ts" "$cond_out"
-	contains_line "conductor tools omit write/edit" \
-		"ARG=read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update" "$cond_out"
+	contains_line "conductor tools routing-only (FLT-65) omit write/edit" \
+		"ARG=bash,linear_get_issue,linear_list,linear_comment,linear_update" "$cond_out"
 	rejects "conductor tools do not grant write/edit" '^ARG=.*(write|edit)' "$cond_out"
+	rejects "conductor tools omit product investigation (FLT-65)" '^ARG=.*(read|grep|find|,ls,)' "$cond_out"
 	cond_yolo0="$(cd /tmp && env FLEET_YOLO=0 PATH="$FAKE_BIN:$PATH" \
 		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" \
 		FLEET_CONDUCTOR_RUNTIME_DIR="$FAKE_BIN/conductor-runtime2" \

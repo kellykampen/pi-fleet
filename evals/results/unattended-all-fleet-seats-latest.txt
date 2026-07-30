@@ -31,8 +31,9 @@ PASS: conductor always passes --approve
 PASS: conductor always passes --no-extensions
 PASS: conductor loads permission-system package
 PASS: conductor loads conductor-policy
-PASS: conductor tools omit write/edit
+PASS: conductor tools routing-only (FLT-65) omit write/edit
 PASS: conductor tools do not grant write/edit
+PASS: conductor tools omit product investigation (FLT-65)
 PASS: conductor still --approve when FLEET_YOLO=0
 PASS: conductor.json has yoloMode true
 PASS: conductor.json denies write
@@ -68,5 +69,5 @@ PASS: pi-conductor hardcodes --approve
 PASS: headless -p probe emitted no permission ask prompt
 
 ---
-53 passed, 0 failed
+54 passed, 0 failed
 VERDICT: PASS
