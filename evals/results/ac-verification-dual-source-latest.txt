@@ -48,7 +48,9 @@ PASS: skills/conductor/SKILL.md gate-holder source requires PR-posted validation
 PASS: skills/conductor/SKILL.md gate-holder source makes verifier independence explicit
 PASS: profile/ac-verifier declares github-pr extension
 PASS: agent/ac-verifier declares github_pr_comment tool
+PASS: agent/ac-verifier declares subagent tool for AC fanout
 PASS: bin/pi-ac-verifier exposes github_pr_comment
+PASS: bin/pi-ac-verifier exposes subagent for AC fanout
 PASS: bin/pi-ac-verifier omits write/edit tools
 PASS: bin/pi-ac-verifier loads constrained GitHub PR extension
 PASS: bin/pi-ac-verifier loads AC verifier bash policy
@@ -60,4 +62,4 @@ PASS: tracked FLT-54 content scan completed successfully
 PASS: FLT-54 rule has canonical tracked-file evidence
 PASS: FLT-54 rule is not stored only in a local handoff/notes file
 ---
-61 passed, 0 failed
+63 passed, 0 failed

@@ -97,7 +97,24 @@ checks that `pi-ac-verifier` exposes a constrained PR-comment path (`github_pr_c
 only explicit validation commands, while preserving the no-code-change boundary: no write/edit tools,
 no pushes, and no PR mutation beyond comments. Validation that dirties the worktree fails the AC gate.
 
-Last verified: [`results/ac-verification-dual-source-latest.txt`](./results/ac-verification-dual-source-latest.txt) — **61/61 PASS**.
+Last verified: [`results/ac-verification-dual-source-latest.txt`](./results/ac-verification-dual-source-latest.txt) — **63/63 PASS**.
+
+## AC-verifier subagent fanout structural eval
+
+```bash
+evals/ac-verifier-subagent-fanout-structural-test.sh
+```
+
+This FLT-56 guard is deterministic and non-interactive. It proves the parent `pi-ac-verifier`
+retains/includes the `subagent` tool and loads `pi-subagents` for fanout; that a dedicated
+`ac-criterion-verifier` child exists as verify-only (bash+read, no write/edit/linear/github/subagent);
+and that parent instructions document the full loop: dual-source AC collection → one child per
+unchecked criterion (concurrent `tasks` where practical) → structured PASS/FAIL + evidence/blockers →
+parent synthesis → dual-source PR + Linear evidence → check only real PASSes; hard rules (PR head,
+no self-tick by implementer/lead, no merge) remain explicit. The dual-source structural eval above
+also asserts the parent allowlist includes `subagent` without reintroducing write/edit.
+
+Last verified: [`results/ac-verifier-subagent-fanout-latest.txt`](./results/ac-verifier-subagent-fanout-latest.txt).
 
 ## Spike direct-browser interview contract
 

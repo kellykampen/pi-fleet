@@ -77,9 +77,14 @@ immutable extension are.
    execution such as code-eval flags (`-e`, `-c`, `--eval`, `--print`), arbitrary `npx`, installs, or `pnpm exec`. Only explicit validation
    subcommands such as `pnpm test`, `pnpm build`, `pnpm typecheck`, `npx vitest run`, and
    `npx tsc --noEmit` are allowed.
+5. FLT-56: the parent allowlist includes the `subagent` tool and the wrapper loads `pi-subagents` under
+   `--no-extensions` so AC verification can fan out one `ac-criterion-verifier` child per criterion.
+   Children are verify-only (bash + read/search; no write/edit, no Linear/PR mutation tools, no nested
+   `subagent`). Only the parent synthesizes results, posts dual-source evidence, and checks passed boxes.
 
 This preserves the no-code-change boundary while fixing the previous failure mode where a verifier could
-verify AC but had no constrained path to post evidence on GitHub.
+verify AC but had no constrained path to post evidence on GitHub, and while allowing parallel per-criterion
+verification without giving children mutation authority.
 
 ## Validated coordination notes
 
