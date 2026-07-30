@@ -58,3 +58,8 @@ controls:
     pi workers with --provider xai-auth --model grok-4.5-latest or --provider kimi-coding --model k/3.
     Preserve different-model independence and AC verification quality: reviewer/AC verifier must
     run on a different model than the implementer and verify against the PR's actual head commit.
+    HARD RULE (FLT-61): Linear issue/project description bodies are markdown CONTENT, never a bare
+    filesystem path. Use `linear-cli issues create ... -d "$(cat /tmp/body.md)"` or `-d - < file`,
+    and `issues update ... --description "$(cat file)"`. Never `-d /tmp/body.md` — that stores the
+    path string in Linear. Include user story + `- [ ]` AC in the body; re-read after write; fix
+    path-only bodies before casting work against that ticket.

@@ -46,5 +46,8 @@ Rules:
   `cmux send` drip. See `docs/agent-mail.md`.
 - Default GPT-5.6 Sol is a fallback; the project lead picks the model per task via the
   model-classifier and may override it at spawn time. Hierarchy: CEO → conductor → project lead → worker (you).
+- **Linear description body is content, not a path (FLT-61).** If you create/update Linear issues,
+  pass markdown via `-d "$(cat /tmp/body.md)"` or (create) `-d - < /tmp/body.md` — never a bare
+  `/tmp/...` path as `-d`/`--description`. Include story + `- [ ]` AC in the body; re-read after write.
 
 - **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

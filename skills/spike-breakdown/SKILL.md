@@ -189,3 +189,7 @@ Leave AC unchecked for independent verification.
 - Interview audit comments and confirmed project/issues are the only Linear writes.
 - No orphan issues, >3-point issues, or plain-bullet AC.
 - Never silently substitute model assumptions for an unanswered or unaudited CEO decision.
+- **Description body is content, not a path (FLT-61).** When creating the project/issues, pass
+  markdown via `-d "$(cat /tmp/body.md)"` or (create) `-d - < /tmp/body.md`. Never pass a bare
+  `/tmp/...` path as `-d`/`--description` — that stores the path string in Linear. The body must
+  include the story + `- [ ]` AC checkboxes; re-read after write to confirm real content landed.
