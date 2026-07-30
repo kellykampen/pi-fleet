@@ -95,12 +95,18 @@ assert_file_contains "personal-assistant documents FLT-61 for linear-cli" \
 	'FLT-61[\s\S]*-d "\$\(cat'
 
 # ---------------------------------------------------------------------------
-# Structural: no guidance may instruct the bare-path anti-pattern as correct
-# (outside of explicitly labeled BAD/WRONG examples)
+# Structural: no guidance may instruct the path-only anti-pattern as correct
+# (outside of explicitly labeled BAD/WRONG examples on the same/prev line).
+#
+# Catches BOTH unquoted and quoted path-only values:
+#   -d /tmp/body.md
+#   -d "/tmp/body.md"
+#   --description '/tmp/x.md'
+#   --body "/tmp/comment.md"
+# Does NOT match content patterns: -d "$(cat ...)", -d -, -d "markdown text".
+# Anti-example suppression is narrow (same line or immediately previous line
+# must be BAD/WRONG) so distant "never/do not" prose cannot hide path-only recipes.
 # ---------------------------------------------------------------------------
-# Scan for instructional lines that look like correct recipes using bare -d /tmp
-# without being inside a BAD/WRONG context. We use a Python scan so we can strip
-# BAD/WRONG fenced examples first.
 if python3 - "$DIR" <<'PY'; then
 import re
 import sys
@@ -124,46 +130,187 @@ targets = [
 	"profiles/project-lead/profile.yml",
 	"profiles/implementer/profile.yml",
 ]
-# Match a linear-cli create/update with -d or --description whose value is a bare /tmp path
-# (not "$(cat ...)", not "-", not quoted content).
-bare_path = re.compile(
-	r"""linear-cli\s+(?:issues|i|projects|p|proj)\s+(?:create|update)\b[^\n]*"""
-	r"""(?:-d|--description)\s+(?!-)(?!\"\$\()(?!'\$\()(?!\"\$\{)(/tmp/[^\s\"']+)""",
-	re.IGNORECASE,
-)
-bare_body = re.compile(
-	r"""linear-cli\s+(?:comments|c)\s+create\b[^\n]*"""
-	r"""(?:-b|--body)\s+(?!-)(?!\"\$\()(?!'\$\()(/tmp/[^\s\"']+)""",
-	re.IGNORECASE,
-)
-# Lines that mark anti-examples (prose or comments inside fences).
-anti = re.compile(r"(?i)\b(bad|wrong|never|do not|don't|anti-pattern|stores the path)\b")
 
+# Path-only value after -d / --description / -b / --body:
+# unquoted /tmp/..., or quoted "/tmp/..." / '/tmp/...' (entire value is the path).
+# Negative lookahead skips: "-", "$(...)", '${...}', and multi-word content.
+PATH_VALUE = r"""(?:
+	/tmp/[A-Za-z0-9._/+-]+          # unquoted path
+	| "/tmp/[A-Za-z0-9._/+-]+"      # double-quoted path only
+	| '/tmp/[A-Za-z0-9._/+-]+'      # single-quoted path only
+)"""
+
+# Flag + path-only value (works whether or not linear-cli is on the same line).
+desc_flag_path = re.compile(
+	r"(?:-d|--description)\s+" + PATH_VALUE,
+	re.VERBOSE,
+)
+body_flag_path = re.compile(
+	r"(?:-b|--body)\s+" + PATH_VALUE,
+	re.VERBOSE,
+)
+
+# Explicit anti-example markers only — NOT a broad 12-line "never/do not" window.
+bad_marker = re.compile(r"(?i)(?:^|\b)(?:#\s*)?(?:BAD|WRONG)\b|anti-pattern|stores the path string")
+correct_marker = re.compile(r"(?i)(?:^|\b)(?:#\s*)?CORRECT\b")
+same_line_forbid = re.compile(r"(?i)\b(?:never|do not|don't|not)\b")
+fence_re = re.compile(r"^\s*```")
+
+def is_anti_example(lines: list[str], idx: int) -> bool:
+	"""True for labeled anti-examples only — narrow enough that path-only recipes cannot hide.
+
+	Rules:
+	- Same line has BAD/WRONG → suppress.
+	- Same line has never/do not/don't (teaching "never -d /tmp") → suppress.
+	- Walk upward within the current section (cap 20 lines):
+	  hit # BAD / # WRONG → suppress (covers multi-line BAD blocks in one fence);
+	  hit # CORRECT → do not suppress;
+	  hit fence open ``` → check only the immediately previous non-empty prose for BAD/WRONG.
+	- Distant "never" many lines above does NOT suppress.
+	"""
+	line = lines[idx]
+	if bad_marker.search(line):
+		return True
+	if same_line_forbid.search(line) and (desc_flag_path.search(line) or body_flag_path.search(line)):
+		return True
+
+	j = idx - 1
+	steps = 0
+	while j >= 0 and steps < 20:
+		prev = lines[j]
+		stripped = prev.strip()
+		if stripped == "":
+			j -= 1
+			steps += 1
+			continue
+		if fence_re.match(prev):
+			k = j - 1
+			while k >= 0 and lines[k].strip() == "":
+				k -= 1
+			if k >= 0 and bad_marker.search(lines[k]):
+				return True
+			return False
+		if correct_marker.search(prev):
+			return False
+		if bad_marker.search(prev):
+			return True
+		j -= 1
+		steps += 1
+	return False
+
+def find_path_only_violations(text: str, label: str = "") -> list[str]:
+	violations: list[str] = []
+	lines = text.splitlines()
+	for idx, line in enumerate(lines):
+		m_desc = desc_flag_path.search(line)
+		m_body = body_flag_path.search(line)
+		if not m_desc and not m_body:
+			continue
+		if is_anti_example(lines, idx):
+			continue
+		kind = "description" if m_desc else "comment body"
+		m = m_desc or m_body
+		prefix = f"{label}:{idx + 1}: " if label else f"line {idx + 1}: "
+		violations.append(f"{prefix}path-only {kind}: {m.group(0)[:120]}")
+	return violations
+
+# --- Meta-tests: scanner must catch quoted path-only and not over-suppress ---
+meta_fail = []
+
+# (1) Quoted + unquoted path-only MUST be violations when not BAD-labeled.
+quoted_cases = [
+	'linear-cli issues create "Title" -t TEAM -d "/tmp/body.md"',
+	"linear-cli issues update ID --description '/tmp/x.md'",
+	'linear-cli comments create --body "/tmp/comment.md" ID',
+	'linear-cli issues create "T" -d /tmp/unquoted.md',
+	'linear-cli issues update ID --description "/tmp/quoted.md"',
+]
+for case in quoted_cases:
+	v = find_path_only_violations(case + "\n")
+	if not v:
+		meta_fail.append(f"scanner missed path-only value: {case}")
+
+# (2) Content patterns must NOT be violations.
+content_cases = [
+	'linear-cli issues create "T" -d "$(cat /tmp/body.md)"',
+	'linear-cli issues create "T" -d - < /tmp/body.md',
+	'linear-cli issues update ID --description "$(cat /tmp/body.md)"',
+	'linear-cli comments create --body "$(cat /tmp/c.md)" ID',
+	'linear-cli issues create "T" -d "# real markdown body with - [ ] ac"',
+]
+for case in content_cases:
+	v = find_path_only_violations(case + "\n")
+	if v:
+		meta_fail.append(f"scanner false-positive on content: {case} -> {v}")
+
+# (3) Multi-line BAD section in one fence: both path-only lines suppressed after # BAD.
+bad_block = """```bash
+# CORRECT
+linear-cli issues create T -d "$(cat /tmp/body.md)"
+# BAD: stores the path string as the description
+linear-cli issues create T -d /tmp/body.md
+linear-cli issues update ID --description "/tmp/body.md"
+```
+"""
+if find_path_only_violations(bad_block):
+	meta_fail.append(
+		f"scanner failed to suppress multi-line BAD block: {find_path_only_violations(bad_block)}"
+	)
+
+wrong_ok = "# WRONG — path as body\nlinear-cli issues update ID -d \"/tmp/body.md\"\n"
+if find_path_only_violations(wrong_ok):
+	meta_fail.append("scanner failed to suppress WRONG-labeled quoted anti-example")
+
+# Distant "never" 12 lines above must NOT hide a real path-only recipe.
+distant = (
+	"Never write path-only bodies.\n"
+	+ "\n" * 10
+	+ 'linear-cli issues create "T" -d "/tmp/hidden.md"\n'
+)
+if not find_path_only_violations(distant):
+	meta_fail.append("scanner over-suppressed path-only recipe near distant 'never'")
+
+# Same-line "never `-d /tmp`" teaching prose is allowed (not a positive recipe).
+inline_never = 'Use content; never `-d /tmp/body.md` as the description.\n'
+if find_path_only_violations(inline_never):
+	meta_fail.append("scanner failed to suppress same-line never teaching")
+
+inline_bad = "# BAD: never do this: linear-cli issues create T -d /tmp/body.md\n"
+if find_path_only_violations(inline_bad):
+	meta_fail.append("scanner failed to suppress same-line BAD marker")
+
+if meta_fail:
+	print("SCANNER_META_FAIL")
+	for m in meta_fail:
+		print(m)
+	sys.exit(2)
+
+# --- Scan tracked guidance sources ---
 violations = []
 for rel in targets:
 	path = root / rel
-	lines = path.read_text(encoding="utf-8").splitlines()
-	for idx, line in enumerate(lines):
-		m = bare_path.search(line) or bare_body.search(line)
-		if not m:
-			continue
-		# Look back up to 12 lines for anti-example framing (covers "Wrong…" + blank + fence + # BAD).
-		window = "\n".join(lines[max(0, idx - 12) : idx + 1])
-		if anti.search(window):
-			continue
-		kind = "description" if bare_path.search(line) else "comment body"
-		violations.append(f"{rel}:{idx + 1}: bare path as {kind}: {m.group(0)[:120]}")
+	violations.extend(find_path_only_violations(path.read_text(encoding="utf-8"), label=rel))
 
 if violations:
-	print("UNEXPECTED_BARE_PATH_INSTRUCTIONS")
+	print("UNEXPECTED_PATH_ONLY_INSTRUCTIONS")
 	for v in violations:
 		print(v)
 	sys.exit(1)
 sys.exit(0)
 PY
-	ok "no bare /tmp path instructed as a correct -d/--description recipe"
+	ok "scanner catches quoted+unquoted path-only -d/--description/--body (meta)"
+	ok "scanner does not over-suppress via distant never/do-not (meta)"
+	ok "no path-only /tmp value instructed as a correct -d/--description/--body recipe"
 else
-	no "no bare /tmp path instructed as a correct -d/--description recipe"
+	rc=$?
+	if [ "$rc" -eq 2 ]; then
+		no "scanner catches quoted+unquoted path-only -d/--description/--body (meta)"
+		no "scanner does not over-suppress via distant never/do-not (meta)"
+	else
+		ok "scanner catches quoted+unquoted path-only -d/--description/--body (meta)"
+		ok "scanner does not over-suppress via distant never/do-not (meta)"
+		no "no path-only /tmp value instructed as a correct -d/--description/--body recipe"
+	fi
 fi
 
 # ---------------------------------------------------------------------------
