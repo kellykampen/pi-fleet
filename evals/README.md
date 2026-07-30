@@ -289,6 +289,18 @@ harness delegate-only / lead-merge-to-main boundary is not regressed.
 evals/comms-topology-structural-test.sh
 ```
 
+## Fleet-mail DEFAULT channel structural eval
+
+Deterministic check that `fleet-mail` is codified as the **DEFAULT** fleet communication channel
+in source-of-truth files: agent-to-agent via fleet-mail (not cmux except launch/bootstrap/emergency);
+mailbox == pane name; leads = `<workspace>-project-lead`; poll on startup / task boundary / 5–10 min
+/ before blocked-done; topology worker → lead → conductor; and that GPT usage guard + pre-merge AC
+/ no-lead-merge-unless-CEO-orders remain present (no regression while baking the default).
+
+```bash
+evals/fleet-mail-default-structural-test.sh
+```
+
 ## Linear body content structural + smoke eval (FLT-61)
 
 Deterministic guard that Linear create/update guidance always sends **markdown content** as the

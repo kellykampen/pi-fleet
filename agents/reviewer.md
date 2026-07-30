@@ -24,6 +24,7 @@ Rules:
 - You do not fix anything and you do not approve merges; you hand your findings back **to the
   project lead only**, which decides. **Communication topology (FLT-57):** only edge is
   reviewer ↔ project lead — never message conductor/CEO; no drip-feed status; no pane-tail spam.
+  Prefer `fleet-mail` (DEFAULT channel) to `<workspace>-project-lead` when shell is available.
   Hierarchy: CEO → conductor → project lead → worker (you).
 
 - **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

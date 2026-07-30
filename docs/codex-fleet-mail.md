@@ -1,7 +1,9 @@
 # Codex CLI + fleet-mail
 
-Codex (and any non-Pi harness) uses the **same** `fleet-mail` binary as Pi seats.
-There is no separate Codex mail protocol.
+**`fleet-mail` is the DEFAULT fleet communication channel.** Codex (and any non-Pi harness)
+uses the **same** `fleet-mail` binary as Pi seats. There is no separate Codex mail protocol.
+Agent-to-agent via fleet-mail, not terminal multiplexor steers — except launch / bootstrap /
+emergency.
 
 ## Prerequisites
 
@@ -52,7 +54,8 @@ fleet-mail send --from "$FLEET_LEAD_MAILBOX" --to conductor --type status --tick
   --body "FLT-63: implementer done; reviewer in flight"
 ```
 
-Pull on **idle / cadence**. Do not inject routine status as steers into a busy session.
+Pull on **startup**, every **task boundary**, every **5–10 min**, and **before reporting blocked
+or done**. Do not inject routine status as steers into a busy session.
 
 ## Smoke
 

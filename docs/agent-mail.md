@@ -1,8 +1,35 @@
 # Agent mail (fleet-mail) v0
 
-First-class async inbox between pi-fleet seats. **Status uplink no longer requires
-`cmux send` drip.** Workers mail their owning project lead; leads post compact
-rollups to the conductor.
+**`fleet-mail` is the DEFAULT fleet communication channel** for agent-to-agent
+messages. First-class async inbox between pi-fleet seats. **Status uplink no longer
+requires `cmux send` drip.** Workers mail their owning project lead; leads post
+compact rollups to the conductor.
+
+## DEFAULT channel rules
+
+| Rule | Detail |
+| --- | --- |
+| **DEFAULT transport** | Agent-to-agent status, blockers, done, asks, review/AC reports, and lead→conductor rollups go through **`fleet-mail`**, not cmux. |
+| **cmux exceptions only** | `cmux send` / `cmux send-key` are allowed for **launch**, **bootstrap** (cast + initial brief), and **emergency** (seat hung / unresponsive and mail alone cannot recover). Not for routine status. |
+| **mailbox == pane name** | The fleet-mail mailbox id **is** the cmux pane/tab name. |
+| **Lead mailbox** | Project leads are named `<workspace_name>-project-lead` (e.g. `pi-fleet-project-lead`). |
+| **Topology** | `worker → project-lead → conductor` (enforced). Never `worker → conductor`. |
+
+### Poll cadence (mandatory pull points)
+
+Seats that **read** mail (project leads, conductor) **must** poll
+`fleet-mail inbox --mailbox <id> --unread` at least at these points:
+
+1. **On startup** — before routing new work or casting further seats.
+2. **At every task boundary** — after a cast lands, a PR opens, a gate flips, or
+   a ticket starts/finishes.
+3. **Every 5–10 min** while seats are in flight (same window as lead→conductor
+   rollups; do not open a continuous pane-tail channel).
+4. **Before reporting blocked or done** — drain unread mail so decisions use
+   current evidence, then report (or roll up) with that context.
+
+Workers **write** mail at status/blocker/done/ask moments; they do not need an
+inbox poll loop. Prefer one replaceable `type=status --ticket T` over floods.
 
 ## Decision: pi-messenger + batch/append (FLT-58 / FLT-59 / FLT-63)
 
@@ -10,14 +37,16 @@ See [pi-messenger-decision.md](./pi-messenger-decision.md) and
 [batch-append-messaging.md](./batch-append-messaging.md).
 
 **Custom `fleet-mail`** (file-backed under `~/.pi-fleet/mail`) is the one multi-harness
-backend. Do **not** adopt [`npm:pi-messenger`](https://github.com/nicobailon/pi-messenger)
-as-is (steering-wakeup spam; no role topology; no structured types/ack/status slots;
+backend and the **DEFAULT** agent-to-agent channel. Do **not** adopt
+[`npm:pi-messenger`](https://github.com/nicobailon/pi-messenger) as-is
+(steering-wakeup spam; no role topology; no structured types/ack/status slots;
 Pi extension only). Do **not** make a Pi-only `followUp`/`sendUserMessage` extension the
 transport of record — Pi *does* support non-steer delivery (`deliverAs: "followUp"` |
 `"nextTurn"`), but that is session-queue injection, not a durable fleet inbox, and it
 does not serve Codex or Claude Code.
 
-**Lead policy:** pull inbox on idle/cadence; **do not** cmux-send mid-turn status drips.
+**Lead policy:** pull inbox on startup / task boundary / 5–10 min cadence / before
+blocked-done; **do not** cmux-send mid-turn status drips (except launch/bootstrap/emergency).
 
 ## CLI
 
@@ -141,17 +170,21 @@ Atomic write (temp → fsync → rename), cross-process lock (5s), directory mod
 - **Workers** (Pi `pi-implementer`, Claude `claude-worker`, Codex CLI, reviewer,
   AC-verifier, …): set `FLEET_MAIL_TO=<workspace>-project-lead` (exact lead seat /
   pane name; e.g. `pi-fleet-project-lead`). Report status/blocker/done via
-  `fleet-mail send`. Do **not** `cmux send` status drip to the conductor or thrash
-  the lead mid-turn.
+  `fleet-mail send` — this is the **DEFAULT** uplink. Do **not** `cmux send` status
+  drip to the conductor or thrash the lead mid-turn. Mail **before** reporting
+  blocked or done so the lead has durable evidence.
 - **Project lead**: poll `fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread`
-  when **idle** or on cadence — **not** mid-tool-batch steers for routine mail. Ack
-  processed mail; send **compact rollups** to `conductor` with
+  on **startup**, at every **task boundary**, every **5–10 min** while seats run, and
+  **before reporting blocked or done** — **not** mid-tool-batch steers for routine
+  mail. Ack processed mail; send **compact rollups** to `conductor` with
   `--from "$FLEET_LEAD_MAILBOX"`. Do not forward raw worker spam. Optional: one idle
-  nudge / handoff file if blocked on the lead — never a steer storm.
+  nudge / handoff file if blocked on the lead — never a steer storm. `cmux` is only
+  for launch / bootstrap / emergency.
 - **Conductor**: mail each lead at its **named** mailbox (`--to <ws>-project-lead`);
-  only read lead rollups; never accept/route worker mail. If a worker tries
-  `to=conductor`, the CLI fails closed. Do not fall back to generic `project-lead`
-  when the named mailbox is known.
+  only read lead rollups; never accept/route worker mail. Poll `conductor` inbox on
+  **startup**, task boundary, **5–10 min**, and before blocked/done portfolio reports.
+  If a worker tries `to=conductor`, the CLI fails closed. Do not fall back to generic
+  `project-lead` when the named mailbox is known.
 
 ### Multi-harness install
 

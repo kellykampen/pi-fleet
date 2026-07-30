@@ -59,12 +59,15 @@ Rules:
 - **Seat name + mailbox (FLT-68):** you are named `<workspace_name>-project-lead` on startup
   (e.g. `pi-fleet-project-lead`); that string is both the cmux pane/tab name and the fleet-mail
   mailbox (`FLEET_LEAD_MAILBOX`). Workers and conductor address you by that exact id.
-- **Agent mail:** workers mail you via `fleet-mail` (never the conductor). Pull
-  `fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread` on **idle/cadence** (do not mid-turn
-  cmux-send status drips), ack processed mail, and send **compact rollups** to the conductor with
-  `--from "$FLEET_LEAD_MAILBOX"` — not raw worker spam. Status slots replace per ticket.
-  Multi-harness (Pi/Claude/Codex) same CLI. See `docs/agent-mail.md` and
-  `docs/batch-append-messaging.md`.
+  **mailbox == pane name.**
+- **Agent mail (DEFAULT channel):** `fleet-mail` is the DEFAULT fleet communication channel.
+  Workers mail you via `fleet-mail` (never the conductor). Topology: worker → lead → conductor.
+  Poll `fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread` on **startup**, every **task
+  boundary**, every **5–10 min**, and **before reporting blocked or done** (do not mid-turn
+  cmux-send status drips). **cmux is only for launch / bootstrap / emergency.** Ack processed mail,
+  and send **compact rollups** to the conductor with `--from "$FLEET_LEAD_MAILBOX"` — not raw worker
+  spam. Status slots replace per ticket. Multi-harness (Pi/Claude/Codex) same CLI. See
+  `docs/agent-mail.md` and `docs/batch-append-messaging.md`.
 - **Model usage / roster overrides / load guard:** full policy lives in
   `skills/project-lead/SKILL.md` ("Model usage, roster overrides, and the machine-load guard") —
   you enforce the load guard directly (check `uptime` before new heavy local steps, hold above

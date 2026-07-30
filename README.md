@@ -56,10 +56,13 @@ Pi-fleet runtime data lives only under private `~/.pi-fleet` (or an absolute `PI
 See the canonical [runtime-state contract](docs/runtime-state.md). Bootstrap creates/repairs this
 root but never silently migrates old data; use `bin/pi-fleet-state-migrate` to report first.
 
-**Agent mail:** seats exchange structured async status via `fleet-mail` (not cmux send drip).
-Workers mail the owning project lead only; leads **pull** the inbox on idle/cadence (no mid-turn
-status steers) and post compact rollups to the conductor. Same CLI for Pi, Claude Code, and Codex.
-See [`docs/agent-mail.md`](docs/agent-mail.md), multi-harness notes
+**Agent mail (DEFAULT channel):** seats exchange structured async status via `fleet-mail` (not cmux
+send drip). `fleet-mail` is the DEFAULT agent-to-agent channel — cmux only for launch / bootstrap /
+emergency. Mailbox == cmux pane/tab name; leads are `<workspace>-project-lead`. Workers mail the
+owning project lead only; leads **pull** the inbox on **startup**, every **task boundary**, every
+**5–10 min**, and **before reporting blocked or done** (no mid-turn status steers) and post compact
+rollups to the conductor. Topology: worker → lead → conductor. Same CLI for Pi, Claude Code, and
+Codex. See [`docs/agent-mail.md`](docs/agent-mail.md), multi-harness notes
 [`docs/codex-fleet-mail.md`](docs/codex-fleet-mail.md),
 [`docs/batch-append-messaging.md`](docs/batch-append-messaging.md), and the pi-messenger decision
 [`docs/pi-messenger-decision.md`](docs/pi-messenger-decision.md).

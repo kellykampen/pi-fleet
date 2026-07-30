@@ -57,7 +57,11 @@ Optional thin Pi extension that *notifies* on new mail via `followUp`/`nextTurn`
 | B. Wrap pi-messenger with followUp | **Reject** — wrap cost > custom CLI; steering DNA; multi-harness gap remains |
 | C. **`fleet-mail` file inbox + idle/cadence pull** | **Adopt** — works for every harness that can shell out; topology + status slots in code; lead chooses when to read |
 
-**Lead policy (this ticket):** do **not** `cmux send` mid-turn status into a busy lead pane. Workers write mail; lead runs `fleet-mail inbox --unread` on idle / cadence and acks. One optional idle message or handoff file is enough when the lead must be nudged — never a drip of steers.
+**Lead policy (this ticket):** do **not** `cmux send` mid-turn status into a busy lead pane.
+`fleet-mail` is the **DEFAULT** fleet communication channel (cmux only for launch / bootstrap /
+emergency). Workers write mail; lead runs `fleet-mail inbox --unread` on **startup**, every
+**task boundary**, every **5–10 min**, and **before reporting blocked or done**, then acks. One
+optional idle message or handoff file is enough when the lead must be nudged — never a drip of steers.
 
 ### 4. Must work for Pi; ship installable skills/docs for Codex + Claude Code calling the same CLI/backend
 

@@ -9,16 +9,24 @@ fix" in your own session. **Bottleneck behavior is forbidden.** Your harness cap
 matches that rule: no `write`/`edit` tools (delegate-only boundary), default-deny bash, and an
 immutable project-lead command policy. Instructions are not the ceiling; the wrapper is.
 
-## Agent mail (status uplink) — pull on idle, never mid-turn cmux drip
+## Agent mail (DEFAULT channel) — fleet-mail, not cmux drip
 
-Workers report to **you** via `fleet-mail`, not via cmux send drip to the conductor — and **you**
-must not thrash your own (or a worker's) session with mid-turn steers for routine status.
+**`fleet-mail` is the DEFAULT fleet communication channel.** Workers report to **you** via
+`fleet-mail`, not via cmux send drip to the conductor — and **you** must not thrash your own
+(or a worker's) session with mid-turn steers for routine status.
 
-### Lead rules (FLT-63)
+### Lead rules (DEFAULT + FLT-63)
 
+- **DEFAULT transport is fleet-mail.** Agent-to-agent status, blockers, done, asks, and your
+  rollups to the conductor go through `fleet-mail`. **cmux send is only for launch, bootstrap
+  (cast + initial brief), and emergency** (hung seat / mail alone cannot recover) — not routine
+  status.
 - **Do not `cmux send` mid-turn** into a busy seat (including your own pane via self-inject) for
-  routine status. Mail is durable; pull it when **idle** or on a short **cadence** (same 5–10 min /
-  real-state-change window as conductor rollups is fine).
+  routine status. Mail is durable.
+- **Poll cadence (mandatory):** `fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread` at
+  least (1) **on startup**, (2) at every **task boundary**, (3) every **5–10 min** while seats are
+  in flight, and (4) **before reporting blocked or done**. Same window as conductor rollups; do not
+  open a continuous pane-tail channel.
 - Prefer **one** batch handoff: `fleet-mail inbox --unread` → process → `ack`. Optional single idle
   nudge only if something is blocked on you — never a steer storm.
 - Multi-harness workers (Pi, Claude Code, Codex) all use the **same** CLI; see
@@ -42,9 +50,10 @@ workspace name is known.
 
 ### Mechanics
 
-- **Workers mail the lead only** (topology-enforced). They never mail the conductor.
+- **Workers mail the lead only** (topology-enforced: worker → lead → conductor). They never mail the conductor.
 - Poll with `fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread` (e.g.
-  `pi-fleet-project-lead`), `show`, then `ack` when processed.
+  `pi-fleet-project-lead`) on **startup / task boundary / 5–10 min / before blocked-done**, then
+  `show` and `ack` when processed.
 - **STATUS slots replace:** a worker's `type=status --ticket T` replaces their prior unacked status
   for T — read the latest body, do not expect a flood of status lines.
 - **You** post **compact rollups** to the conductor (not raw worker mail):
