@@ -239,6 +239,21 @@ verification quality and different-model independence remain explicit.
 evals/gpt-usage-guard-structural-test.sh
 ```
 
+## Fleet communication topology structural eval (FLT-57)
+
+Deterministic check that the fleet communication topology is codified in canonical source-of-truth
+files (skills, agents, profiles, README): allowed edges only (worker/reviewer/AC ↔ project lead;
+project lead ↔ conductor/coordinator; conductor ↔ CEO/cross-project); forbidden worker↔conductor/CEO
+bypasses, drip-feed status, and pane-tail spam; lead→conductor compressed `STATUS t= / PRs: #N CI=
+AC= block= / agents: … / need: …` rollup every 5–10 min or on real state change; workers report final
+done/blocked to the lead only; and QC restatements (independent different-model reviewer + dedicated
+AC verifier; no self-tick; no automerge; no lead merge without CEO-mandated DoD). Also asserts the
+harness delegate-only / lead-merge-to-main boundary is not regressed.
+
+```bash
+evals/comms-topology-structural-test.sh
+```
+
 ## Gotchas
 
 - **Model auth ≠ tool boundary.** A subagent whose default/fallback models aren't authed in pi
