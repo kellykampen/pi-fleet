@@ -46,7 +46,9 @@ PASS: skills/conductor/SKILL.md gate-holder source requires tests/build or typec
 PASS: skills/conductor/SKILL.md gate-holder source requires changed-files inspection or no-tests rationale
 PASS: skills/conductor/SKILL.md gate-holder source requires PR-posted validation evidence
 PASS: skills/conductor/SKILL.md gate-holder source makes verifier independence explicit
-PASS: profile/ac-verifier declares github-pr extension
+<stdin>:5: FutureWarning: Possible nested set at position 2
+PASS: profile/ac-verifier omits profile-managed extensions (wrapper-owned)
+PASS: profile/ac-verifier documents wrapper-owned extensions
 PASS: agent/ac-verifier declares github_pr_comment tool
 PASS: agent/ac-verifier declares subagent tool for AC fanout
 PASS: bin/pi-ac-verifier exposes github_pr_comment
@@ -62,4 +64,4 @@ PASS: tracked FLT-54 content scan completed successfully
 PASS: FLT-54 rule has canonical tracked-file evidence
 PASS: FLT-54 rule is not stored only in a local handoff/notes file
 ---
-63 passed, 0 failed
+64 passed, 0 failed
