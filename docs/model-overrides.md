@@ -33,15 +33,24 @@ When the task allows, cast non-GPT pi workers using these exact provider/model p
 
 - Provider id is **`xai-auth`**, registered by the installed package **`npm:pi-xai-oauth`**. It is not the built-in API-key provider id `xai`.
 - Interactive `pi` loads packages from `~/.pi/agent/settings.json`, so `/login xai-auth` and model pickers work there.
-- Worker wrappers (`pi-implementer`, …) do **not** pass `--no-extensions`, so package auto-discovery still loads `pi-xai-oauth` and Grok casts work:
+- **Every** fleet wrapper that passes `--no-extensions` re-includes `pi-xai-oauth` via
+  `bin/lib/pi-xai-oauth-ext.sh` when the package is installed:
+  - workers: `pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-planner`, `pi-spike-breakdown`
+  - routing: `pi-project-lead`, `pi-conductor`
+  Without that package installed, Grok casts fail with `Unknown provider "xai-auth"`.
+- Seats that do **not** pass `--no-extensions` still rely on package auto-discovery from
+  `~/.pi/agent/settings.json` (e.g. `pi-designer`, `pi-docs`, `pi-researcher`, `pi-visual-qa`).
+- Fleet worker cast examples:
   ```bash
-  # Direct (packages on; do not add --no-extensions here):
+  # Direct interactive (packages on; do not add bare --no-extensions here):
   pi --provider xai-auth --model grok-4.5-latest -p "Reply OK" --no-session --no-tools
-  # or fleet worker:
+  # fleet workers (wrappers re-include xai-oauth under --no-extensions):
   pi-implementer --provider xai-auth --model grok-4.5-latest -p "Reply OK"
+  pi-reviewer --provider xai-auth --model grok-4.5-latest
+  pi-ac-verifier --provider xai-auth --model grok-4.5-latest
   ```
-- `pi-project-lead` / `pi-conductor` pass `--no-extensions` (FLT-35). They re-include `pi-xai-oauth` via an explicit `--extension` when installed (`bin/lib/pi-xai-oauth-ext.sh`) so lead/conductor seats can also use `xai-auth`. Without that package installed, those seats fail with `Unknown provider "xai-auth"`.
-- Do **not** cast `pi --provider xai-auth` under a bare `--no-extensions` invocation without also passing the oauth extension path.
+- Do **not** cast `pi --provider xai-auth` under a bare `--no-extensions` invocation without also
+  passing the oauth extension path (or using a fleet wrapper that already does).
 
 Exact cross-model workflows:
 

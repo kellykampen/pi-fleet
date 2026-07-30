@@ -2,22 +2,26 @@
 # Hybrid: outfitter composes skill/model/prompt; this wrapper hardcodes --tools (the boundary).
 #
 # FLT-66/FLT-67: unattended fleet seat. Always --approve. --no-extensions so machine-global
-# packages are not auto-loaded. Explicit linear extension only. No @gotgenes/pi-permission-system
-# (removed FLT-67). Security boundary = --tools allowlist (write/edit/bash kept for this role).
-# FTD/E2B cast paths invoke this wrapper, so they inherit the same unattended argv.
+# packages are not auto-loaded. Explicit linear + pi-xai-oauth (xai-auth) only. No
+# @gotgenes/pi-permission-system (removed FLT-67). Security boundary = --tools allowlist
+# (write/edit/bash kept for this role). FTD/E2B cast paths invoke this wrapper, so they
+# inherit the same unattended argv.
 # Enforced flags are last so callers cannot shadow --approve/--tools/--extension.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLEET_ROOT="$(cd "$DIR/.." && pwd)"
 . "$DIR/lib/pi-model-env.sh"
 . "$DIR/lib/pi-wrapper-args.sh"
+. "$DIR/lib/pi-xai-oauth-ext.sh"
 pi_model_override_args implementer "" "$@"
 pi_sanitize_passthrough_args "$@"
 # Always YOLO (FLT-67): never gate on FLEET_YOLO. No permission-system package.
+# Re-include pi-xai-oauth so --provider xai-auth works under --no-extensions (GPT guard / Grok).
 exec outfitter run --profile implementer --agent pi -- \
   ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
   ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
   --approve \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
+  ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
   --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,context7_resolve-library-id,context7_query-docs,convex_status,convex_tables,convex_functionSpec,convex_data,convex_run,convex_runOneoffQuery,convex_logs
