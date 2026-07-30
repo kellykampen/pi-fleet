@@ -36,6 +36,32 @@ The permission package's `path` surface is access-mode-blind: a path denial bloc
 Runtime probing confirmed it cannot preserve broad reads while selectively allowing coordination writes.
 Consequently, conductor seats have no general file-mutation tool.
 
+## Restricted project-lead policy
+
+`bin/pi-project-lead` mirrors the conductor structural boundary with seat `lead`:
+
+1. Its `--tools` list omits `write` and `edit` (coordination + Linear + E2B only).
+2. It explicitly loads `@gotgenes/pi-permission-system` with
+   `permission-system/project-lead.json`, whose Bash fallback is `deny`.
+3. It starts Pi from a dedicated policy cwd with an isolated agent overlay
+   (`FLEET_PROJECT_LEAD_RUNTIME_DIR` / `bin/lib/pi-project-lead-runtime.sh`). The caller's cwd is
+   retained as `FLEET_COORDINATION_ROOT` and exposed readably at `launch-cwd/`.
+4. `extensions/project-lead-policy.ts` independently enforces the shared
+   `evaluateCommand(..., { seat: "lead" })` allowlist from
+   `bin/lib/conductor-command-policy.mjs`.
+
+**Keeps coordination power:** `cmux` cast/send/capture, Linear read/comment/update, read utilities,
+`gh pr view/list/checks`, `gh pr merge/comment`, narrow main-integration git (`fetch`, ff-only
+`pull`, `checkout`/`switch main`, `merge`, `push origin <one-ref>`, worktree lifecycle under
+`.worktrees/`), `fleet-note`, `uptime`, and E2B cast tools.
+
+**Loses product-implementation power:** no `write`/`edit`; no `git commit` / `git clone`; no
+`gh pr create` / `gh pr review`; no `npm`/`pnpm`/`yarn`/`bun`/`node`/`python`/`make`/`cargo` or
+arbitrary scripts as the doer. Implementation, review, AC-verify, and docs work must be cast.
+
+Instructions in the skill/profile are not the capability ceiling — the wrapper + isolated policy +
+immutable extension are.
+
 ## AC verifier comment-only PR evidence policy
 
 `bin/pi-ac-verifier` has a verifier-specific boundary for PR verification:
@@ -57,7 +83,7 @@ verify AC but had no constrained path to post evidence on GitHub.
 
 ## Validated coordination notes
 
-Both conductor and native project-lead seats can invoke `fleet-note` through their restricted Bash policy.
+Both conductor and project-lead seats (Pi and Claude native) can invoke `fleet-note` through their restricted Bash policy.
 The helper receives its root from the launcher, not from model arguments. It supports only `append` and
 `write`, rejects absolute paths and `..`, resolves existing parents and targets, rejects symlink escapes,
 and permits only:
@@ -105,7 +131,7 @@ cp ~/code/pi-fleet/permission-system/config.json \
    <repo>/.pi/extensions/pi-permission-system/config.json
 ```
 
-Do not copy the conductor config into product repositories; its wrapper builds the isolated overlay.
+Do not copy the conductor or project-lead configs into product repositories; their wrappers build the isolated overlay.
 
 ## After changing policy
 
@@ -114,6 +140,15 @@ For conductor restrictions, run:
 
 ```bash
 bin/pi-fleet-eval-conductor-policy
+```
+
+For project-lead restrictions (tools, policy config, launch overlay, prose), run:
+
+```bash
+evals/pi-project-lead-launch-smoke-test.sh
+evals/pi-project-lead-config.test.mjs
+evals/project-lead-delegate-guard-structural-test.sh
+node --test evals/conductor-command-policy.test.mjs
 ```
 
 For AC-verifier PR-evidence and dual-source AC rules, run:

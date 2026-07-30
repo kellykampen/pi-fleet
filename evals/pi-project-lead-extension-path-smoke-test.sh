@@ -15,10 +15,10 @@ FAKE_BIN="$(mktemp -d)"
 FAKE_HOME="$(mktemp -d)"
 trap 'rm -rf "$FAKE_BIN" "$FAKE_HOME"' EXIT
 
-# pi-conductor's runtime (FLT-52) hard-requires @gotgenes/pi-permission-system under the
-# resolved agent dir before it will run at all. Stub a resolvable package dir under this
-# sandbox's HOME so the conductor wrapper can complete setup here rather than failing on a
-# precondition this smoke test isn't exercising.
+# pi-conductor and pi-project-lead runtimes hard-require @gotgenes/pi-permission-system under the
+# resolved agent dir before they will run at all. Stub a resolvable package dir under this
+# sandbox's HOME so the wrappers can complete setup here rather than failing on a precondition
+# this smoke test isn't exercising.
 mkdir -p "$FAKE_HOME/.pi/agent/npm/node_modules/@gotgenes/pi-permission-system"
 
 cat >"$FAKE_BIN/outfitter" <<'EOF'
@@ -72,6 +72,8 @@ run_wrapper_from() {
 		-u OPENAI_API_KEY -u PI_AGENT_AUTH_JSON_B64 -u FLEET_GITHUB_APP_ID -u FLEET_CONVEX_TOKEN HOME="$FAKE_HOME" \
 		PI_FLEET_HOME="$FAKE_HOME/.pi-fleet" PI_SCHEDULER_TASKS_FILE="$FAKE_HOME/tasks.json" \
 		PI_SCHEDULER_TASKS_BOUNDARY="$FAKE_HOME" \
+		FLEET_CONDUCTOR_RUNTIME_DIR="$FAKE_HOME/conductor-runtime" \
+		FLEET_PROJECT_LEAD_RUNTIME_DIR="$FAKE_HOME/project-lead-runtime" \
 		PATH="$FAKE_BIN:$PATH" "$wrapper" --print "hi")
 }
 

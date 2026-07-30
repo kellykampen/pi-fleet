@@ -109,7 +109,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  [env model args] -
 | **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear *(no write/edit)* | Cross-project router with a default-deny command policy. It can orchestrate seats and update validated coordination notes through `fleet-note`, but cannot clone, build, run arbitrary scripts, or mutate source. |
 | **`claude-conductor`** | Claude Code (`--remote-control`) | Read/Grep/Glob + conductor-only Bash allowlist *(no Write/Edit)* | CEO-facing conductor with an authoritative fail-closed `PreToolUse` hook. It cannot use merge-flow commands; `FLEET_YOLO` cannot bypass the boundary. |
 | **`claude-project-lead`** | Claude Code (Opus by default) | Read/Grep/Glob + lead Bash allowlist *(no Write/Edit)* | Native project lead: orchestration plus narrow main integration (`fetch`, ff-only pull, checkout/switch main, merge/push, PR merge/comment, and worktree lifecycle). Build/install/script commands remain blocked. |
-| **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, write, edit, bash + linear | Owns one project — routes each task to the right worker + model (via **model-classifier**), casts seats, holds QC gates. |
+| **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear + e2b *(no write/edit)* | Owns one project as the routing bottleneck — casts every implementation/review/AC/docs seat (via **model-classifier**), holds QC gates, merges fully gated PRs to main. Harness-enforced: no source mutation or implementation shell. |
 | **`pi-visual-qa`** | GPT-5.6 Terra (`openai-codex`) · medium | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. Taste/visual default. |
 | **`pi-linear`** | GPT-5.5 (`openai-codex`) · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
 | **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
@@ -329,11 +329,14 @@ The security boundary is the wrapper's `--tools` line — a read-only seat simpl
 ## Permissions (no click-ops on fleet seats)
 
 Fleet seats should not stop for “Permission Required” dialogs. General Pi policy lives in the
-bootstrapped global/project config and subagent frontmatter. `pi-conductor` is stricter: its wrapper
-loads `permission-system/conductor.json` from an isolated agent overlay and dedicated policy cwd,
-then applies an immutable command gate so a permissive caller-project config cannot weaken it.
-Claude conductor/lead wrappers load separate `claude-settings/*.json` files; their seat-specific
-`PreToolUse` hook is authoritative and fails closed on unknown or compound commands.
+bootstrapped global/project config and subagent frontmatter. `pi-conductor` and `pi-project-lead`
+are stricter: their wrappers load `permission-system/conductor.json` /
+`permission-system/project-lead.json` from an isolated agent overlay and dedicated policy cwd,
+then apply an immutable command gate so a permissive caller-project config cannot weaken them.
+Project-lead keeps coordination + narrow main-integration power and loses product-implementation
+power (no `write`/`edit`; no commit/build/install/script shell). Claude conductor/lead wrappers
+load separate `claude-settings/*.json` files; their seat-specific `PreToolUse` hook is authoritative
+and fails closed on unknown or compound commands.
 
 Details: [`docs/permissions.md`](./docs/permissions.md). **One project lead per project workspace.**
 

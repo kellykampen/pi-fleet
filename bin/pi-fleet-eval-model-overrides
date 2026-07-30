@@ -45,6 +45,7 @@ run_wrapper() {
   : > "$outfile"
   env -i HOME="$HOME" PATH="$TMP:$PATH" PI_FLEET_HOME="$TMP/fleet-home" \
     PI_CODING_AGENT_DIR="$TMP/agent" FLEET_CONDUCTOR_RUNTIME_DIR="$TMP/conductor-runtime" \
+    FLEET_PROJECT_LEAD_RUNTIME_DIR="$TMP/project-lead-runtime" \
     PI_XAI_OAUTH_EXT="$XAI_OAUTH_EXT" \
     PI_SCHEDULER_TASKS_FILE="$TMP/scheduler-tasks.json" PI_SCHEDULER_TASKS_BOUNDARY="$TMP" \
     PI_FLEET_MOCK_OUT="$outfile" "$@"
@@ -79,6 +80,15 @@ check_not_contains "project-lead does not pass unsupported --no-lens" "$args" "-
 check_contains "project-lead passes --no-extensions alongside model-override argv" "$args" "--model gpt-5.6-sol --no-extensions"
 check_contains "project-lead still loads explicit linear/e2b extensions" "$args" \
   "--extension $ROOT/extensions/linear.ts --extension $ROOT/extensions/e2b"
+check_contains "project-lead loads permission-system package" "$args" \
+  "--extension $TMP/agent/npm/node_modules/@gotgenes/pi-permission-system"
+check_contains "project-lead loads immutable project-lead policy extension" "$args" \
+  "--extension $ROOT/extensions/project-lead-policy.ts"
+# Mock outfitter shell-quotes commas as \, so match the escaped form printed into args.
+check_contains "project-lead tools keep coordination surface without write/edit" "$args" \
+  '--tools read\,grep\,find\,ls\,bash\,linear_get_issue\,linear_list\,linear_comment\,linear_update\,e2b_cast\,e2b_status\,e2b_wait\,e2b_cancel\,e2b_logs\,e2b_port_url'
+check_not_contains "project-lead tools omit write" "$args" "write,"
+check_not_contains "project-lead tools omit edit" "$args" ",edit,"
 # Lead must re-include pi-xai-oauth after --no-extensions so xai-auth works.
 check_contains "project-lead re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"

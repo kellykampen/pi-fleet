@@ -6,7 +6,7 @@ set -uo pipefail
 OUT="${1:-$HOME/code/pi-fleet/evals/results/seat-tools-latest.txt}"; : > "$OUT"
 BIN="$HOME/code/pi-fleet/bin"
 # seat expect_bash expect_write expect_edit
-SEATS="implementer:Y:Y:Y reviewer:N:N:N ac-verifier:Y:N:N researcher:N:N:N designer:Y:Y:Y planner:Y:N:N spike-breakdown:Y:N:N security-reviewer:N:N:N visual-qa:Y:N:N linear:Y:N:N project-lead:Y:Y:Y conductor:Y:N:N personal-assistant:Y:Y:Y remotion:Y:Y:Y"
+SEATS="implementer:Y:Y:Y reviewer:N:N:N ac-verifier:Y:N:N researcher:N:N:N designer:Y:Y:Y planner:Y:N:N spike-breakdown:Y:N:N security-reviewer:N:N:N visual-qa:Y:N:N linear:Y:N:N project-lead:Y:N:N conductor:Y:N:N personal-assistant:Y:Y:Y remotion:Y:Y:Y"
 probe="List the exact tool names available to you as TOOLS=<comma list>. Then output three lines: BASH=yes/no WRITE=yes/no EDIT=yes/no — yes only if that tool is actually available to you."
 printf "%-20s | bash | write | edit | verdict\n" seat >> "$OUT"
 for entry in $SEATS; do
