@@ -7,6 +7,9 @@
 # project-lead command policy. Coordination/casting/PR/status and narrow main-integration verbs
 # remain available; implementation and review work must be cast.
 #
+# FLT-68: on startup the seat is named <workspace_name>-project-lead (via fleet-lead-mailbox.sh).
+# That name is both the cmux pane/tab title target and the fleet-mail mailbox id.
+#
 # FLT-67: no @gotgenes/pi-permission-system. Always YOLO (--approve). Security boundary is the
 # --tools allowlist (no write/edit) + immutable extensions/project-lead-policy.ts bash gate.
 set -euo pipefail

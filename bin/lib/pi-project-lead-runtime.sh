@@ -35,6 +35,10 @@ pi_project_lead_prepare_runtime() {
   export FLEET_COORDINATION_ROOT="$launch_cwd"
   export PI_FLEET_ROOT="$fleet_root"
   export PATH="$fleet_root/bin:$PATH"
+  # FLT-68: seat name + fleet-mail mailbox = <workspace>-project-lead (match cmux pane/tab).
+  # shellcheck source=fleet-lead-mailbox.sh
+  . "$fleet_root/bin/lib/fleet-lead-mailbox.sh"
+  fleet_resolve_lead_mailbox || true
   # Unset any leftover PS path from the environment so it cannot reappear in argv.
   unset PI_PERMISSION_SYSTEM_PATH 2>/dev/null || true
   cd "$policy_cwd"

@@ -84,6 +84,8 @@ Storage: `$PI_FLEET_HOME/mail` (default `~/.pi-fleet/mail`).
 - `worker|reviewer|ac-verifier` → **project-lead only** (never conductor)
 - `project-lead` → conductor compact rollups (and workers for briefs if needed)
 - `conductor` → project-lead only; **rejects worker mail**
+- Lead mailbox preferred form (FLT-68): `<workspace_name>-project-lead` (matches cmux pane/tab;
+  e.g. `pi-fleet-project-lead`). Named leads are first-class topology peers of bare `project-lead`.
 - `type=status` **requires** `--ticket`; new status **replaces** prior unacked status for same from→to+ticket slot
 
 ---

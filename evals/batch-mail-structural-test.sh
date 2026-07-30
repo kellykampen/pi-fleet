@@ -118,6 +118,14 @@ assert_file_contains "fleet-mail.cjs topology deny message present" \
 	"bin/lib/fleet-mail.cjs" \
 	'may only mail project-lead'
 
+# FLT-68 named lead mailboxes
+assert_file_contains "fleet-mail.cjs recognizes named workspace-project-lead" \
+	"bin/lib/fleet-mail.cjs" \
+	'isProjectLeadMailbox|workspace_name>-project-lead|-project-lead'
+assert_file_contains "agent-mail documents named lead form" \
+	"docs/agent-mail.md" \
+	'pi-fleet-project-lead|workspace_name>-project-lead'
+
 echo
 echo "batch-mail structural: $pass PASS, $fail FAIL"
 if [[ "$fail" -gt 0 ]]; then

@@ -112,7 +112,9 @@ Exact steps:
 2. Discover **ALL** cmux workspaces: `cmux workspace list --json` (alias: `cmux list-workspaces`).
 3. For each non-Conductor workspace: `cmux list-panes --workspace <ws>` then
    `cmux list-pane-surfaces --workspace <ws>` (or per-pane) — map panes/surfaces.
-4. Identify every live `*-project-lead` / `pi-project-lead` surface (title, cwd, or running command).
+4. Identify every live `<workspace_name>-project-lead` surface (title/tab name MUST be exactly
+   that form, e.g. `pi-fleet-project-lead`; wrapper binary may still be `pi-project-lead`).
+   Use that exact title as the fleet-mail mailbox when sending.
 5. **Check in** with each lead — ask for: status / blockers needing CEO / active gates and recent
    merges / asks / workers. Send via:
    `cmux send --surface surface:<N> "…"` then `cmux send-key --surface surface:<N> enter`.
@@ -347,9 +349,14 @@ Status uplink is **fleet-mail**, not cmux send drip from workers. Same CLI for P
 
 - **You do not accept worker mail.** Topology rejects `worker|reviewer|ac-verifier → conductor`.
   If a worker tries, the CLI fails closed — tell the lead to fix the worker's `FLEET_MAIL_TO`.
-- **Route only via project leads.** Read lead rollups on idle/cadence (do not mid-turn thrash):
+- **Route only via project leads.** Mail each lead at its **named** mailbox
+  (`--to <workspace_name>-project-lead`, e.g. `pi-fleet-project-lead`, `agent-skills-project-lead`,
+  `ftd-project-lead`). That id **must match** the cmux pane/tab name (FLT-68). Do **not** fall back
+  to bare `project-lead` when the workspace name is known — named mailboxes are first-class in
+  topology. Read lead rollups on idle/cadence (do not mid-turn thrash):
   `fleet-mail inbox --mailbox conductor --unread` then `ack`.
-- Workers never mail you; leads send **compact** rollups (`type=status` with ticket, short body).
+- Workers never mail you; leads send **compact** rollups (`type=status` with ticket, short body)
+  from their named mailbox (`--from <ws>-project-lead`).
 - Do not require `cmux send` for portfolio status collection from leads when mail rollups exist;
   cmux remains for casting/check-in prompts, not for worker status spam.
 - Full contract: [`docs/agent-mail.md`](../../docs/agent-mail.md).

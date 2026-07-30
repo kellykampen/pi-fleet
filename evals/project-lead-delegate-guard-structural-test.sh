@@ -140,6 +140,7 @@ for (const command of [
 	"uptime",
 	"fleet-note append coordination/status.md ok",
 	"fleet-mail inbox --mailbox project-lead --unread",
+	"fleet-mail inbox --mailbox pi-fleet-project-lead --unread",
 	"linear-cli issue get FLT-1",
 ]) allow(command);
 

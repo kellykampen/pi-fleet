@@ -14,6 +14,10 @@ MODEL="${LEAD_MODEL:-opus}"
 export PI_FLEET_ROOT="$DIR"
 export FLEET_COORDINATION_ROOT="$(pwd -P)"
 export PATH="$DIR/bin:$PATH"
+# FLT-68: named lead mailbox matches cmux pane/tab (<workspace>-project-lead).
+# shellcheck source=lib/fleet-lead-mailbox.sh
+. "$DIR/bin/lib/fleet-lead-mailbox.sh"
+fleet_resolve_lead_mailbox || true
 exec claude --model "$MODEL" \
   --settings "$DIR/claude-settings/project-lead.json" \
   --disallowedTools "Edit Write NotebookEdit" \

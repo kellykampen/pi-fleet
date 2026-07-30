@@ -51,6 +51,8 @@ test("seat lead command policy allows coordination and denies implementation", (
     "uptime",
     "fleet-note append coordination/status.md ok",
     "fleet-mail inbox --mailbox project-lead --unread",
+    "fleet-mail inbox --mailbox pi-fleet-project-lead --unread",
+    "fleet-mail send --from pi-fleet-project-lead --to conductor --type status --ticket FLT-68 --body rollup",
   ]) allow(command);
   for (const command of [
     "git commit -am x",

@@ -22,24 +22,24 @@ does not serve Codex or Claude Code.
 ## CLI
 
 ```bash
-# Worker status uplink (default: owning lead only)
+# Worker status uplink (default: owning *named* lead only — FLT-68)
 fleet-mail send \
   --from worker:flt-58 \
-  --to project-lead \
+  --to pi-fleet-project-lead \
   --type status \
   --ticket FLT-58 \
   --body "tests green; opening PR" \
   --pr https://github.com/org/repo/pull/12 \
   --head abc1234
 
-# Lead inbox
-fleet-mail inbox --mailbox project-lead --unread
-fleet-mail show  --mailbox project-lead
-fleet-mail ack   --mailbox project-lead --id <id>
+# Lead inbox (mailbox == cmux pane/tab name)
+fleet-mail inbox --mailbox pi-fleet-project-lead --unread
+fleet-mail show  --mailbox pi-fleet-project-lead
+fleet-mail ack   --mailbox pi-fleet-project-lead --id <id>
 
 # Lead → conductor compact rollup (not worker raw mail)
 fleet-mail send \
-  --from project-lead \
+  --from pi-fleet-project-lead \
   --to conductor \
   --type status \
   --ticket FLT-58 \
@@ -79,12 +79,41 @@ Env:
 
 | From | May mail |
 | --- | --- |
-| `worker`, `reviewer`, `ac-verifier` | **`project-lead` only** (never `conductor` / `coordinator`) |
-| `project-lead` | `conductor` (compact rollups), workers |
-| `conductor` / `coordinator` | `project-lead` only (worker mail rejected) |
+| `worker`, `reviewer`, `ac-verifier` | **project-lead only** (never `conductor` / `coordinator`) |
+| project-lead | `conductor` (compact rollups), workers |
+| `conductor` / `coordinator` | project-lead only (worker mail rejected) |
 
-Mailbox ids may be role-scoped (`project-lead:pi-fleet`, `worker:flt-58`); the
-role is the segment before the first `:`. Alias: `coordinator` → `conductor`.
+### Lead mailbox naming (FLT-68) — source of truth
+
+Project-lead seats **MUST** be named on startup exactly:
+
+```text
+<workspace_name>-project-lead
+```
+
+Examples: `agent-skills-project-lead`, `ftd-project-lead`, `pi-fleet-project-lead`.
+
+That string is **both**:
+
+1. the cmux pane/tab name, and
+2. the `fleet-mail` mailbox id (`--from` / `--to` / `--mailbox`).
+
+Conductor named send and worker uplink must use this id. Do **not** fall back to
+bare `project-lead` when a workspace name is known — that is what caused named
+sends to reject (`unknown mailbox role: pi-fleet-project-lead`) and forced a
+generic fallback.
+
+Also accepted for compatibility:
+
+- bare `project-lead`
+- legacy scoped `project-lead:<scope>` (e.g. `project-lead:pi-fleet`)
+- worker-scoped ids (`worker:flt-58`) — role is the segment before the first `:`
+
+Alias: `coordinator` → `conductor`.
+
+Launch helpers export `FLEET_LEAD_MAILBOX` / `FLEET_MAIL_FROM` via
+`bin/lib/fleet-lead-mailbox.sh` (wired into `pi-project-lead` and
+`claude-project-lead`). Prefer `FLEET_PROJECT_KEY` or `CMUX_WORKSPACE_NAME`.
 
 ## Anti-spam
 
@@ -110,15 +139,19 @@ Atomic write (temp → fsync → rename), cross-process lock (5s), directory mod
 ## Seat usage
 
 - **Workers** (Pi `pi-implementer`, Claude `claude-worker`, Codex CLI, reviewer,
-  AC-verifier, …): set `FLEET_MAIL_TO=project-lead` (or project-scoped lead). Report
-  status/blocker/done via `fleet-mail send`. Do **not** `cmux send` status drip to the
-  conductor or thrash the lead mid-turn.
-- **Project lead**: `fleet-mail inbox --unread` when **idle** or on cadence — **not**
-  mid-tool-batch steers for routine mail. Ack processed mail; send **compact rollups**
-  to `conductor`. Do not forward raw worker spam. Optional: one idle nudge / handoff
-  file if blocked on the lead — never a steer storm.
-- **Conductor**: only read lead rollups; never accept/route worker mail. If a
-  worker tries `to=conductor`, the CLI fails closed.
+  AC-verifier, …): set `FLEET_MAIL_TO=<workspace>-project-lead` (exact lead seat /
+  pane name; e.g. `pi-fleet-project-lead`). Report status/blocker/done via
+  `fleet-mail send`. Do **not** `cmux send` status drip to the conductor or thrash
+  the lead mid-turn.
+- **Project lead**: poll `fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread`
+  when **idle** or on cadence — **not** mid-tool-batch steers for routine mail. Ack
+  processed mail; send **compact rollups** to `conductor` with
+  `--from "$FLEET_LEAD_MAILBOX"`. Do not forward raw worker spam. Optional: one idle
+  nudge / handoff file if blocked on the lead — never a steer storm.
+- **Conductor**: mail each lead at its **named** mailbox (`--to <ws>-project-lead`);
+  only read lead rollups; never accept/route worker mail. If a worker tries
+  `to=conductor`, the CLI fails closed. Do not fall back to generic `project-lead`
+  when the named mailbox is known.
 
 ### Multi-harness install
 
@@ -136,4 +169,5 @@ Optional presence tooling is independent; mail works without it.
 evals/pi-fleet-mail-smoke-test.sh
 node --test evals/fleet-mail.test.mjs
 evals/batch-mail-structural-test.sh
+evals/lead-named-mailbox-structural-test.sh
 ```

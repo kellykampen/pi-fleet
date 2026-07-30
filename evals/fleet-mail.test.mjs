@@ -217,6 +217,146 @@ test("library exports enforce topology helpers", () => {
   assert.equal(mail.normalizeMailbox("coordinator"), "conductor");
 });
 
+test("FLT-68: named <workspace>-project-lead is a first-class lead mailbox", () => {
+  for (const id of [
+    "pi-fleet-project-lead",
+    "agent-skills-project-lead",
+    "ftd-project-lead",
+    "project-lead",
+    "project-lead:pi-fleet",
+  ]) {
+    assert.equal(mail.isProjectLeadMailbox(id), true, id);
+    assert.equal(mail.baseRole(id), "project-lead", id);
+  }
+  assert.equal(mail.isProjectLeadMailbox("worker"), false);
+  assert.equal(mail.isProjectLeadMailbox("conductor"), false);
+  assert.throws(() => mail.baseRole("not-a-role"), /unknown mailbox role/);
+  assert.throws(() => mail.baseRole("project-lead-extra"), /unknown mailbox role/);
+
+  assert.doesNotThrow(() => mail.assertTopology("worker", "pi-fleet-project-lead"));
+  assert.doesNotThrow(() => mail.assertTopology("conductor", "pi-fleet-project-lead"));
+  assert.doesNotThrow(() => mail.assertTopology("pi-fleet-project-lead", "conductor"));
+  assert.doesNotThrow(() => mail.assertTopology("reviewer", "agent-skills-project-lead"));
+  assert.throws(() => mail.assertTopology("worker", "conductor"), /topology/);
+  assert.throws(() => mail.assertTopology("conductor", "worker"), /topology/);
+});
+
+test("FLT-68: resolveProjectLeadMailbox prefers explicit env then workspace key", () => {
+  assert.equal(
+    mail.resolveProjectLeadMailbox({ FLEET_LEAD_MAILBOX: "pi-fleet-project-lead" }),
+    "pi-fleet-project-lead",
+  );
+  assert.equal(
+    mail.resolveProjectLeadMailbox({
+      FLEET_LEAD_MAILBOX: "pi-fleet-project-lead",
+      FLEET_PROJECT_KEY: "agent-skills",
+      CMUX_WORKSPACE_NAME: "ftd",
+    }),
+    "pi-fleet-project-lead",
+  );
+  assert.equal(
+    mail.resolveProjectLeadMailbox({ FLEET_PROJECT_KEY: "agent-skills" }),
+    "agent-skills-project-lead",
+  );
+  assert.equal(
+    mail.resolveProjectLeadMailbox({ CMUX_WORKSPACE_NAME: "ftd" }),
+    "ftd-project-lead",
+  );
+  assert.equal(
+    mail.resolveProjectLeadMailbox({ FLEET_PROJECT_KEY: "Pi Fleet" }),
+    "pi-fleet-project-lead",
+  );
+  assert.equal(mail.resolveProjectLeadMailbox({}), null);
+  assert.throws(
+    () => mail.resolveProjectLeadMailbox({ FLEET_LEAD_MAILBOX: "worker" }),
+    /project-lead mailbox/,
+  );
+});
+
+test("FLT-68: named send/inbox works for conductor → lead and worker → lead", async () => {
+  const { runtime, base } = await fixture();
+  try {
+    let result = run(runtime, [
+      "send",
+      "--from",
+      "conductor",
+      "--to",
+      "pi-fleet-project-lead",
+      "--type",
+      "status",
+      "--ticket",
+      "FLT-68",
+      "--body",
+      "assign: implement named lead mailbox",
+      "--json",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    const assigned = JSON.parse(result.stdout);
+    assert.equal(assigned.message.to, "pi-fleet-project-lead");
+
+    result = run(runtime, [
+      "send",
+      "--from",
+      "worker:flt-68",
+      "--to",
+      "pi-fleet-project-lead",
+      "--type",
+      "status",
+      "--ticket",
+      "FLT-68",
+      "--body",
+      "implementing",
+      "--json",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+
+    result = run(runtime, [
+      "inbox",
+      "--mailbox",
+      "pi-fleet-project-lead",
+      "--unread",
+      "--json",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    const inbox = JSON.parse(result.stdout);
+    assert.equal(inbox.length, 2);
+    assert.ok(inbox.every((m) => m.to === "pi-fleet-project-lead"));
+
+    // Named lead rollup to conductor
+    result = run(runtime, [
+      "send",
+      "--from",
+      "pi-fleet-project-lead",
+      "--to",
+      "conductor",
+      "--type",
+      "status",
+      "--ticket",
+      "FLT-68",
+      "--body",
+      "rollup: worker in flight",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+
+    // Still reject worker → conductor even with named leads in play
+    result = run(runtime, [
+      "send",
+      "--from",
+      "worker",
+      "--to",
+      "conductor",
+      "--type",
+      "ask",
+      "--body",
+      "nope",
+    ]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /topology/i);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
 test("mail files are private mode under runtime root", async () => {
   const { runtime, base } = await fixture();
   try {

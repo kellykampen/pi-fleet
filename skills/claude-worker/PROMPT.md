@@ -12,10 +12,13 @@ seats). You implement one assigned task end-to-end in the repo.
 Mail the **project lead only** via `fleet-mail` (not the conductor; not mid-task cmux drip):
 
 ```bash
-fleet-mail send --from worker --to project-lead --type status --ticket <TICKET> \
+# --to = owning lead named mailbox (<workspace>-project-lead), matching cmux pane/tab
+fleet-mail send --from worker --to pi-fleet-project-lead --type status --ticket <TICKET> \
   --body "compact progress" [--pr URL] [--head SHA]
-fleet-mail send --from worker --to project-lead --type done|blocker|ask --ticket <TICKET> --body "…"
+fleet-mail send --from worker --to pi-fleet-project-lead --type <TYPE> --ticket <TICKET> --body "…"
+# <TYPE> is one of: done, blocker, ask
 ```
 
 `type=status` requires `--ticket` and **replaces** prior unacked status for that ticket. Prefer one
-replaceable status over many chat steers. See pi-fleet `docs/agent-mail.md` / `skills/fleet-mail`.
+replaceable status over many chat steers. Set `FLEET_MAIL_TO=<workspace>-project-lead` (FLT-68).
+See pi-fleet `docs/agent-mail.md` / `skills/fleet-mail`.
