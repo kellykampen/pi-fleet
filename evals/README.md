@@ -242,19 +242,24 @@ bin/pi-fleet-eval-model-overrides        # writes evals/results/model-overrides-
 See [`../docs/model-overrides.md`](../docs/model-overrides.md) for the full env-name and default
 model table.
 
-## Agent mail (fleet-mail) smoke + unit tests (FLT-58)
+## Agent mail (fleet-mail) smoke + unit tests (FLT-58 / FLT-63)
 
 Durable async inbox between seats — status uplink without cmux send drip. Decision
 record for not adopting `npm:pi-messenger` as-is: [`docs/pi-messenger-decision.md`](../docs/pi-messenger-decision.md).
-Contract: [`docs/agent-mail.md`](../docs/agent-mail.md).
+Batch/append + multi-harness decision: [`docs/batch-append-messaging.md`](../docs/batch-append-messaging.md).
+Contract: [`docs/agent-mail.md`](../docs/agent-mail.md). Codex path:
+[`docs/codex-fleet-mail.md`](../docs/codex-fleet-mail.md).
 
 ```bash
 evals/pi-fleet-mail-smoke-test.sh
 node --test evals/fleet-mail.test.mjs
+evals/batch-mail-structural-test.sh
 ```
 
 Proves send/inbox/show/ack between two local seats, worker→conductor topology deny,
-STATUS slot replacement per ticket, rate limit on non-status, and private file modes.
+STATUS slot replacement per ticket, rate limit on non-status, private file modes, and
+structural multi-harness skill/docs (Claude + Codex same CLI; lead idle pull / no mid-turn
+cmux status drip).
 
 ## GPT usage guard structural eval (FLT-55)
 

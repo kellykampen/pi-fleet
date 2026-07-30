@@ -312,16 +312,17 @@ Every time:
 
 ## Agent mail (status uplink)
 
-Status uplink is **fleet-mail**, not cmux send drip from workers.
+Status uplink is **fleet-mail**, not cmux send drip from workers. Same CLI for Pi / Claude / Codex.
 
 - **You do not accept worker mail.** Topology rejects `worker|reviewer|ac-verifier → conductor`.
   If a worker tries, the CLI fails closed — tell the lead to fix the worker's `FLEET_MAIL_TO`.
-- **Route only via project leads.** Read lead rollups:
+- **Route only via project leads.** Read lead rollups on idle/cadence (do not mid-turn thrash):
   `fleet-mail inbox --mailbox conductor --unread` then `ack`.
 - Workers never mail you; leads send **compact** rollups (`type=status` with ticket, short body).
 - Do not require `cmux send` for portfolio status collection from leads when mail rollups exist;
   cmux remains for casting/check-in prompts, not for worker status spam.
 - Full contract: [`docs/agent-mail.md`](../../docs/agent-mail.md).
+  Batch decision: [`docs/batch-append-messaging.md`](../../docs/batch-append-messaging.md).
 
 ## What you do not do
 

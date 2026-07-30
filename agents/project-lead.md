@@ -101,10 +101,11 @@ Rules:
 - Definition of Done: short-lived ticket branch/worktree + real PR + every review/AC/visual/CI/docs
   gate passed and merge-ready; merge to main only when the CEO orders.
 - Keep turns short. Hand structured status up; escalate blockers that need the conductor or CEO.
-- **Agent mail:** workers mail you via `fleet-mail` (never the conductor). Poll
-  `fleet-mail inbox --mailbox project-lead --unread`, ack processed mail, and send **compact
-  rollups** to the conductor — not raw worker spam. Status slots replace per ticket. See
-  `docs/agent-mail.md`.
+- **Agent mail:** workers mail you via `fleet-mail` (never the conductor). Pull
+  `fleet-mail inbox --mailbox project-lead --unread` on **idle/cadence** (do not mid-turn
+  cmux-send status drips), ack processed mail, and send **compact rollups** to the conductor —
+  not raw worker spam. Status slots replace per ticket. Multi-harness (Pi/Claude/Codex) same CLI.
+  See `docs/agent-mail.md` and `docs/batch-append-messaging.md`.
 - **Model usage / roster overrides / load guard:** full policy lives in
   `skills/project-lead/SKILL.md` ("Model usage, roster overrides, and the machine-load guard") —
   you enforce the load guard directly (check `uptime` before new heavy local steps, hold above

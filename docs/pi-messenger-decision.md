@@ -1,6 +1,6 @@
 # Decision record: npm:pi-messenger for fleet agent mail
 
-**Ticket:** FLT-59 (eval) / FLT-58 (implement)  
+**Ticket:** FLT-59 (eval) / FLT-58 (implement) / FLT-63 (batch + multi-harness)  
 **Date:** 2026-07-30  
 **Package:** [`pi-messenger@0.14.1`](https://www.npmjs.com/package/pi-messenger) —
 [github.com/nicobailon/pi-messenger](https://github.com/nicobailon/pi-messenger)
@@ -71,6 +71,14 @@ on an extension lifecycle we do not control.
   never accepts worker mail  
 - No requirement to use cmux send for status uplink  
 
+## FLT-63 addendum (batch / non-steer / multi-harness)
+
+Pi core **does** expose non-steer delivery (`deliverAs: "followUp"` | `"nextTurn"` on
+`sendMessage` / `sendUserMessage`, plus RPC `follow_up`). That does **not** change the
+no-go: pi-messenger still defaults to steering wakeups; non-steer is still session-local;
+Codex/Claude cannot load the extension. Fleet default remains **pullable `fleet-mail`**.
+Full Q&A: [batch-append-messaging.md](./batch-append-messaging.md).
+
 ## Revisit criteria
 
 Re-evaluate adopt/wrap if upstream adds **all** of:
@@ -78,7 +86,8 @@ Re-evaluate adopt/wrap if upstream adds **all** of:
 - Role-scoped routing hooks (or pluggable allowlists)  
 - Structured message types + ticket slots with replace semantics  
 - Non-steering durable inbox with ack (steering opt-in only)  
-- Headless CLI usable without loading a full Pi extension in lead seats  
+- Headless CLI usable without loading a full Pi extension in lead seats
+- A multi-harness story (or we keep fleet-mail as the shared store and only use messenger UI)  
 
 ## Spike note
 

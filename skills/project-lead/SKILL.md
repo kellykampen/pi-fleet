@@ -8,9 +8,22 @@ fix" in your own session. Your harness capability ceiling matches that rule: no 
 tools, default-deny bash, and an immutable project-lead command policy. Instructions are not the
 ceiling; the wrapper is.
 
-## Agent mail (status uplink)
+## Agent mail (status uplink) — pull on idle, never mid-turn cmux drip
 
-Workers report to **you** via `fleet-mail`, not via cmux send drip to the conductor.
+Workers report to **you** via `fleet-mail`, not via cmux send drip to the conductor — and **you**
+must not thrash your own (or a worker's) session with mid-turn steers for routine status.
+
+### Lead rules (FLT-63)
+
+- **Do not `cmux send` mid-turn** into a busy seat (including your own pane via self-inject) for
+  routine status. Mail is durable; pull it when **idle** or on a short **cadence** (same 5–10 min /
+  real-state-change window as conductor rollups is fine).
+- Prefer **one** batch handoff: `fleet-mail inbox --unread` → process → `ack`. Optional single idle
+  nudge only if something is blocked on you — never a steer storm.
+- Multi-harness workers (Pi, Claude Code, Codex) all use the **same** CLI; see
+  [`skills/fleet-mail/SKILL.md`](../fleet-mail/SKILL.md) and [`docs/codex-fleet-mail.md`](../../docs/codex-fleet-mail.md).
+
+### Mechanics
 
 - **Workers mail the lead only** (topology-enforced). They never mail the conductor.
 - Poll with `fleet-mail inbox --mailbox project-lead --unread` (or your project-scoped mailbox),
@@ -26,6 +39,7 @@ Workers report to **you** via `fleet-mail`, not via cmux send drip to the conduc
 
 - Do not require workers to use `cmux send` for status uplink. Optional cmux notify is never required
   for delivery. Full contract: [`docs/agent-mail.md`](../../docs/agent-mail.md).
+  Decision: [`docs/batch-append-messaging.md`](../../docs/batch-append-messaging.md).
 
 **One project lead owns one cmux workspace** (one `<PROJECT_KEY>-project-lead` / `pi-project-lead`
 per project workspace). Never cast a second project lead in the same cmux workspace. Cast workers

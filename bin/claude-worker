@@ -7,7 +7,7 @@ DIR="$HOME/code/pi-fleet"
 # Default (unset) is safe/interactive. Read-only seats stay read-only either way.
 YOLO=""; [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--dangerously-skip-permissions"
 exec claude $YOLO \
-  --allowedTools "Read Grep Glob Edit Write Bash(git:*) Bash(pnpm:*) Bash(npm:*) Bash(npx:*) Bash(node:*)" \
+  --allowedTools "Read Grep Glob Edit Write Bash(git:*) Bash(pnpm:*) Bash(npm:*) Bash(npx:*) Bash(node:*) Bash(fleet-mail:*)" \
   --disallowedTools "Bash(rm -rf:*) Bash(sudo:*) Bash(curl:*)" \
   --append-system-prompt "$(cat "$DIR/skills/claude-worker/PROMPT.md")" \
   "$@"
