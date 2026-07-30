@@ -35,6 +35,7 @@ When the task allows, cast non-GPT pi workers using these exact provider/model p
 - Interactive `pi` loads packages from `~/.pi/agent/settings.json`, so `/login xai-auth` and model pickers work there.
 - Worker wrappers (`pi-implementer`, …) do **not** pass `--no-extensions`, so package auto-discovery still loads `pi-xai-oauth` and Grok casts work:
   ```bash
+  # Direct (packages on; do not add --no-extensions here):
   pi --provider xai-auth --model grok-4.5-latest -p "Reply OK" --no-session --no-tools
   # or fleet worker:
   pi-implementer --provider xai-auth --model grok-4.5-latest -p "Reply OK"
