@@ -84,10 +84,13 @@ PY
 	fi
 }
 
+XAI_OAUTH_EXT="$FAKE_BIN/agent/npm/node_modules/pi-xai-oauth/extensions/xai-oauth.ts"
+
 run_impl() {
 	cd /tmp && env -u FLEET_YOLO PATH="$FAKE_BIN:$PATH" \
 		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" HOME="$FAKE_BIN" \
 		FLEET_IMPLEMENTER_RUNTIME_DIR="$FAKE_BIN/implementer-runtime" \
+		PI_XAI_OAUTH_EXT="$XAI_OAUTH_EXT" \
 		"$DIR/bin/pi-implementer" -p noop
 }
 run_lead() {
@@ -106,12 +109,14 @@ run_cond() {
 }
 run_rev() {
 	cd /tmp && env -u FLEET_YOLO PATH="$FAKE_BIN:$PATH" \
-		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" \
+		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" HOME="$FAKE_BIN" \
+		PI_XAI_OAUTH_EXT="$XAI_OAUTH_EXT" \
 		"$DIR/bin/pi-reviewer" -p noop
 }
 run_ac() {
 	cd /tmp && env -u FLEET_YOLO PATH="$FAKE_BIN:$PATH" \
 		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" HOME="$FAKE_BIN" \
+		PI_XAI_OAUTH_EXT="$XAI_OAUTH_EXT" \
 		"$DIR/bin/pi-ac-verifier" -p noop
 }
 
@@ -132,6 +137,7 @@ run_ac() {
 	contains_line "implementer always --approve" "ARG=--approve" "$impl_out"
 	contains_line "implementer always --no-extensions" "ARG=--no-extensions" "$impl_out"
 	contains_line "implementer loads linear" "ARG=$DIR/extensions/linear.ts" "$impl_out"
+	contains_line "implementer re-includes pi-xai-oauth" "ARG=$XAI_OAUTH_EXT" "$impl_out"
 	rejects "implementer does not load permission-system" \
 		'pi-permission-system|@gotgenes/pi-permission-system' "$impl_out"
 	contains_any "implementer keeps write/edit/bash" \
@@ -147,6 +153,7 @@ run_ac() {
 	contains_line "project-lead always --approve" "ARG=--approve" "$lead_out"
 	contains_line "project-lead always --no-extensions" "ARG=--no-extensions" "$lead_out"
 	contains_line "project-lead loads policy extension" "ARG=$DIR/extensions/project-lead-policy.ts" "$lead_out"
+	contains_line "project-lead re-includes pi-xai-oauth" "ARG=$XAI_OAUTH_EXT" "$lead_out"
 	rejects "project-lead does not load permission-system" \
 		'pi-permission-system|@gotgenes/pi-permission-system' "$lead_out"
 	rejects "project-lead tools omit write/edit" '^ARG=.*(write|edit)' "$lead_out"
@@ -162,6 +169,7 @@ run_ac() {
 	contains_line "conductor always --approve" "ARG=--approve" "$cond_out"
 	contains_line "conductor always --no-extensions" "ARG=--no-extensions" "$cond_out"
 	contains_line "conductor loads policy extension" "ARG=$DIR/extensions/conductor-policy.ts" "$cond_out"
+	contains_line "conductor re-includes pi-xai-oauth" "ARG=$XAI_OAUTH_EXT" "$cond_out"
 	rejects "conductor does not load permission-system" \
 		'pi-permission-system|@gotgenes/pi-permission-system' "$cond_out"
 	contains_line "conductor routing-only tools" \
@@ -175,10 +183,12 @@ run_ac() {
 	ac_out="$(run_ac)"
 	contains_line "reviewer always --approve" "ARG=--approve" "$rev_out"
 	contains_line "reviewer always --no-extensions" "ARG=--no-extensions" "$rev_out"
+	contains_line "reviewer re-includes pi-xai-oauth" "ARG=$XAI_OAUTH_EXT" "$rev_out"
 	rejects "reviewer does not load permission-system" \
 		'pi-permission-system|@gotgenes/pi-permission-system' "$rev_out"
 	contains_line "ac-verifier always --approve" "ARG=--approve" "$ac_out"
 	contains_line "ac-verifier always --no-extensions" "ARG=--no-extensions" "$ac_out"
+	contains_line "ac-verifier re-includes pi-xai-oauth" "ARG=$XAI_OAUTH_EXT" "$ac_out"
 	rejects "ac-verifier does not load permission-system" \
 		'pi-permission-system|@gotgenes/pi-permission-system' "$ac_out"
 

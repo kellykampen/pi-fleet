@@ -1,14 +1,17 @@
 # Resolve the pi-xai-oauth extension that registers the `xai-auth` provider.
 #
 # `xai-auth` is NOT a built-in pi provider. It is registered by the installed
-# package `npm:pi-xai-oauth`. Fleet lead/conductor wrappers pass `--no-extensions`
-# (FLT-35) to block machine-global package auto-discovery (scheduler leakage).
-# That also drops `xai-auth`, so Grok casts against those seats fail with
+# package `npm:pi-xai-oauth`. Fleet wrappers that pass `--no-extensions` (FLT-35 /
+# unattended seats) block machine-global package auto-discovery (scheduler
+# leakage). That also drops `xai-auth`, so Grok casts fail with
 # `Unknown provider "xai-auth"` even when interactive `pi` (packages on) works.
 #
 # Explicit `--extension` flags still load after `--no-extensions`. Re-include
 # only this package when present so FLT-55 Grok routing works without bringing
 # back the full global package set.
+#
+# Wired into every --no-extensions fleet seat: implementer, reviewer, ac-verifier,
+# planner, spike-breakdown, project-lead, conductor.
 #
 # Usage (after --no-extensions in the outfitter argv):
 #   . "$FLEET_ROOT/bin/lib/pi-xai-oauth-ext.sh"
