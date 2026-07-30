@@ -9,17 +9,17 @@ is enforced, not just suggested. You compose the seats into a small org: a **con
 to **project leads**, who **cast workers** into their own terminal panes — so you can run many agents
 in parallel with real guardrails.
 
-It **composes three upstream packages — nothing forked**:
-[outfitter](https://pi.dev/packages/@ai-outfitter/outfitter) (loadout + CLI launch),
-[`pi-subagents`](https://github.com/gotgenes/pi-subagents) (spawnable child agents), and
-[`@gotgenes/pi-permission-system`](https://github.com/gotgenes/pi-packages) (per-tool **and**
-per-bash-command allow · ask · deny). pi-fleet is the thin, versioned config + wrappers + skills on
-top.
+It **composes two upstream packages — nothing forked**:
+[outfitter](https://pi.dev/packages/@ai-outfitter/outfitter) (loadout + CLI launch) and
+[`pi-subagents`](https://github.com/gotgenes/pi-subagents) (spawnable child agents).
+`@gotgenes/pi-permission-system` is **not** used (removed FLT-67 — always YOLO; security is
+wrapper `--tools` + command-policy extensions). pi-fleet is the thin, versioned config + wrappers
++ skills on top.
 
 ### Requirements
 
 - [Pi](https://pi.dev) and [outfitter](https://pi.dev/packages/@ai-outfitter/outfitter) installed
-- Node.js 20+ and global pi packages: `pi-mcp-adapter`, `pi-subagents`, `@gotgenes/pi-permission-system`
+- Node.js 20+ and global pi packages: `pi-mcp-adapter`, `pi-subagents` (do **not** install `@gotgenes/pi-permission-system` — removed FLT-67)
 - Repo-local tools installed by `setup.sh`, including exact-pinned `agent-interview-cli@0.1.0`
 - At least one allowed provider/model authenticated in Pi (`openai-codex` with `gpt-5.5`/`gpt-5.6` is the default, but new worker casts currently require explicit CEO/conductor approval due to the GPT usage guard — see [`docs/model-overrides.md`](docs/model-overrides.md))
 - *Optional*, for long-running `pi-conductor`/`pi-project-lead` seats that self-schedule checkups:
@@ -190,26 +190,26 @@ A seat whose CLI is missing will simply fail that command — install it and re-
 
 ## Two ways to run a role: top-level seat vs. spawnable subagent
 
-pi-fleet composes **three upstream packages** — nothing is forked:
+pi-fleet composes **two upstream packages** — nothing is forked:
 
 | Layer | Package | Role |
 | --- | --- | --- |
 | Loadout + CLI launch | **outfitter** | Composes model/skills/extensions/system-prompt into a profile; the `bin/pi-<role>` wrapper launches it and hardcodes the `--tools` allowlist. |
 | Spawnable subagents | **pi-subagents** | Lets a running seat *delegate* to a child agent (chains, parallel, background). Roster lives in `agents/*.md`. |
-| Runtime policy | **@gotgenes/pi-permission-system** | `allow`/`ask`/`deny` per tool **and per bash command** (e.g. `git *: allow`, `rm -rf *: deny`). Global baseline in `permission-system/config.json`; per-agent `permission:` frontmatter tightens it. |
+| Runtime policy | **wrapper `--tools` + command-policy extensions** | Always YOLO (`--approve`). No `@gotgenes/pi-permission-system`. Security = per-seat `--tools` allowlists + `conductor-policy` / `project-lead-policy` / `ac-verifier-policy` (+ hard secret denies). |
 
 So each role exists in two forms:
 
 - **Top-level seat** — `bin/pi-<role>` (outfitter + `--tools`). Start it yourself from a terminal.
 - **Spawnable subagent** — `agents/<role>.md`, discovered globally at `~/.pi/agent/agents/`. Any seat
   (typically `pi-project-lead`) delegates to it via the `subagent` tool. Its `tools:` frontmatter is
-  the visibility allowlist; `permission:` is the bash/CLI policy. Read-only roles
+  the visibility allowlist (there is no `permission:` frontmatter after FLT-67). Read-only roles
   (`reviewer`, `researcher`, `security-reviewer`) carry no `bash`/`write`/`edit` **by construction**.
 
 ### Machine setup + durability
 
 ```bash
-bin/pi-fleet-bootstrap        # symlink mcp.json, agents/, permission config into ~/.pi; re-apply patches
+bin/pi-fleet-bootstrap        # symlink mcp.json, agents/ into ~/.pi; re-apply patches (no permission-system)
 bin/pi-fleet-repair           # idempotently re-apply the outfitter + pi-tui patches (run after any update)
 bin/pi-fleet-eval             # prove each seat's --tools allowlist really enforces read/write/bash
 bin/pi-fleet-eval-banned-terms # REQUIRED pre-merge gate: no other project's name/prefix in pi-fleet
@@ -220,7 +220,7 @@ Two patches (auto-reverted by `outfitter update` / `pi update`, so `pi-fleet-rep
 1. **outfitter** — persist `pi-mcp-adapter`'s OAuth/onboarding state (else it's wiped each launch).
 2. **pi-tui** — truncate overflowing lines instead of crashing pi (narrow panes overflow the banner).
 
-Required global pi packages: `pi-mcp-adapter`, `pi-subagents`, `@gotgenes/pi-permission-system`.
+Required global pi packages: `pi-mcp-adapter`, `pi-subagents`. Do **not** install `@gotgenes/pi-permission-system` (removed FLT-67).
 
 ---
 
@@ -342,26 +342,25 @@ The security boundary is the wrapper's `--tools` line — a read-only seat simpl
 
 ## Permissions (no click-ops on fleet seats)
 
-Fleet seats should not stop for “Permission Required” dialogs. General Pi policy lives in the
-bootstrapped global/project config and subagent frontmatter. `pi-conductor` and `pi-project-lead`
-are stricter: their wrappers load `permission-system/conductor.json` /
-`permission-system/project-lead.json` from an isolated agent overlay and dedicated policy cwd,
-then apply an immutable command gate so a permissive caller-project config cannot weaken them.
+Fleet seats must never stop for “Permission Required” dialogs. **Always YOLO (FLT-67):** every Pi
+wrapper passes `--approve`; `@gotgenes/pi-permission-system` is fully removed. Security is the
+wrapper `--tools` allowlist plus immutable command-policy extensions where bash is restricted.
+
+`pi-conductor` and `pi-project-lead` are stricter: no `write`/`edit`, always `--approve`, and
+immutable `conductor-policy.ts` / `project-lead-policy.ts` bash gates (shared evaluator
+`bin/lib/conductor-command-policy.mjs`). Conductor is routing-only (FLT-65): bash + Linear tools
+only — no product-repo investigation tools. Isolated agent overlay + policy cwd keep coordination
+root as `FLEET_COORDINATION_ROOT` / `launch-cwd/` — not for a permission-system package.
 Project-lead keeps coordination + narrow main-integration power and loses product-implementation
-power (no `write`/`edit`; no commit/build/install/script shell). Claude conductor/lead wrappers
-load separate `claude-settings/*.json` files; their seat-specific `PreToolUse` hook is authoritative
-and fails closed on unknown or compound commands.
+power (no commit/build/install/script shell). Claude conductor/lead wrappers load separate
+`claude-settings/*.json` files; their seat-specific `PreToolUse` hook is authoritative and fails
+closed on unknown or compound commands.
 
-**Unattended fleet seats (FLT-60 + FLT-66):** no interactive permission / "allow?" modals.
-Security = `--tools` allowlist + hard secret denials (and seat policy for lead/conductor).
-
-- `pi-reviewer` / `pi-ac-verifier`: always `--approve` + `--no-extensions`; do **not** load
-  `@gotgenes/pi-permission-system` (tools + `ac-verifier-policy.ts` for AC bash).
-- `pi-implementer`: always `--approve` + `--no-extensions`; loads PS with
-  `permission-system/implementer.json` (`yoloMode` + hard `.env`/`.ssh` denials); keeps write/edit/bash.
-  FTD/E2B casts invoke this wrapper and inherit unattended argv.
-- `pi-project-lead` / `pi-conductor`: always `--approve`; still no write/edit; isolated PS overlays
-  with `yoloMode: true` (allowlisted tools auto-approve; deny still denies) + seat policy extensions.
+**Unattended fleet seats (FLT-60 + FLT-66 + FLT-67):** every primary Pi seat always passes
+`--approve` (not gated on `FLEET_YOLO`). `@gotgenes/pi-permission-system` is **fully removed** —
+no seat loads it. Security = wrapper `--tools` allowlist + command-policy extensions where bash
+is restricted (`conductor-policy` / `project-lead-policy` / `ac-verifier-policy`). Implementer keeps
+write/edit/bash under `--no-extensions` + explicit linear; FTD/E2B casts inherit unattended argv.
 
 Details: [`docs/permissions.md`](./docs/permissions.md). **One project lead per project workspace.**
 

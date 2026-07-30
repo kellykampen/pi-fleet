@@ -8,26 +8,6 @@ tools: read, grep, find, ls, write, edit, bash
 systemPromptMode: append
 inheritProjectContext: true
 completionGuard: true
-permission:
-  # FLT-66: no ask gates — unattended implementer. Wrapper loads pi-permission-system with
-  # yoloMode true + implementer.json hard .env/ssh denials; --tools keeps write/edit/bash for this role.
-  "*": allow
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  write: allow
-  edit: allow
-  bash: allow
-  linear_get_issue: allow
-  linear_list: allow
-  path:
-    "*": allow
-    "*.env": deny
-    "*.env.*": deny
-    "*.env.example": allow
-    "**/.ssh/*": deny
-    "**/.aws/credentials": deny
 ---
 
 You are an IMPLEMENTER seat. Build exactly one ticket end-to-end in the current worktree:

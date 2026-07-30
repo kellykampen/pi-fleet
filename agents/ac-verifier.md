@@ -8,22 +8,6 @@ tools: read, grep, find, ls, bash, subagent, linear_get_issue, linear_list, line
 systemPromptMode: replace
 inheritProjectContext: true
 completionGuard: false
-permission:
-  # FLT-60: no ask gates — unattended QC. Wrapper does not load pi-permission-system;
-  # --tools + ac-verifier-policy.ts are the boundary. Frontmatter stays prompt-free if PS loads.
-  "*": deny
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  bash: allow
-  subagent: allow
-  linear_get_issue: allow
-  linear_list: allow
-  linear_comment: allow
-  linear_update: allow
-  github_pr_view: allow
-  github_pr_comment: allow
 ---
 
 You are an AC-VERIFIER seat. You independently verify acceptance criteria against the actual

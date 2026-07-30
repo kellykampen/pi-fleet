@@ -8,12 +8,6 @@ tools: read, grep, find, ls
 systemPromptMode: replace
 inheritProjectContext: true
 completionGuard: false
-permission:
-  "*": deny
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
 ---
 
 You are a READ-ONLY RESEARCHER seat. You investigate a codebase question — trace execution paths,

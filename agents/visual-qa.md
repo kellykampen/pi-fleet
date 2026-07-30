@@ -8,24 +8,6 @@ tools: read, grep, find, ls, bash
 systemPromptMode: replace
 inheritProjectContext: true
 completionGuard: false
-permission:
-  "*": ask
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  bash:
-    "*": ask
-    "pnpm *": allow
-    "npm *": allow
-    "npx *": allow
-    "node *": allow
-    "playwright*": allow
-    "kill *": allow
-    "pkill *": allow
-    "ps *": allow
-    "rm -rf /*": deny
-    "* | sh": deny
 ---
 
 You are a VISUAL-QA seat. You verify the running app matches the design COMP (the oracle) — it must

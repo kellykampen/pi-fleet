@@ -8,21 +8,6 @@ tools: read, grep, find, ls, bash
 systemPromptMode: replace
 inheritProjectContext: true
 completionGuard: false
-permission:
-  "*": ask
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  bash:
-    "*": ask
-    "linear*": allow
-    "pi-fleet-spike-interview *": allow
-    "git status": allow
-    "git diff*": allow
-    "git log*": allow
-    "rm -rf *": deny
-    "* | sh": deny
 ---
 
 You turn a Linear SPIKE into a well-formed Linear PROJECT + issues after an audited CEO interview.

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# FLT-60 regression guard: pi-reviewer and pi-ac-verifier are unattended QC seats.
+# FLT-60 + FLT-67 regression guard: unattended QC + fleet-wide PS removal.
 #
 # Deterministic + non-interactive. Proves:
 # 1) Launch argv always includes --approve and --no-extensions (no FLEET_YOLO gate).
 # 2) Launch argv does NOT load @gotgenes/pi-permission-system (no ask-gate extension).
 # 3) --tools allowlists are unchanged (security boundary stays the wrapper allowlist).
-# 4) Agent frontmatter has no permission: ask states (prompt-free even if PS were loaded).
-# 5) Conductor / project-lead wrappers are NOT weakened (still load permission-system).
+# 4) Agent frontmatter has no permission: block (PS removed fleet-wide, FLT-67).
+# 5) Conductor / project-lead also do NOT load permission-system (always YOLO, FLT-67).
 #
 # No real model/API call: mocks outfitter and inspects argv. Optional headless tool-path
 # probe uses pi --no-extensions with the seat allowlist only (no permission-system).
@@ -18,18 +18,16 @@ mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/unattended-reviewer-ac-latest.txt"
 trap 'rm -rf "$FAKE_BIN"' EXIT
 
-cat >"$FAKE_BIN/outfitter" <<'EOF'
+cat >"$FAKE_BIN/outfitter" <<'MOCK'
 #!/usr/bin/env bash
 printf 'ARG=%s\n' "$@"
-EOF
+MOCK
 chmod +x "$FAKE_BIN/outfitter"
 
 # Minimal pi-subagents package so pi-ac-verifier can resolve its explicit extension.
 mkdir -p "$FAKE_BIN/agent/npm/node_modules/pi-subagents"
 printf '{}\n' >"$FAKE_BIN/agent/npm/node_modules/pi-subagents/package.json"
 printf '// mock\n' >"$FAKE_BIN/agent/npm/node_modules/pi-subagents/index.ts"
-# Also satisfy permission-system resolution for conductor/project-lead negative checks.
-mkdir -p "$FAKE_BIN/agent/npm/node_modules/@gotgenes/pi-permission-system"
 
 pass=0
 fail=0
@@ -62,11 +60,12 @@ rejects() {
 }
 assert_file_lacks() {
 	local desc="$1" file="$2" pattern="$3"
-	if python3 - "$DIR/$file" "$pattern" <<'PY'; then
+	if python3 - "$DIR/$file" "$pattern" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 sys.exit(0 if not re.search(sys.argv[2], text, re.MULTILINE | re.DOTALL) else 1)
 PY
+	then
 		ok "$desc"
 	else
 		no "$desc"
@@ -75,11 +74,12 @@ PY
 }
 assert_file_contains() {
 	local desc="$1" file="$2" pattern="$3"
-	if python3 - "$DIR/$file" "$pattern" <<'PY'; then
+	if python3 - "$DIR/$file" "$pattern" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 sys.exit(0 if re.search(sys.argv[2], text, re.MULTILINE | re.DOTALL) else 1)
 PY
+	then
 		ok "$desc"
 	else
 		no "$desc"
@@ -98,9 +98,28 @@ run_ac() {
 		HOME="$FAKE_BIN" \
 		"$DIR/bin/pi-ac-verifier" -p 'run git status; report TOOL_OK=1'
 }
+run_lead() {
+	cd /tmp && env -u FLEET_YOLO PATH="$FAKE_BIN:$PATH" \
+		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" \
+		HOME="$FAKE_BIN" \
+		FLEET_PROJECT_LEAD_RUNTIME_DIR="$FAKE_BIN/lead-runtime" \
+		"$DIR/bin/pi-project-lead" -p 'noop'
+}
+run_conductor() {
+	cd /tmp && env -u FLEET_YOLO PATH="$FAKE_BIN:$PATH" \
+		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" \
+		HOME="$FAKE_BIN" \
+		FLEET_CONDUCTOR_RUNTIME_DIR="$FAKE_BIN/conductor-runtime" \
+		"$DIR/bin/pi-conductor" -p 'noop'
+}
+run_implementer() {
+	cd /tmp && env -u FLEET_YOLO PATH="$FAKE_BIN:$PATH" \
+		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" \
+		"$DIR/bin/pi-implementer" -p 'noop'
+}
 
 {
-	echo "FLT-60 unattended reviewer/ac-verifier smoke"
+	echo "FLT-60/FLT-67 unattended + no-permission-system smoke"
 	echo
 
 	echo "1) pi-reviewer launch argv (no FLEET_YOLO)"
@@ -114,7 +133,6 @@ run_ac() {
 		'pi-permission-system|@gotgenes/pi-permission-system' "$rev_out"
 	rejects "reviewer does not grant write/edit/bash" \
 		'^ARG=.*(write|edit|bash)' "$rev_out"
-	# FLEET_YOLO must not be required — prove still YOLO when explicitly off.
 	rev_yolo0="$(cd /tmp && env FLEET_YOLO=0 PATH="$FAKE_BIN:$PATH" \
 		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" \
 		"$DIR/bin/pi-reviewer" -p noop)"
@@ -141,27 +159,23 @@ run_ac() {
 	contains_line "ac-verifier still --approve when FLEET_YOLO=0" "ARG=--approve" "$ac_yolo0"
 
 	echo
-	echo "3) agent frontmatter has no ask gates"
-	for f in agents/reviewer.md agents/ac-verifier.md agents/ac-criterion-verifier.md; do
-		# Only the YAML permission frontmatter may set allow/ask/deny — ignore prose "ask".
-		if python3 - "$DIR/$f" <<'PY'; then
+	echo "3) agent frontmatter has no permission: block (FLT-67)"
+	for f in agents/reviewer.md agents/ac-verifier.md agents/ac-criterion-verifier.md \
+		agents/implementer.md agents/conductor.md agents/project-lead.md agents/docs.md; do
+		if python3 - "$DIR/$f" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
 if not m:
     sys.exit(1)
 fm = m.group(1)
-# Fail if any bare permission state token is ask (value form: ": ask" or "ask" after indent).
-if re.search(r"(?m)^\s*(?:[\"']?\*?[\"']?\s*:\s*)?ask\s*$", fm):
-    sys.exit(1)
-if re.search(r":\s*ask\b", fm):
+if re.search(r"(?m)^permission:\s*$", fm) or re.search(r"(?m)^permission:\s", fm):
     sys.exit(1)
 sys.exit(0)
 PY
-			ok "$f has no permission ask state"
-		else no "$f has no permission ask state"; fi
-		assert_file_contains "$f deny-by-default permission fallback" "$f" \
-			'permission:[\s\S]*"\*":\s*deny'
+		then
+			ok "$f has no permission: frontmatter"
+		else no "$f has no permission: frontmatter"; fi
 	done
 
 	echo
@@ -172,7 +186,6 @@ PY
 		assert_file_contains "$f documents wrapper-owned extensions" "$f" \
 			'wrapper alone loads|NOT declared here'
 	done
-	# Mocked launch argv still has exactly one linear/github-pr extension each (wrapper-owned).
 	linear_count=$(printf '%s\n' "$rev_out" | grep -cF "ARG=$DIR/extensions/linear.ts" || true)
 	[ "$linear_count" -eq 1 ] && ok "reviewer launch has exactly one linear.ts extension" \
 		|| no "reviewer launch linear.ts count=$linear_count (want 1)"
@@ -184,35 +197,55 @@ PY
 		|| no "ac-verifier launch github-pr.ts count=$ac_gh (want 1)"
 
 	echo
-	echo "4) conductor / project-lead keep restricted tools + PS + hard denials (FLT-66 unattended)"
-	assert_file_contains "pi-conductor still loads permission-system" "bin/pi-conductor" \
-		'pi-permission-system|PI_PERMISSION_SYSTEM_PATH'
-	assert_file_contains "pi-project-lead still loads permission-system" "bin/pi-project-lead" \
-		'pi-permission-system|PI_PERMISSION_SYSTEM_PATH'
-	# FLT-66: yoloMode true auto-approves allowlisted tools; deny still denies. Always --approve.
-	assert_file_contains "conductor.json has yoloMode true (unattended)" "permission-system/conductor.json" \
-		'"yoloMode":\s*true'
-	assert_file_contains "project-lead.json has yoloMode true (unattended)" "permission-system/project-lead.json" \
-		'"yoloMode":\s*true'
-	assert_file_contains "pi-conductor hardcodes --approve (unattended)" "bin/pi-conductor" \
-		'--approve'
-	assert_file_contains "pi-project-lead hardcodes --approve (unattended)" "bin/pi-project-lead" \
-		'--approve'
-	assert_file_contains "conductor.json still denies write" "permission-system/conductor.json" \
-		'"write":\s*"deny"'
-	assert_file_contains "project-lead.json still denies write" "permission-system/project-lead.json" \
-		'"write":\s*"deny"'
+	echo "4) conductor / project-lead / implementer also have no permission-system (FLT-67)"
+	lead_out="$(run_lead)"
+	cond_out="$(run_conductor)"
+	impl_out="$(run_implementer)"
+	contains_line "project-lead always passes --approve" "ARG=--approve" "$lead_out"
+	contains_line "conductor always passes --approve" "ARG=--approve" "$cond_out"
+	contains_line "implementer always passes --approve" "ARG=--approve" "$impl_out"
+	rejects "project-lead does not load permission-system package" \
+		'pi-permission-system|@gotgenes/pi-permission-system' "$lead_out"
+	rejects "conductor does not load permission-system package" \
+		'pi-permission-system|@gotgenes/pi-permission-system' "$cond_out"
+	rejects "implementer does not load permission-system package" \
+		'pi-permission-system|@gotgenes/pi-permission-system' "$impl_out"
+	contains_line "project-lead keeps policy extension" "ARG=$DIR/extensions/project-lead-policy.ts" "$lead_out"
+	contains_line "conductor keeps policy extension" "ARG=$DIR/extensions/conductor-policy.ts" "$cond_out"
+	assert_file_lacks "pi-conductor source has no PI_PERMISSION_SYSTEM_PATH assignment" "bin/pi-conductor" \
+		'export PI_PERMISSION_SYSTEM_PATH|PI_PERMISSION_SYSTEM_PATH='
+	assert_file_lacks "pi-project-lead source has no PI_PERMISSION_SYSTEM_PATH assignment" "bin/pi-project-lead" \
+		'export PI_PERMISSION_SYSTEM_PATH|PI_PERMISSION_SYSTEM_PATH='
+	assert_file_lacks "runtime has no PI_PERMISSION_SYSTEM_PATH export" "bin/lib/pi-project-lead-runtime.sh" \
+		'export PI_PERMISSION_SYSTEM_PATH|PI_PERMISSION_SYSTEM_PATH='
+	assert_file_lacks "conductor runtime has no PI_PERMISSION_SYSTEM_PATH export" "bin/lib/pi-conductor-runtime.sh" \
+		'export PI_PERMISSION_SYSTEM_PATH|PI_PERMISSION_SYSTEM_PATH='
+	assert_file_lacks "runtime does not resolve npm package path" "bin/lib/pi-project-lead-runtime.sh" \
+		npm/node_modules/@gotgenes/pi-permission-system
+	assert_file_lacks "conductor runtime does not resolve npm package path" "bin/lib/pi-conductor-runtime.sh" \
+		npm/node_modules/@gotgenes/pi-permission-system
+	if [ ! -e "$DIR/permission-system" ]; then
+		ok "permission-system/ directory is removed from repo"
+	else
+		no "permission-system/ directory is removed from repo"
+	fi
+	# FLEET_YOLO=0 must not strip --approve
+	lead_yolo0="$(cd /tmp && env FLEET_YOLO=0 PATH="$FAKE_BIN:$PATH" \
+		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" HOME="$FAKE_BIN" \
+		FLEET_PROJECT_LEAD_RUNTIME_DIR="$FAKE_BIN/lead-runtime2" \
+		"$DIR/bin/pi-project-lead" -p noop)"
+	contains_line "project-lead still --approve when FLEET_YOLO=0" "ARG=--approve" "$lead_yolo0"
+	impl_yolo0="$(cd /tmp && env FLEET_YOLO=0 PATH="$FAKE_BIN:$PATH" \
+		PI_CODING_AGENT_DIR="$FAKE_BIN/agent" \
+		"$DIR/bin/pi-implementer" -p noop)"
+	contains_line "implementer still --approve when FLEET_YOLO=0" "ARG=--approve" "$impl_yolo0"
 
 	echo
 	echo "5) headless tool path without permission-system (allowlisted tool, no ask gate)"
-	# Prove a normal allowlisted tool runs under the same flags the wrappers pass:
-	# --no-extensions + seat tools, NO permission-system extension. Sentinel proves execution.
 	if command -v pi >/dev/null 2>&1; then
 		probe_log="$FAKE_BIN/tool-probe.log"
 		sentinel="$FAKE_BIN/tool-sentinel.txt"
 		rm -f "$sentinel" "$probe_log"
-		# Use bash + a write via shell to create a sentinel — mirrors ac-verifier allowlisted path.
-		# Reviewer has no bash; its boundary is --tools only, already asserted above.
 		if perl -e 'alarm shift; exec @ARGV' 45 \
 			pi --no-extensions --approve \
 			--tools read,grep,find,ls,bash \
@@ -223,7 +256,6 @@ PY
 		if [ -f "$sentinel" ] && grep -q 'TOOL_RAN=1' "$sentinel"; then
 			ok "allowlisted bash tool ran without permission-system (sentinel written)"
 		else
-			# Non-fatal soft check if model/API unavailable; structural checks above are hard.
 			if grep -qiE 'permission|allow this|approve this|y/n|\[y/N\]|ui_prompt' "$probe_log" 2>/dev/null; then
 				no "headless tool probe hit a permission prompt"
 				echo "  log tail:"

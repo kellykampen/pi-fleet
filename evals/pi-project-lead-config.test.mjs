@@ -1,76 +1,66 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import { constants } from "node:fs";
 import test from "node:test";
+import { evaluateCommand } from "../bin/lib/conductor-command-policy.mjs";
 
-async function config() {
-  const path = new URL("../permission-system/project-lead.json", import.meta.url);
-  try {
-    return JSON.parse(await readFile(path, "utf8"));
-  } catch (error) {
-    assert.fail(`invalid project-lead config: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-test("Pi project-lead config defaults Bash to deny while exposing no mutation tools", async () => {
-  const value = await config();
-  // FLT-66: yoloMode auto-approves allowlisted tools; hard denials still hold.
-  assert.equal(value.yoloMode, true);
-  assert.equal(value.permission.write, "deny");
-  assert.equal(value.permission.edit, "deny");
-  assert.equal(value.permission.bash["*"], "deny");
+test("permission-system directory is removed (FLT-67)", async () => {
+  await assert.rejects(
+    () => access(new URL("../permission-system/project-lead.json", import.meta.url), constants.F_OK),
+    /ENOENT/,
+  );
+  await assert.rejects(
+    () => access(new URL("../permission-system", import.meta.url), constants.F_OK),
+    /ENOENT/,
+  );
 });
 
-test("Pi project-lead config allows coordination and main integration", async () => {
-  const { permission } = await config();
-  for (const pattern of [
-    "cmux *",
-    "linear-cli *",
-    "check-model-usage *",
-    "gh pr view *",
-    "gh pr merge *",
-    "gh pr comment *",
-    "git status *",
+test("project-lead wrapper does not load pi-permission-system", async () => {
+  const wrapper = await readFile(new URL("../bin/pi-project-lead", import.meta.url), "utf8");
+  // Comments may mention the removed package; operational wiring must be absent.
+  assert.equal(/export\s+PI_PERMISSION_SYSTEM_PATH|PI_PERMISSION_SYSTEM_PATH\s*=/.test(wrapper), false);
+  assert.equal(/--extension[^\n]*@gotgenes\/pi-permission-system|npm\/node_modules\/@gotgenes\/pi-permission-system/.test(wrapper), false);
+  assert.match(wrapper, /--approve/);
+  assert.match(wrapper, /project-lead-policy\.ts/);
+  const toolsLine = wrapper.split("\n").find((line) => /--tools\s+read,grep,find,ls,bash,/.test(line)) ?? "";
+  assert.match(toolsLine, /--tools read,grep,find,ls,bash,/);
+  assert.doesNotMatch(toolsLine, /\b(write|edit)\b/);
+});
+
+test("project-lead-policy.ts evaluates seat lead", async () => {
+  const policy = await readFile(new URL("../extensions/project-lead-policy.ts", import.meta.url), "utf8");
+  assert.match(policy, /seat:\s*"lead"/);
+  assert.doesNotMatch(policy, /pi-permission-system supplies/);
+});
+
+test("seat lead command policy allows coordination and denies implementation", () => {
+  const allow = (command) =>
+    assert.equal(evaluateCommand(command, { seat: "lead", cwd: "/repo" }).allowed, true, command);
+  const deny = (command) =>
+    assert.equal(evaluateCommand(command, { seat: "lead", cwd: "/repo" }).allowed, false, command);
+  for (const command of [
+    "cmux workspace list",
+    "linear-cli issue get FLT-1",
+    "gh pr view 1",
+    "gh pr merge 1 --merge",
+    "git status --short",
+    "git fetch origin",
+    "git pull --ff-only origin main",
     "git checkout main",
-    "git switch main",
-    "git fetch *",
-    "git pull --ff-only *",
-    "git merge *",
-    "git push *",
-    "git worktree add *",
-    "git worktree remove *",
-    "cat *",
-    "jq *",
+    "git push origin main",
     "uptime",
-    "fleet-note *",
-    "fleet-mail *",
-  ]) assert.equal(permission.bash[pattern], "allow", pattern);
-  for (const subcommand of ["status", "log", "diff", "show", "rev-parse"])
-    for (const suffix of ["", " *"])
-      assert.equal(
-        permission.bash[`git -C * ${subcommand}${suffix}`],
-        "allow",
-        `git -C * ${subcommand}${suffix}`,
-      );
-});
-
-test("Pi project-lead config denies product-implementation shell", async () => {
-  const { permission } = await config();
-  for (const pattern of [
-    "git clone *",
-    "git commit *",
-    "gh pr review *",
-    "npm *",
-    "pnpm *",
-    "yarn *",
-    "bun *",
-    "node *",
-    "python *",
-    "python3 *",
-    "make *",
-    "cargo *",
-    "./*",
-    "bash *",
-    "sh *",
-    "tee *",
-  ]) assert.equal(permission.bash[pattern], "deny", pattern);
+    "fleet-note append coordination/status.md ok",
+    "fleet-mail inbox --mailbox project-lead --unread",
+  ]) allow(command);
+  for (const command of [
+    "git commit -am x",
+    "git clone https://example.invalid/r.git",
+    "gh pr create --title t --body b",
+    "gh pr review 1 --approve",
+    "pnpm test",
+    "npm ci",
+    "node build.js",
+    "python3 x.py",
+    "bash script.sh",
+  ]) deny(command);
 });

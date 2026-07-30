@@ -8,19 +8,6 @@ tools: read, grep, find, ls, bash
 systemPromptMode: replace
 inheritProjectContext: true
 completionGuard: false
-permission:
-  "*": ask
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  bash:
-    "*": ask
-    "linear*": allow
-    "git status": allow
-    "git log*": allow
-    "rm -rf *": deny
-    "* | sh": deny
 ---
 
 You are a LINEAR seat. You manage Linear issues and projects via the linear CLI (through bash):

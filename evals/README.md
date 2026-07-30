@@ -74,16 +74,12 @@ node --test evals/pi-project-lead-config.test.mjs
 node --test evals/conductor-command-policy.test.mjs
 ```
 
-These guards prove `pi-project-lead` is coordination-only / non-bottleneck in the **harness**, not
-only prose: `--tools` omits `write`/`edit` while keeping bash + E2B cast tools; the wrapper loads an
-isolated `permission-system/project-lead.json` overlay and `extensions/project-lead-policy.ts`; seat
-`lead` command policy allows cmux/gh-read/main-integration and denies implementer shell (`git commit`,
+These guards prove `pi-project-lead` is a routing bottleneck in the **harness**, not only prose:
+`--tools` omits `write`/`edit` while keeping bash + E2B cast tools; the wrapper loads an isolated
+`extensions/project-lead-policy.ts` (no permission-system; FLT-67); seat `lead`. Conductor is routing-only (FLT-65): bash+Linear tools only.
+command policy allows cmux/gh-read/main-integration and denies implementer shell (`git commit`,
 `pnpm test`, `gh pr create`/`review`, interpreters); and skill/agent/profile prose forbids absorbing
-light implementation/review/AC/docs work into the lead session. FLT-62 also requires explicit
-non-bottleneck phrases in those sources: **bottleneck forbidden**, **cast immediately**, **poll every
-2–5 minutes**, **parallel seats mandatory**, **silence while agents run is a process failure**, **no
-light product work**, compressed rollups, harness **no write/edit** / delegate-only, and no mid-turn
-`cmux send` into a Working worker (batch handoff file or one idle message only).
+light implementation/review/AC/docs work into the lead session.
 
 ## Dual-source AC verification structural eval
 
@@ -128,30 +124,12 @@ evals/unattended-reviewer-ac-smoke-test.sh
 
 This FLT-60 guard is deterministic and non-interactive (mocks `outfitter`). It proves
 `pi-reviewer` and `pi-ac-verifier` always launch with `--approve` + `--no-extensions`, never load
-`@gotgenes/pi-permission-system`, keep their `--tools` allowlists, have no `permission: ask` states
-in agent frontmatter, and still keep conductor/project-lead restricted tools + hard denials. An optional
+any permission package, keep their `--tools` allowlists, have no `permission:` frontmatter, and
+conductor/project-lead also do not load PS (always YOLO, FLT-67). An optional
 headless tool probe (when `pi` is installed) confirms an allowlisted tool path runs without a
-permission-system ask gate.
+permission-system ask gate (PS fully removed).
 
 Last verified: [`results/unattended-reviewer-ac-latest.txt`](./results/unattended-reviewer-ac-latest.txt).
-
-## Unattended all fleet seats smoke (FLT-66)
-
-```bash
-evals/unattended-all-fleet-seats-smoke-test.sh
-```
-
-This FLT-66 guard is deterministic and non-interactive (mocks `outfitter`). It proves primary fleet
-seats stay unattended:
-
-- `pi-implementer`, `pi-project-lead`, `pi-conductor`, `pi-reviewer`, `pi-ac-verifier` always pass
-  `--approve` (not gated on `FLEET_YOLO`) and `--no-extensions`
-- agent frontmatter for those seats has no `permission: ask` states
-- lead/conductor still omit write/edit and keep hard `.env`/`.ssh` denials + seat policy extensions
-- implementer keeps write/edit/bash, loads `permission-system/implementer.json` (`yoloMode` + secret denials)
-- optional headless `-p` probe (when `pi` + PS installed) confirms no allow?/permission UI prompts
-
-Last verified: [`results/unattended-all-fleet-seats-latest.txt`](./results/unattended-all-fleet-seats-latest.txt).
 
 ## Spike direct-browser interview contract
 
@@ -175,8 +153,8 @@ mocked checks.
 
 ## Bash-command policy eval
 
-`@gotgenes/pi-permission-system` enforces per-command policy (`git *: allow`, `rm -rf *: deny`, …)
-from `permission-system/config.json` + per-agent `permission:` frontmatter.
+`@gotgenes/pi-permission-system` is **removed** (FLT-67). Bash policy for restricted seats is
+`conductor-policy` / `project-lead-policy` / `ac-verifier-policy` + wrapper `--tools`. Always YOLO.
 
 ```bash
 bin/pi-fleet-eval-bashpolicy     # writes evals/results/bash-policy-latest.txt
@@ -184,7 +162,8 @@ bin/pi-fleet-eval-bashpolicy     # writes evals/results/bash-policy-latest.txt
 
 **Safe by construction:** the destructive probe targets a throwaway `/tmp` sentinel dir, and a
 **surviving sentinel** is the ground-truth proof the deny actually held — independent of what the
-model claims. It loads the permission system surgically (`pi --no-extensions -e <permission-system>`)
+model claims. It asserts PS is absent from wrappers/setup and that command-policy units still deny
+destructive shell; optional live probe uses `pi --no-extensions --approve` with no PS extension
 so `remote-pi` can't hijack while the policy layer stays active. Expect `git status` = ran,
 `rm -rf` = blocked, sentinel = ALIVE.
 
@@ -197,7 +176,7 @@ bin/pi-fleet-eval-conductor-policy
 ```
 
 This launches the real `pi-conductor` wrapper from a scratch caller directory containing a deliberately
-permissive project-local permission config. Safe fake orchestration executables create sentinels when
+leftover project-local permission-system junk config (ignored — PS not loaded). Safe fake orchestration executables create sentinels when
 `cmux workspace list`, a `linear-cli` read, zero-argument `uptime`, and read-only `git -C` actually run.
 Separate sentinels detect any execution of `git -C ... merge`, `git clone`, `npm ci`, `node build.js`, or a
 redirect that writes `bin/foo.sh`. The eval also conditionally executes the independently verified lead-seat
@@ -212,25 +191,6 @@ policy. `pi-conductor` avoids that hazard with an isolated agent overlay, a dedi
 immutable second command gate.
 
 Last verified: [`results/conductor-policy-latest.txt`](./results/conductor-policy-latest.txt).
-
-## Conductor routing-only structural guard (FLT-65)
-
-```bash
-evals/conductor-restrict-structural-test.sh
-node --test evals/conductor-command-policy.test.mjs
-evals/pi-conductor-config.test.mjs
-evals/pi-conductor-launch-smoke-test.sh
-evals/claude-policy.test.mjs
-```
-
-Proves the conductor is **routing-only**: wrapper `--tools` is bash + Linear only (no
-`read`/`grep`/`find`/`ls`/`write`/`edit`); `permission-system/conductor.json` and the shared
-`evaluateCommand(..., { seat: "conductor" })` deny product PR-diff review paths
-(`git diff`/`git show`/`gh pr view`/`gh api`/content readers) while allowing portfolio metadata
-(`gh pr list`/`checks`, `git status`/`log`/`branch`/`rev-parse`, cmux, linear-cli); Claude conductor
-settings deny Read/Grep/Glob and the same Bash review paths; skill/agent/profile prose carries the
-FLT-65 HARD RULES phrases. Project-lead gate tools (`gh pr view`, content readers) remain allowed
-for the lead seat (delegate-only still enforced separately).
 
 ## Banned-terms guard (MANDATORY pre-merge gate)
 
@@ -283,24 +243,19 @@ bin/pi-fleet-eval-model-overrides        # writes evals/results/model-overrides-
 See [`../docs/model-overrides.md`](../docs/model-overrides.md) for the full env-name and default
 model table.
 
-## Agent mail (fleet-mail) smoke + unit tests (FLT-58 / FLT-63)
+## Agent mail (fleet-mail) smoke + unit tests (FLT-58)
 
 Durable async inbox between seats — status uplink without cmux send drip. Decision
 record for not adopting `npm:pi-messenger` as-is: [`docs/pi-messenger-decision.md`](../docs/pi-messenger-decision.md).
-Batch/append + multi-harness decision: [`docs/batch-append-messaging.md`](../docs/batch-append-messaging.md).
-Contract: [`docs/agent-mail.md`](../docs/agent-mail.md). Codex path:
-[`docs/codex-fleet-mail.md`](../docs/codex-fleet-mail.md).
+Contract: [`docs/agent-mail.md`](../docs/agent-mail.md).
 
 ```bash
 evals/pi-fleet-mail-smoke-test.sh
 node --test evals/fleet-mail.test.mjs
-evals/batch-mail-structural-test.sh
 ```
 
 Proves send/inbox/show/ack between two local seats, worker→conductor topology deny,
-STATUS slot replacement per ticket, rate limit on non-status, private file modes, and
-structural multi-harness skill/docs (Claude + Codex same CLI; lead idle pull / no mid-turn
-cmux status drip).
+STATUS slot replacement per ticket, rate limit on non-status, and private file modes.
 
 ## GPT usage guard structural eval (FLT-55)
 
@@ -341,14 +296,6 @@ cat-expansion and stdin deliver file contents while a bare path would store the 
 ```bash
 evals/linear-body-content-structural-test.sh
 ```
-
-## Non-bottleneck project-lead structural phrases (FLT-62)
-
-Covered by `evals/project-lead-delegate-guard-structural-test.sh` (above): skill + profile + agent
-must state **bottleneck forbidden**, **cast immediately**, **poll every 2–5 minutes**, **parallel
-seats mandatory**, **silence while agents run is a process failure**, **no light product work**,
-compressed rollups, harness **no write/edit** / delegate-only, and the mid-turn Working ban (batch
-handoff file or one idle message). Does not weaken FLT-57 topology or the harness write/edit deny.
 
 ## Gotchas
 

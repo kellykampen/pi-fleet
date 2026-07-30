@@ -5,17 +5,15 @@ import {
 import { evaluateCommand } from "../bin/lib/conductor-command-policy.mjs";
 
 /**
- * Immutable top-level Pi conductor boundary.
+ * Immutable top-level Pi conductor boundary (FLT-67).
  *
- * pi-permission-system supplies the command policy and audit log. This second gate prevents a
- * caller-project config from weakening that policy and rejects write-capable shell syntax that
- * the permission system's access-mode-blind `path` surface cannot distinguish from reads.
+ * Security is the wrapper `--tools` allowlist (no write/edit) plus this fail-closed bash
+ * command-policy gate. `@gotgenes/pi-permission-system` is not loaded. This gate rejects
+ * write-capable shell syntax, compounds, and non-allowlisted executables for the conductor seat.
  */
 export default function conductorPolicy(pi: ExtensionAPI): void {
   pi.on("before_agent_start", () => {
-    // A true bash "*": deny is required at runtime, but pi-permission-system consequently hides
-    // the Bash tool during its earlier handler. Re-enable it after that filter; both runtime gates
-    // still execute for every call.
+    // Ensure bash remains active when the wrapper allowlist includes it.
     const active = pi.getActiveTools();
     if (!active.includes("bash")) pi.setActiveTools([...active, "bash"]);
   });

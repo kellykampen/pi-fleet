@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
 #
-# FLT-60: unattended QC seat. Always pass --approve (project trust) and --no-extensions so the
-# global @gotgenes/pi-permission-system package is NOT auto-loaded. The security boundary is the
-# --tools allowlist only (read/search + Linear reads) — no interactive permission prompts.
-# Conductor/project-lead wrappers retain their own isolated permission overlays unchanged.
+# FLT-60/FLT-67: unattended QC seat. Always --approve (always YOLO). --no-extensions so no
+# global packages auto-load. Security boundary is the --tools allowlist only — no permission
+# prompts. pi-permission-system is fully removed from the fleet (FLT-67).
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLEET_ROOT="$(cd "$DIR/.." && pwd)"
 . "$DIR/lib/pi-model-env.sh"
 pi_model_override_args reviewer "" "$@"
-# Always YOLO for unattended review: do not gate on FLEET_YOLO.
+# Always YOLO (FLT-67): never gate on FLEET_YOLO.
 exec outfitter run --profile reviewer --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
   --approve \
   --no-extensions \

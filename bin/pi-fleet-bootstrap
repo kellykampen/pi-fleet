@@ -24,8 +24,7 @@ echo "pi-fleet bootstrap:"
 link "$REPO/mcp.json" "$AGENT_DIR/mcp.json"
 # Spawnable subagent roster (pi-subagents discovers ~/.pi/agent/agents/**/*.md)
 link "$REPO/agents" "$AGENT_DIR/agents"
-# Permission policy baseline (pi-permission-system)
-link "$REPO/permission-system/config.json" "$AGENT_DIR/extensions/pi-permission-system/config.json"
+# FLT-67: @gotgenes/pi-permission-system removed. No permission config bootstrap.
 
 # Re-apply the outfitter MCP-state-persistence patch (reverted by `outfitter update`).
 "$REPO/bin/pi-fleet-repair"
@@ -33,5 +32,5 @@ link "$REPO/permission-system/config.json" "$AGENT_DIR/extensions/pi-permission-
 echo "  ✓ private runtime root: $RUNTIME_ROOT"
 echo "Legacy state is never migrated automatically. Inventory safely with: $REPO/bin/pi-fleet-state-migrate"
 echo "Apply later only after reviewing that report: $REPO/bin/pi-fleet-state-migrate --apply"
-echo "Done. Required global pi packages: pi-mcp-adapter, pi-subagents, @gotgenes/pi-permission-system"
+echo "Done. Required global pi packages: pi-mcp-adapter, pi-subagents (pi-permission-system is NOT used — FLT-67)"
 echo "Verify with: pi list"

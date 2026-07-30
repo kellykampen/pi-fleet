@@ -1,4 +1,4 @@
-FLT-60 unattended reviewer/ac-verifier smoke
+FLT-60/FLT-67 unattended + no-permission-system smoke
 
 1) pi-reviewer launch argv (no FLEET_YOLO)
 PASS: reviewer always passes --approve
@@ -21,13 +21,14 @@ PASS: ac-verifier does not load permission-system package
 PASS: ac-verifier does not grant write/edit
 PASS: ac-verifier still --approve when FLEET_YOLO=0
 
-3) agent frontmatter has no ask gates
-PASS: agents/reviewer.md has no permission ask state
-PASS: agents/reviewer.md deny-by-default permission fallback
-PASS: agents/ac-verifier.md has no permission ask state
-PASS: agents/ac-verifier.md deny-by-default permission fallback
-PASS: agents/ac-criterion-verifier.md has no permission ask state
-PASS: agents/ac-criterion-verifier.md deny-by-default permission fallback
+3) agent frontmatter has no permission: block (FLT-67)
+PASS: agents/reviewer.md has no permission: frontmatter
+PASS: agents/ac-verifier.md has no permission: frontmatter
+PASS: agents/ac-criterion-verifier.md has no permission: frontmatter
+PASS: agents/implementer.md has no permission: frontmatter
+PASS: agents/conductor.md has no permission: frontmatter
+PASS: agents/project-lead.md has no permission: frontmatter
+PASS: agents/docs.md has no permission: frontmatter
 
 3b) profiles omit extensions (no double-load against wrapper --extension)
 PASS: profiles/reviewer/profile.yml has no profile-managed extensions:
@@ -38,20 +39,29 @@ PASS: reviewer launch has exactly one linear.ts extension
 PASS: ac-verifier launch has exactly one linear.ts extension
 PASS: ac-verifier launch has exactly one github-pr.ts extension
 
-4) conductor / project-lead keep restricted tools + PS + hard denials (FLT-66 unattended)
-PASS: pi-conductor still loads permission-system
-PASS: pi-project-lead still loads permission-system
-PASS: conductor.json has yoloMode true (unattended)
-PASS: project-lead.json has yoloMode true (unattended)
-PASS: pi-conductor hardcodes --approve (unattended)
-PASS: pi-project-lead hardcodes --approve (unattended)
-PASS: conductor.json still denies write
-PASS: project-lead.json still denies write
+4) conductor / project-lead / implementer also have no permission-system (FLT-67)
+PASS: project-lead always passes --approve
+PASS: conductor always passes --approve
+PASS: implementer always passes --approve
+PASS: project-lead does not load permission-system package
+PASS: conductor does not load permission-system package
+PASS: implementer does not load permission-system package
+PASS: project-lead keeps policy extension
+PASS: conductor keeps policy extension
+PASS: pi-conductor source has no PI_PERMISSION_SYSTEM_PATH assignment
+PASS: pi-project-lead source has no PI_PERMISSION_SYSTEM_PATH assignment
+PASS: runtime has no PI_PERMISSION_SYSTEM_PATH export
+PASS: conductor runtime has no PI_PERMISSION_SYSTEM_PATH export
+PASS: runtime does not resolve npm package path
+PASS: conductor runtime does not resolve npm package path
+PASS: permission-system/ directory is removed from repo
+PASS: project-lead still --approve when FLEET_YOLO=0
+PASS: implementer still --approve when FLEET_YOLO=0
 
 5) headless tool path without permission-system (allowlisted tool, no ask gate)
 PASS: allowlisted bash tool ran without permission-system (sentinel written)
 PASS: no permission-system ask gate in headless probe log
 
 ---
-40 passed, 0 failed
+50 passed, 0 failed
 VERDICT: PASS

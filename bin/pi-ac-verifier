@@ -2,10 +2,9 @@
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
 # FLT-56: parent fans out one ac-criterion-verifier child per AC via pi-subagents (`subagent` tool).
 #
-# FLT-60: unattended QC seat. Always pass --approve (project trust) and keep --no-extensions so the
-# global @gotgenes/pi-permission-system package is NOT auto-loaded. Bash is gated by the immutable
-# extensions/ac-verifier-policy.ts allowlist — not interactive permission prompts. Conductor and
-# project-lead wrappers retain their own isolated permission overlays unchanged.
+# FLT-60/FLT-67: unattended QC seat. Always --approve (always YOLO). --no-extensions so no global
+# packages auto-load. Bash is gated by immutable extensions/ac-verifier-policy.ts — not interactive
+# permission prompts. pi-permission-system is fully removed from the fleet (FLT-67).
 set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
@@ -26,7 +25,7 @@ if [ -z "$PI_SUBAGENTS_PATH" ]; then
   exit 1
 fi
 
-# Always YOLO for unattended AC verification: do not gate on FLEET_YOLO.
+# Always YOLO (FLT-67): never gate on FLEET_YOLO.
 exec outfitter run --profile ac-verifier --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
   --approve \
   --no-extensions \

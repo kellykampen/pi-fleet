@@ -15,11 +15,7 @@ FAKE_BIN="$(mktemp -d)"
 FAKE_HOME="$(mktemp -d)"
 trap 'rm -rf "$FAKE_BIN" "$FAKE_HOME"' EXIT
 
-# pi-conductor and pi-project-lead runtimes hard-require @gotgenes/pi-permission-system under the
-# resolved agent dir before they will run at all. Stub a resolvable package dir under this
-# sandbox's HOME so the wrappers can complete setup here rather than failing on a precondition
-# this smoke test isn't exercising.
-mkdir -p "$FAKE_HOME/.pi/agent/npm/node_modules/@gotgenes/pi-permission-system"
+# FLT-67: pi-permission-system is not required. No package stub needed for launch.
 
 cat >"$FAKE_BIN/outfitter" <<'EOF'
 #!/usr/bin/env bash

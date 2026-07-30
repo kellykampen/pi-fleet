@@ -8,9 +8,7 @@ OUT="${1:-$TMP/model-overrides-latest.txt}"
 trap 'rm -rf "$TMP"' EXIT
 exec > >(tee "$OUT") 2>&1
 
-# Conductor requires the permission-system package before it reaches outfitter.
-# Point the isolated eval at mock installs so the test is self-contained.
-mkdir -p "$TMP/agent/npm/node_modules/@gotgenes/pi-permission-system"
+# FLT-67: permission-system package is not required for any seat launch.
 XAI_OAUTH_EXT="$TMP/agent/npm/node_modules/pi-xai-oauth/extensions/xai-oauth.ts"
 mkdir -p "$(dirname "$XAI_OAUTH_EXT")"
 touch "$XAI_OAUTH_EXT"
@@ -53,12 +51,12 @@ run_wrapper() {
   cat "$outfile"
 }
 
-# FLT-66: implementer is always unattended — --approve is not gated on FLEET_YOLO.
 args="$(run_wrapper PI_IMPLEMENTER_PROVIDER=openai-codex PI_IMPLEMENTER_MODEL=gpt-5.6-sol "$ROOT/bin/pi-implementer" -p noop)"
 check_contains "role-specific env controls implementer provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-sol --approve --no-extensions"
-check_contains "implementer always passes --approve (unattended)" "$args" "--approve --no-extensions"
+check_contains "implementer always passes --approve (always YOLO, FLT-67)" "$args" "--approve --no-extensions"
 check_contains "implementer always passes --no-extensions" "$args" "--no-extensions"
-check_contains "implementer loads permission-system package" "$args" "pi-permission-system"
+check_not_contains "implementer does not load permission-system" "$args" "pi-permission-system"
+check_contains "implementer loads explicit linear extension" "$args" "--extension $ROOT/extensions/linear.ts"
 
 args="$(run_wrapper FLEET_YOLO=0 PI_IMPLEMENTER_PROVIDER=openai-codex PI_IMPLEMENTER_MODEL=gpt-5.6-sol "$ROOT/bin/pi-implementer" -p noop)"
 check_contains "implementer still --approve when FLEET_YOLO=0" "$args" "--approve --no-extensions"
@@ -93,15 +91,13 @@ check_not_contains "project-lead does not pass unsupported --no-lens" "$args" "-
 # FLT-35/FLT-38 structural fix: --no-extensions must reach outfitter alongside the FLT-34
 # model-override argv (not swallowed or reordered by it), and the explicit --extension flags must
 # still be present. --no-lens must stay absent because Pi rejects --no-extensions + --no-lens.
-# FLT-66: project-lead always unattended — --approve is not gated on FLEET_YOLO.
-check_contains "project-lead always passes --approve (unattended)" "$args" "--approve --no-extensions"
 check_contains "project-lead passes --no-extensions alongside model-override argv" "$args" "--model gpt-5.6-sol --approve --no-extensions"
 check_contains "project-lead still loads explicit linear/e2b extensions" "$args" \
   "--extension $ROOT/extensions/linear.ts --extension $ROOT/extensions/e2b"
-check_contains "project-lead loads permission-system package" "$args" \
-  "--extension $TMP/agent/npm/node_modules/@gotgenes/pi-permission-system"
+check_not_contains "project-lead does not load permission-system package" "$args" "pi-permission-system"
 check_contains "project-lead loads immutable project-lead policy extension" "$args" \
   "--extension $ROOT/extensions/project-lead-policy.ts"
+check_contains "project-lead always passes --approve" "$args" "--approve --no-extensions"
 # Mock outfitter shell-quotes commas as \, so match the escaped form printed into args.
 check_contains "project-lead tools keep coordination surface without write/edit" "$args" \
   '--tools read\,grep\,find\,ls\,bash\,linear_get_issue\,linear_list\,linear_comment\,linear_update\,e2b_cast\,e2b_status\,e2b_wait\,e2b_cancel\,e2b_logs\,e2b_port_url'
@@ -111,20 +107,27 @@ check_not_contains "project-lead tools omit edit" "$args" ",edit,"
 check_contains "project-lead re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"
 
-args="$(run_wrapper FLEET_YOLO=0 PI_PROVIDER=openai-codex PI_LEAD_MODEL=gpt-5.6-sol "$ROOT/bin/pi-project-lead" -p noop)"
-check_contains "project-lead still --approve when FLEET_YOLO=0" "$args" "--model gpt-5.6-sol --approve --no-extensions"
+args="$(run_wrapper FLEET_YOLO=1 PI_PROVIDER=openai-codex PI_LEAD_MODEL=gpt-5.6-sol "$ROOT/bin/pi-project-lead" -p noop)"
+check_contains "project-lead keeps --approve before --no-extensions" "$args" "--model gpt-5.6-sol --approve --no-extensions"
 check_not_contains "project-lead yolo argv still omits unsupported --no-lens" "$args" "--no-lens"
 
+args="$(run_wrapper FLEET_YOLO=0 PI_PROVIDER=openai-codex PI_LEAD_MODEL=gpt-5.6-sol "$ROOT/bin/pi-project-lead" -p noop)"
+check_contains "project-lead still --approve when FLEET_YOLO=0" "$args" "--model gpt-5.6-sol --approve --no-extensions"
+
 args="$(run_wrapper PI_PROVIDER=openai-codex PI_MODEL=gpt-5.6-sol "$ROOT/bin/pi-conductor" -p noop)"
-check_contains "generic env controls conductor provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-sol --approve --no-extensions"
-check_contains "conductor always passes --approve (unattended)" "$args" "--approve --no-extensions"
+check_contains "generic env controls conductor provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-sol"
 check_contains "conductor passes --no-extensions alongside model-override argv" "$args" "--no-extensions"
 check_contains "conductor still loads explicit linear extension" "$args" "--extension $ROOT/extensions/linear.ts"
+check_contains "conductor always passes --approve (always YOLO, FLT-67)" "$args" "--approve --no-extensions"
+check_not_contains "conductor does not load permission-system" "$args" "pi-permission-system"
 check_contains "conductor re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"
 
 args="$(run_wrapper FLEET_YOLO=0 PI_PROVIDER=openai-codex PI_MODEL=gpt-5.6-sol "$ROOT/bin/pi-conductor" -p noop)"
 check_contains "conductor still --approve when FLEET_YOLO=0" "$args" "--model gpt-5.6-sol --approve --no-extensions"
+
+args="$(run_wrapper FLEET_YOLO=1 PI_PROVIDER=openai-codex PI_MODEL=gpt-5.6-sol "$ROOT/bin/pi-conductor" -p noop)"
+check_contains "conductor keeps --approve before --no-extensions" "$args" "--model gpt-5.6-sol --approve --no-extensions"
 
 args="$(run_wrapper PI_PROVIDER=env-provider PI_MODEL=env-model "$ROOT/bin/pi-implementer" --provider explicit-provider --model explicit-model -p noop)"
 check_not_contains "explicit CLI provider/model suppress env defaults" "$args" "env-provider"
@@ -132,35 +135,36 @@ check_not_contains "explicit CLI model suppresses env model" "$args" "env-model"
 check_contains "explicit CLI provider/model are preserved" "$args" "--provider explicit-provider --model explicit-model"
 
 args="$(run_wrapper PI_PLANNER_PROVIDER=openai-codex PI_PLANNER_MODEL=gpt-5.6-terra "$ROOT/bin/pi-planner" -p noop)"
-check_contains "role-specific env controls planner provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
+check_contains "role-specific env controls planner provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --approve --tools"
+check_contains "planner always passes --approve" "$args" "--approve --tools"
 
-args="$(run_wrapper FLEET_YOLO=1 PI_PLANNER_PROVIDER=openai-codex PI_PLANNER_MODEL=gpt-5.6-terra "$ROOT/bin/pi-planner" -p noop)"
-check_contains "planner maps FLEET_YOLO=1 to --approve" "$args" "-- --provider openai-codex --model gpt-5.6-terra --approve --tools"
+args="$(run_wrapper FLEET_YOLO=0 PI_PLANNER_PROVIDER=openai-codex PI_PLANNER_MODEL=gpt-5.6-terra "$ROOT/bin/pi-planner" -p noop)"
+check_contains "planner still --approve when FLEET_YOLO=0" "$args" "-- --provider openai-codex --model gpt-5.6-terra --approve --tools"
 
 args="$(run_wrapper PI_SPIKE_BREAKDOWN_PROVIDER=openai-codex PI_SPIKE_BREAKDOWN_MODEL=gpt-5.6-terra "$ROOT/bin/pi-spike-breakdown" -p noop)"
-check_contains "role-specific env controls spike-breakdown provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
-check_not_contains "spike-breakdown does not hardcode --approve outside FLEET_YOLO=1" "$args" "--approve"
+check_contains "role-specific env controls spike-breakdown provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --approve --tools"
+check_contains "spike-breakdown always passes --approve" "$args" "--approve --tools"
 
-args="$(run_wrapper FLEET_YOLO=1 PI_SPIKE_BREAKDOWN_PROVIDER=openai-codex PI_SPIKE_BREAKDOWN_MODEL=gpt-5.6-terra "$ROOT/bin/pi-spike-breakdown" -p noop)"
-check_contains "spike-breakdown maps FLEET_YOLO=1 to --approve" "$args" "-- --provider openai-codex --model gpt-5.6-terra --approve --tools"
+args="$(run_wrapper FLEET_YOLO=0 PI_SPIKE_BREAKDOWN_PROVIDER=openai-codex PI_SPIKE_BREAKDOWN_MODEL=gpt-5.6-terra "$ROOT/bin/pi-spike-breakdown" -p noop)"
+check_contains "spike-breakdown still --approve when FLEET_YOLO=0" "$args" "-- --provider openai-codex --model gpt-5.6-terra --approve --tools"
 
 args="$(run_wrapper PI_REMOTION_PROVIDER=openai-codex PI_REMOTION_MODEL=gpt-5.6-terra "$ROOT/bin/pi-remotion" -p noop)"
-check_contains "role-specific env controls remotion provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
+check_contains "role-specific env controls remotion provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --approve --tools"
 
 args="$(run_wrapper PI_RESEARCHER_PROVIDER=openai-codex PI_RESEARCHER_MODEL=gpt-5.5 "$ROOT/bin/pi-researcher" -p noop)"
-check_contains "role-specific env controls researcher provider/model" "$args" "-- --provider openai-codex --model gpt-5.5 --tools"
+check_contains "role-specific env controls researcher provider/model" "$args" "-- --provider openai-codex --model gpt-5.5 --approve --tools"
 
 args="$(run_wrapper PI_PERSONAL_ASSISTANT_PROVIDER=openai-codex PI_PERSONAL_ASSISTANT_MODEL=gpt-5.6-terra \
   PI_SCHEDULE_SYNC_DRY_RUN=1 PI_SCHEDULE_SYNC_AGENTS_DIR="$TMP/agents" PI_SCHEDULE_SYNC_LOG_DIR="$TMP/logs" \
   "$ROOT/bin/pi-personal-assistant" -p noop)"
-check_contains "role-specific env controls personal-assistant provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --tools"
+check_contains "role-specific env controls personal-assistant provider/model" "$args" "-- --provider openai-codex --model gpt-5.6-terra --approve --tools"
 
 # Regression guard: bin/lib/pi-model-env.sh populates PI_MODEL_ARGS as a bash array and wrappers
 # expand it as "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}". Without the [@]+ guard, expanding an
 # empty array under `set -u` throws "unbound variable" on bash 3.2 (macOS's default /bin/bash),
 # i.e. every wrapper invocation with zero overrides would crash.
 args="$(run_wrapper "$ROOT/bin/pi-researcher" -p noop)"
-check_contains "no override still launches (empty PI_MODEL_ARGS array under set -u)" "$args" '-- --tools read\,grep\,find\,ls\,context7_resolve-library-id\,context7_query-docs'
+check_contains "no override still launches (empty PI_MODEL_ARGS array under set -u)" "$args" '-- --approve --tools read\,grep\,find\,ls\,context7_resolve-library-id\,context7_query-docs'
 check_not_contains "no override does not emit a stray --provider/--model" "$args" "--provider"
 
 if [ "$fail" -eq 0 ]; then

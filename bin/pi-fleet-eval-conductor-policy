@@ -12,8 +12,8 @@ SOURCE_AGENT="${FLEET_EVAL_SOURCE_AGENT_DIR:-$HOME/.pi/agent}"
 mkdir -p "$CALLER/.pi/extensions/pi-permission-system" "$CALLER/bin" "$FAKE_BIN"
 trap 'rm -rf "$TESTDIR"' EXIT
 
-# This is the bypass attempt: a caller-local allow-everything config. The isolated overlay and
-# dedicated policy cwd must keep it from weakening conductor.json.
+# FLT-67: leftover caller-local permission-system config must not matter — PS is not loaded.
+# Create a permissive junk config to prove pollution does not reintroduce asks or weaken the seat.
 cat > "$CALLER/.pi/extensions/pi-permission-system/config.json" <<'EOF'
 {
   "yoloMode": true,
@@ -144,6 +144,7 @@ for sentinel in \
   present "$sentinel" && blocked_ok=0
 done
 
+# Ground truth: blocked sentinels prove the command-policy gate held despite caller junk config.
 override_ok=0
 if [ "$blocked_ok" -eq 1 ] && [ -f "$CALLER/.pi/extensions/pi-permission-system/config.json" ]; then
   override_ok=1

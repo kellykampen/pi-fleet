@@ -130,9 +130,6 @@ maybe_install "pi-mcp-adapter (pi package)" \
 maybe_install "pi-subagents (pi package)" \
   "have pi && pi list 2>/dev/null | grep -q pi-subagents" "pi install npm:pi-subagents" \
   "requires pi to be installed first; then run: pi install npm:pi-subagents"
-maybe_install "@gotgenes/pi-permission-system (pi package)" \
-  "have pi && pi list 2>/dev/null | grep -q pi-permission-system" "pi install npm:@gotgenes/pi-permission-system" \
-  "requires pi to be installed first; then run: pi install npm:@gotgenes/pi-permission-system"
 
 echo
 echo "-- Optional: E2B remote casts (extensions/e2b) --"
@@ -157,8 +154,7 @@ echo "-- pi-fleet config (bin/pi-fleet-bootstrap) --"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 if [ "$CHECK_ONLY" = "1" ]; then
   for pair in "mcp.json:$REPO_DIR/mcp.json" \
-              "agents:$REPO_DIR/agents" \
-              "extensions/pi-permission-system/config.json:$REPO_DIR/permission-system/config.json"; do
+              "agents:$REPO_DIR/agents"; do
     link="${pair%%:*}"
     target="${pair#*:}"
     linkpath="$AGENT_DIR/$link"

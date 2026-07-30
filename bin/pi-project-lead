@@ -3,9 +3,12 @@
 # extensions (outfitter/pi resolve profile.yml extension paths relative to cwd, not to profile.yml's
 # own location — see FLT-15 — so we resolve them here from the script's own path instead).
 #
-# Project-lead is a routing bottleneck, not a builder: no write/edit tools, isolated default-deny
-# permission overlay, and an immutable project-lead command policy. Coordination/casting/PR/status
-# and narrow main-integration verbs remain available; implementation and review work must be cast.
+# Project-lead is a routing bottleneck, not a builder: no write/edit tools and an immutable
+# project-lead command policy. Coordination/casting/PR/status and narrow main-integration verbs
+# remain available; implementation and review work must be cast.
+#
+# FLT-67: no @gotgenes/pi-permission-system. Always YOLO (--approve). Security boundary is the
+# --tools allowlist (no write/edit) + immutable extensions/project-lead-policy.ts bash gate.
 set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
@@ -14,19 +17,18 @@ FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$FLEET_ROOT/bin/lib/runtime-state.sh"
 . "$FLEET_ROOT/bin/lib/pi-project-lead-runtime.sh"
 pi_model_override_args project-lead "lead" "$@"
-# FLT-66: always --approve (project trust) — unattended; not gated on FLEET_YOLO.
 # Load only canonical fleet secrets. Parse assignments as data: never source or eval this file.
 SECRETS_FILE="$(pi_fleet_runtime_path secrets secrets.env)"
 if [[ -e "$SECRETS_FILE" || -L "$SECRETS_FILE" ]]; then
-  python3 - "$SECRETS_FILE" <<'PY'
+  python3 - "$SECRETS_FILE" <<'PYSEC'
 import os, stat, sys
 path = sys.argv[1]
 st = os.lstat(path)
 if not stat.S_ISREG(st.st_mode): raise SystemExit("pi-project-lead: secrets file must be regular")
 if st.st_uid != os.getuid(): raise SystemExit("pi-project-lead: secrets file has wrong owner")
 if stat.S_IMODE(st.st_mode) & 0o077: raise SystemExit("pi-project-lead: secrets file must not be group/world accessible")
-PY
-  normalized_secrets="$(python3 - "$SECRETS_FILE" <<'PY'
+PYSEC
+  normalized_secrets="$(python3 - "$SECRETS_FILE" <<'PYSEC'
 import shlex, sys
 for number, raw in enumerate(open(sys.argv[1], encoding="utf-8"), 1):
     line = raw.rstrip("\n")
@@ -44,7 +46,7 @@ for number, raw in enumerate(open(sys.argv[1], encoding="utf-8"), 1):
     if len(fields) != 1 or "=" not in fields[0]:
         raise SystemExit(f"pi-project-lead: malformed legacy secrets assignment on line {number}")
     print(fields[0])
-PY
+PYSEC
 )"
   while IFS= read -r secret_line || [[ -n "$secret_line" ]]; do
     case "$secret_line" in ''|'#'*) continue ;; esac
@@ -63,21 +65,17 @@ PY
     export "$secret_key=$secret_value"
   done <<< "$normalized_secrets"
 fi
-# Resolve the package before switching Pi to the isolated project-lead agent/config overlay. The
-# dedicated policy cwd prevents a caller repo's project config from weakening project-lead.json.
+# Isolated overlay + policy cwd; no permission-system package or config.
 pi_project_lead_prepare_runtime "$FLEET_ROOT"
 # FLT-35: --no-extensions blocks machine-global package auto-discovery (e.g. @jl1990/pi-scheduler);
 # the explicit --extension flags below are unaffected and still load.
+# FLT-66/FLT-67: always --approve (CEO always-YOLO). No permission-system extension.
 # Re-include pi-xai-oauth (registers provider xai-auth) so Grok casts work under --no-extensions.
-# FLT-66: always --approve so unattended lead never hits trust/permission UI. Security =
-# --tools allowlist (no write/edit) + project-lead.json hard denials + project-lead-policy.ts.
-# permission-system is loaded with yoloMode true (auto-allow allowlisted tools only; deny stays deny).
 . "$FLEET_ROOT/bin/lib/pi-xai-oauth-ext.sh"
 exec outfitter run --profile project-lead --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
   --approve \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" --extension "$FLEET_ROOT/extensions/e2b" \
-  --extension "$PI_PERMISSION_SYSTEM_PATH" \
   --extension "$FLEET_ROOT/extensions/project-lead-policy.ts" \
   ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
   --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,e2b_cast,e2b_status,e2b_wait,e2b_cancel,e2b_logs,e2b_port_url "$@"

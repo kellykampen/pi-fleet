@@ -9,15 +9,6 @@ systemPromptMode: replace
 inheritProjectContext: true
 inheritSkills: false
 completionGuard: false
-permission:
-  # FLT-60: no ask gates — unattended child verifier. Parent does not load pi-permission-system;
-  # child tools allowlist + parent ac-verifier-policy.ts are the boundary. Prompt-free if PS loads.
-  "*": deny
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  bash: allow
 ---
 
 You are an AC-CRITERION-VERIFIER child seat. You verify **exactly one** acceptance
