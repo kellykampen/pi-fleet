@@ -68,7 +68,7 @@ controls:
     AC-verification, don't wave it through.
     ACTIVE GPT USAGE GUARD (FLT-55): do not cast new GPT/OpenAI worker agents
     (implementer/reviewer/AC-verifier/QA) without explicit CEO/conductor approval. Prefer non-GPT
-    pi workers with --provider xai-auth --model grok-4.5-latest or --provider kimi-coding --model k/3.
+    pi workers with --provider xai-auth --model grok-4.5-latest or --provider kimi-coding --model k3.
     Preserve different-model independence and AC verification quality: reviewer/AC verifier must
     run on a different model than the implementer and verify against the PR's actual head commit.
     HARD RULE (FLT-61): Linear issue/project description bodies are markdown CONTENT, never a bare

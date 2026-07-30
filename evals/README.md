@@ -267,11 +267,24 @@ STATUS slot replacement per ticket, rate limit on non-status, and private file m
 Deterministic check that the active GPT usage guard is codified in canonical source-of-truth files
 (skills, agents, profiles, docs, README, and `bin/pi-fleet`) rather than only scratch handoff notes.
 It asserts the core guard statement, exact non-GPT invocation examples for
-`--provider xai-auth --model grok-4.5-latest` and `--provider kimi-coding --model k/3`, and that
+`--provider xai-auth --model grok-4.5-latest` and `--provider kimi-coding --model k3`, and that
 verification quality and different-model independence remain explicit.
 
 ```bash
 evals/gpt-usage-guard-structural-test.sh
+```
+
+## Provider packages under `--no-extensions` (FLT-70)
+
+Every unattended fleet seat that passes `--no-extensions` must re-include both
+`npm:pi-xai-oauth` (`xai-auth` / Grok) and `npm:pi-provider-kimi-code` (`kimi-coding` / `k3`).
+The model id for Kimi K3 is **`k3`**, not `k/3`.
+
+```bash
+evals/provider-packages-all-no-extensions-structural-test.sh
+# legacy alias (delegates to the provider-packages script):
+evals/xai-auth-all-no-extensions-structural-test.sh
+bin/pi-fleet-eval-model-overrides
 ```
 
 ## Fleet communication topology structural eval (FLT-57)

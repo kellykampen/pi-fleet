@@ -12,7 +12,8 @@ controls:
     # Extensions are NOT declared here: outfitter/pi resolve profile.yml extension paths
     # relative to the launching process's cwd, not to this file's location. Declaring them
     # here double-loads against bin/pi-reviewer's absolute --extension flags and produces
-    # Tool conflicts (linear_*). The wrapper alone loads linear.ts + pi-xai-oauth (xai-auth) under --no-extensions.
+    # Tool conflicts (linear_*). The wrapper alone loads linear.ts + pi-xai-oauth (xai-auth) +
+    # pi-provider-kimi-code (kimi-coding / k3) under --no-extensions.
     # See FLT-15 / FLT-56 / FLT-60.
   append_system_prompt: |
     You are an INDEPENDENT read-only code reviewer on a DIFFERENT model than the implementer.

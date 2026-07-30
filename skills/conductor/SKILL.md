@@ -194,14 +194,14 @@ headroom). When one is declared:
 - **Do not approve** a new GPT/OpenAI worker cast casually. Approval must be explicit (e.g., the CEO says "use Codex for this specific ticket" or the conductor records an override covering the seat + ticket + time/condition).
 - **Preferred alternatives** for new pi worker/reviewer/AC/QA casts:
   - Grok 4.5: `--provider xai-auth --model grok-4.5-latest`
-  - Kimi K3: `--provider kimi-coding --model k/3`
+  - Kimi K3: `--provider kimi-coding --model k3`
 
   Example casts to propagate to leads:
 
   ```bash
   cd <worktree> && pi-implementer --provider xai-auth --model grok-4.5-latest
-  cd <worktree> && pi-reviewer --provider kimi-coding --model k/3
-  cd <worktree> && pi-ac-verifier --provider kimi-coding --model k/3
+  cd <worktree> && pi-reviewer --provider kimi-coding --model k3
+  cd <worktree> && pi-ac-verifier --provider kimi-coding --model k3
   ```
 
 - **Verification quality is unchanged:** review and AC verification must still produce real evidence, compare Linear-ticket and PR-body AC against the PR's actual head commit, and post that evidence on the PR and Linear.

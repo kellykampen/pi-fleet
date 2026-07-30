@@ -27,8 +27,9 @@ if [ -z "$PI_SUBAGENTS_PATH" ]; then
   exit 1
 fi
 
-# Re-include pi-xai-oauth so --provider xai-auth works under --no-extensions (GPT guard / Grok).
+# Re-include provider packages so --provider xai-auth / kimi-coding work under --no-extensions.
 . "$FLEET_ROOT/bin/lib/pi-xai-oauth-ext.sh"
+. "$FLEET_ROOT/bin/lib/pi-kimi-code-ext.sh"
 
 # Always YOLO (FLT-67): never gate on FLEET_YOLO.
 exec outfitter run --profile ac-verifier --agent pi -- \
@@ -41,4 +42,5 @@ exec outfitter run --profile ac-verifier --agent pi -- \
   --extension "$FLEET_ROOT/extensions/ac-verifier-policy.ts" \
   --extension "$PI_SUBAGENTS_PATH" \
   ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
+  ${PI_KIMI_CODE_EXT_ARGS[@]+"${PI_KIMI_CODE_EXT_ARGS[@]}"} \
   --tools read,grep,find,ls,bash,subagent,linear_get_issue,linear_list,linear_comment,linear_update,github_pr_view,github_pr_comment

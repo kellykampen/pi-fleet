@@ -47,19 +47,19 @@ assert_file_contains "docs/model-overrides.md provides Grok example" \
 	'--provider xai-auth --model grok-4\.5-latest'
 assert_file_contains "docs/model-overrides.md provides Kimi example" \
 	"docs/model-overrides.md" \
-	'--provider kimi-coding --model k/3'
+	'--provider kimi-coding --model k3'
 assert_file_contains "skills/project-lead/SKILL.md provides Grok example" \
 	"skills/project-lead/SKILL.md" \
 	'--provider xai-auth --model grok-4\.5-latest'
 assert_file_contains "skills/project-lead/SKILL.md provides Kimi example" \
 	"skills/project-lead/SKILL.md" \
-	'--provider kimi-coding --model k/3'
+	'--provider kimi-coding --model k3'
 assert_file_contains "skills/conductor/SKILL.md provides Grok example" \
 	"skills/conductor/SKILL.md" \
 	'--provider xai-auth --model grok-4\.5-latest'
 assert_file_contains "skills/conductor/SKILL.md provides Kimi example" \
 	"skills/conductor/SKILL.md" \
-	'--provider kimi-coding --model k/3'
+	'--provider kimi-coding --model k3'
 
 # Verification quality preserved.
 assert_file_contains "docs/model-overrides.md preserves verification quality" \
@@ -103,10 +103,10 @@ assert_file_contains "agents/project-lead.md enforces approval, alternatives, an
 	'Active GPT usage guard \(FLT-55\):[\s\S]{0,700}?unless explicitly\s+CEO/conductor-approved[\s\S]{0,700}?--provider xai-auth --model grok-4\.5-latest[\s\S]{0,700}?reviewer and AC\s+verifier must run on a different model than the implementer'
 assert_file_contains "agents/conductor.md enforces approval, alternatives, and model independence" \
 	"agents/conductor.md" \
-	'Active GPT usage guard \(FLT-55\):[\s\S]{0,700}?require explicit CEO/conductor approval[\s\S]{0,700}?--provider kimi-coding --model k/3[\s\S]{0,700}?reviewer and AC verifier must run on a different\s+model than the implementer'
+	'Active GPT usage guard \(FLT-55\):[\s\S]{0,700}?require explicit CEO/conductor approval[\s\S]{0,700}?--provider kimi-coding --model k3[\s\S]{0,700}?reviewer and AC verifier must run on a different\s+model than the implementer'
 assert_file_contains "profiles/project-lead/profile.yml enforces approval, alternatives, and model independence" \
 	"profiles/project-lead/profile.yml" \
-	'ACTIVE GPT USAGE GUARD \(FLT-55\):[\s\S]{0,700}?without explicit CEO/conductor approval[\s\S]{0,700}?--provider kimi-coding --model k/3[\s\S]{0,700}?reviewer/AC verifier must\s+run on a different model than the implementer'
+	'ACTIVE GPT USAGE GUARD \(FLT-55\):[\s\S]{0,700}?without explicit CEO/conductor approval[\s\S]{0,700}?--provider kimi-coding --model k3[\s\S]{0,700}?reviewer/AC verifier must\s+run on a different model than the implementer'
 assert_file_contains "profiles/conductor/profile.yml enforces approval, alternatives, and model independence" \
 	"profiles/conductor/profile.yml" \
 	'ACTIVE GPT USAGE GUARD \(FLT-55\):[\s\S]{0,700}?require explicit CEO/conductor approval[\s\S]{0,700}?--provider xai-auth --model grok-4\.5-latest[\s\S]{0,700}?reviewer and AC verifier must run on a different\s+model than the implementer'

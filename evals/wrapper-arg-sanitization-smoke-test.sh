@@ -17,6 +17,8 @@ printf '{}\n' >"$FAKE_BIN/agent/npm/node_modules/pi-subagents/package.json"
 printf '// mock\n' >"$FAKE_BIN/agent/npm/node_modules/pi-subagents/index.ts"
 mkdir -p "$FAKE_BIN/agent/npm/node_modules/pi-xai-oauth/extensions"
 touch "$FAKE_BIN/agent/npm/node_modules/pi-xai-oauth/extensions/xai-oauth.ts"
+mkdir -p "$FAKE_BIN/agent/npm/node_modules/pi-provider-kimi-code"
+touch "$FAKE_BIN/agent/npm/node_modules/pi-provider-kimi-code/index.ts"
 
 pass=0
 fail=0
@@ -31,6 +33,7 @@ run_wrapper() {
     FLEET_CONDUCTOR_RUNTIME_DIR="$FAKE_BIN/cond-runtime" \
     FLEET_IMPLEMENTER_RUNTIME_DIR="$FAKE_BIN/impl-runtime" \
     PI_XAI_OAUTH_EXT="$FAKE_BIN/agent/npm/node_modules/pi-xai-oauth/extensions/xai-oauth.ts" \
+    PI_KIMI_CODE_EXT="$FAKE_BIN/agent/npm/node_modules/pi-provider-kimi-code/index.ts" \
     "$DIR/bin/$wrapper" "$@"
 }
 
