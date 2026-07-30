@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
+# Hybrid: outfitter composes skill/model/prompt; this wrapper hardcodes --tools (the boundary).
+#
+# FLT-66: unattended fleet seat. Always pass --approve (project trust) and --no-extensions so
+# machine-global packages are not auto-loaded. Explicitly loads @gotgenes/pi-permission-system with
+# permission-system/implementer.json (yoloMode true + hard .env/ssh denials). No interactive ask UI.
+# Security boundary = --tools allowlist (write/edit/bash kept for this role) + hard path denials.
+# FTD/E2B cast paths invoke this wrapper, so they inherit the same unattended argv.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FLEET_ROOT="$(cd "$DIR/.." && pwd)"
 . "$DIR/lib/pi-model-env.sh"
+. "$DIR/lib/pi-implementer-runtime.sh"
 pi_model_override_args implementer "" "$@"
-YOLO=""
-[ "${FLEET_YOLO:-}" = "1" ] && YOLO="--approve"
-exec outfitter run --profile implementer --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,context7_resolve-library-id,context7_query-docs,convex_status,convex_tables,convex_functionSpec,convex_data,convex_run,convex_runOneoffQuery,convex_logs "$@"
+pi_implementer_prepare_runtime "$FLEET_ROOT"
+# Always YOLO for unattended implementer casts: do not gate on FLEET_YOLO.
+exec outfitter run --profile implementer --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
+  --approve \
+  --no-extensions \
+  --extension "$FLEET_ROOT/extensions/linear.ts" \
+  --extension "$PI_PERMISSION_SYSTEM_PATH" \
+  --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,context7_resolve-library-id,context7_query-docs,convex_status,convex_tables,convex_functionSpec,convex_data,convex_run,convex_runOneoffQuery,convex_logs "$@"

@@ -22,11 +22,13 @@ turns an explicit `deny` into an allow.
 1. Its `--tools` list is **routing-only**: `bash,linear_get_issue,linear_list,linear_comment,linear_update`.
    It omits `write`, `edit`, and product-investigation tools (`read`, `grep`, `find`, `ls`).
 2. It explicitly loads `@gotgenes/pi-permission-system` with
-   `permission-system/conductor.json`, whose Bash fallback is `deny`.
+   `permission-system/conductor.json`, whose Bash fallback is `deny` and (FLT-66) `yoloMode: true`
+   so allowlisted tools never raise an interactive ask modal (deny still denies).
 3. It starts Pi from a dedicated policy cwd with an isolated agent overlay. The caller's cwd is retained
    as `FLEET_COORDINATION_ROOT` and exposed readably at `launch-cwd/`, without loading its `.pi` policy.
 4. `extensions/conductor-policy.ts` independently enforces the same executable/subcommand allowlist and
    rejects shell control flow, redirects, substitutions, wrappers, and parse uncertainty.
+5. FLT-66: the wrapper always passes `--approve` (not gated on `FLEET_YOLO`).
 
 **FLT-65 product-review / in-repo investigation denies (conductor seat only):**
 
@@ -54,13 +56,15 @@ Consequently, conductor seats have no general file-mutation tool and no product 
 
 1. Its `--tools` list omits `write` and `edit` (coordination + Linear + E2B only).
 2. It explicitly loads `@gotgenes/pi-permission-system` with
-   `permission-system/project-lead.json`, whose Bash fallback is `deny`.
+   `permission-system/project-lead.json`, whose Bash fallback is `deny` and (FLT-66) `yoloMode: true`
+   so allowlisted tools never raise an interactive ask modal (deny still denies).
 3. It starts Pi from a dedicated policy cwd with an isolated agent overlay
    (`FLEET_PROJECT_LEAD_RUNTIME_DIR` / `bin/lib/pi-project-lead-runtime.sh`). The caller's cwd is
    retained as `FLEET_COORDINATION_ROOT` and exposed readably at `launch-cwd/`.
 4. `extensions/project-lead-policy.ts` independently enforces the shared
    `evaluateCommand(..., { seat: "lead" })` allowlist from
    `bin/lib/conductor-command-policy.mjs`.
+5. FLT-66: the wrapper always passes `--approve` (not gated on `FLEET_YOLO`).
 
 **Keeps coordination power:** `cmux` cast/send/capture, Linear read/comment/update, read utilities,
 `gh pr view/list/checks`, `gh pr merge/comment`, narrow main-integration git (`fetch`, ff-only
@@ -74,24 +78,44 @@ arbitrary scripts as the doer. Implementation, review, AC-verify, and docs work 
 Instructions in the skill/profile are not the capability ceiling — the wrapper + isolated policy +
 immutable extension are.
 
-## Unattended QC seats (reviewer + AC verifier) — FLT-60
+## Unattended fleet seats — FLT-60 + FLT-66
 
-`bin/pi-reviewer` and `bin/pi-ac-verifier` are **unattended** QC seats. They must complete review / AC
-verification without any permission modal or "allow this bash" prompt.
+**Security model:** no human "allow?" modals. Security = `--tools` allowlist + hard denials for secrets
+(and seat policy for lead/conductor), not interactive permission UI.
+
+### Reviewer + AC verifier (FLT-60)
+
+`bin/pi-reviewer` and `bin/pi-ac-verifier` are **unattended** QC seats.
 
 1. Both wrappers always pass `--approve` (project trust) and **`--no-extensions`**. They do **not**
    load `@gotgenes/pi-permission-system`. Interactive ask gates cannot appear because the extension
    that emits them is not present.
 2. Security boundary remains the wrapper **`--tools` allowlist** (plus, for AC-verifier, the immutable
    `extensions/ac-verifier-policy.ts` Bash gate). No write/edit on either seat; reviewer has no bash.
-3. `--approve` is **not** gated on `FLEET_YOLO` for these two seats (unlike implementer / conductor /
-   project-lead). Conductor and project-lead retain their isolated permission overlays and
-   FLEET_YOLO-gated `--approve` — do not widen those wrappers.
-4. Agent `permission:` frontmatter for `reviewer`, `ac-verifier`, and `ac-criterion-verifier` uses
-   deny-by-default with explicit `allow` for allowlisted tools and **no `ask` states**, so even if a
-   future change re-introduced the permission package, QC seats stay prompt-free.
+3. Agent `permission:` frontmatter uses deny-by-default with explicit `allow` and **no `ask` states**.
 
-Eval: `evals/unattended-reviewer-ac-smoke-test.sh`.
+### Implementer + project-lead + conductor (FLT-66)
+
+1. `bin/pi-implementer`, `bin/pi-project-lead`, and `bin/pi-conductor` always pass `--approve`
+   (not gated on `FLEET_YOLO`) and `--no-extensions` with explicit extensions only.
+2. **Implementer** loads `@gotgenes/pi-permission-system` with `permission-system/implementer.json`
+   (`yoloMode: true` + hard `.env` / `.ssh` / AWS credential path denials). Keeps write/edit/bash on
+   `--tools` as designed for the implementer role. FTD/E2B cast paths invoke `pi-implementer`, so they
+   inherit the same unattended argv.
+3. **Project-lead / conductor** keep restricted `--tools` (no write/edit), isolated permission overlays,
+   seat policy extensions, and hard secret path denials. Their seat configs use `yoloMode: true` so
+   allowlisted tools auto-approve; **deny still denies**.
+4. Agent frontmatter for these seats has **no `permission: ask` states**.
+
+Evals:
+
+```bash
+evals/unattended-reviewer-ac-smoke-test.sh       # FLT-60 QC seats
+evals/unattended-all-fleet-seats-smoke-test.sh   # FLT-66 all primary seats
+```
+
+**Operator note:** after pulling this change, re-run `bin/pi-fleet-bootstrap` if needed and **restart
+every fleet seat** (lead, conductor, implementer panes, FTD casts) so wrappers pick up the new argv.
 
 ## AC verifier comment-only PR evidence policy
 
@@ -196,10 +220,11 @@ For AC-verifier PR-evidence and dual-source AC rules, run:
 evals/ac-verification-dual-source-structural-test.sh
 ```
 
-For unattended reviewer / AC-verifier (no permission-system ask gate), run:
+For unattended fleet seats (no permission-system ask gate), run:
 
 ```bash
 evals/unattended-reviewer-ac-smoke-test.sh
+evals/unattended-all-fleet-seats-smoke-test.sh
 ```
 
 ## Layout rule

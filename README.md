@@ -352,15 +352,21 @@ power (no `write`/`edit`; no commit/build/install/script shell). Claude conducto
 load separate `claude-settings/*.json` files; their seat-specific `PreToolUse` hook is authoritative
 and fails closed on unknown or compound commands.
 
-**Unattended QC (FLT-60):** `pi-reviewer` and `pi-ac-verifier` always pass `--approve` +
-`--no-extensions` and do **not** load `@gotgenes/pi-permission-system`. Their security boundary is
-the wrapper `--tools` allowlist (plus `ac-verifier-policy.ts` for bash on the AC seat) — never an
-interactive permission modal. Conductor/project-lead permission overlays stay isolated and are not
-widened.
+**Unattended fleet seats (FLT-60 + FLT-66):** no interactive permission / "allow?" modals.
+Security = `--tools` allowlist + hard secret denials (and seat policy for lead/conductor).
+
+- `pi-reviewer` / `pi-ac-verifier`: always `--approve` + `--no-extensions`; do **not** load
+  `@gotgenes/pi-permission-system` (tools + `ac-verifier-policy.ts` for AC bash).
+- `pi-implementer`: always `--approve` + `--no-extensions`; loads PS with
+  `permission-system/implementer.json` (`yoloMode` + hard `.env`/`.ssh` denials); keeps write/edit/bash.
+  FTD/E2B casts invoke this wrapper and inherit unattended argv.
+- `pi-project-lead` / `pi-conductor`: always `--approve`; still no write/edit; isolated PS overlays
+  with `yoloMode: true` (allowlisted tools auto-approve; deny still denies) + seat policy extensions.
 
 Details: [`docs/permissions.md`](./docs/permissions.md). **One project lead per project workspace.**
 
-After pulling: `bin/pi-fleet-bootstrap`, then restart seats.
+After pulling: `bin/pi-fleet-bootstrap` if needed, then **restart every fleet seat** (lead, conductor,
+implementer panes, FTD casts) so wrappers pick up the new argv.
 
 ---
 
