@@ -38,18 +38,20 @@ PASS: reviewer launch has exactly one linear.ts extension
 PASS: ac-verifier launch has exactly one linear.ts extension
 PASS: ac-verifier launch has exactly one github-pr.ts extension
 
-4) conductor / project-lead boundaries NOT weakened
+4) conductor / project-lead keep restricted tools + PS + hard denials (FLT-66 unattended)
 PASS: pi-conductor still loads permission-system
 PASS: pi-project-lead still loads permission-system
-PASS: conductor.json keeps yoloMode false
-PASS: project-lead.json keeps yoloMode false
-PASS: pi-conductor still gates --approve on FLEET_YOLO
-PASS: pi-project-lead still gates --approve on FLEET_YOLO
+PASS: conductor.json has yoloMode true (unattended)
+PASS: project-lead.json has yoloMode true (unattended)
+PASS: pi-conductor hardcodes --approve (unattended)
+PASS: pi-project-lead hardcodes --approve (unattended)
+PASS: conductor.json still denies write
+PASS: project-lead.json still denies write
 
 5) headless tool path without permission-system (allowlisted tool, no ask gate)
 PASS: allowlisted bash tool ran without permission-system (sentinel written)
 PASS: no permission-system ask gate in headless probe log
 
 ---
-38 passed, 0 failed
+40 passed, 0 failed
 VERDICT: PASS

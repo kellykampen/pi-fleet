@@ -9,7 +9,11 @@ systemPromptMode: replace
 inheritProjectContext: true
 completionGuard: false
 permission:
+  # FLT-66: no ask gates — unattended conductor. Wrapper loads pi-permission-system with
+  # yoloMode true + conductor.json hard denials; --tools omits write/edit. No interactive UI.
   "*": allow
+  write: deny
+  edit: deny
   skill:
     "*": allow
   mcp:
@@ -18,14 +22,40 @@ permission:
     "*": allow
     "*.env": deny
     "*.env.*": deny
+    "*.env.example": allow
     "**/.ssh/*": deny
+    "**/.aws/credentials": deny
   bash:
-    "*": allow
-    "sudo *": ask
-    "rm -rf /*": deny
-    "rm -rf ~*": deny
-    "* | sh": deny
-    "* | bash": deny
+    "*": deny
+    "cmux *": allow
+    "linear-cli *": allow
+    "check-model-usage": allow
+    "check-model-usage *": allow
+    "gh pr view *": allow
+    "gh pr list *": allow
+    "gh pr checks *": allow
+    "gh issue view *": allow
+    "git status": allow
+    "git status *": allow
+    "git log *": allow
+    "git diff *": allow
+    "git show *": allow
+    "git rev-parse *": allow
+    "git branch": allow
+    "git branch --list *": allow
+    "cat *": allow
+    "ls": allow
+    "ls *": allow
+    "grep *": allow
+    "rg *": allow
+    "head *": allow
+    "tail *": allow
+    "wc *": allow
+    "find *": allow
+    "jq *": allow
+    "uptime": allow
+    "fleet-note *": allow
+    "fleet-mail *": allow
   external_directory: allow
 ---
 

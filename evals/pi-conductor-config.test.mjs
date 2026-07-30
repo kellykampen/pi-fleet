@@ -13,7 +13,8 @@ async function config() {
 
 test("Pi conductor config defaults Bash to deny while exposing no mutation tools", async () => {
   const value = await config();
-  assert.equal(value.yoloMode, false);
+  // FLT-66: yoloMode auto-approves allowlisted tools; hard denials still hold.
+  assert.equal(value.yoloMode, true);
   assert.equal(value.permission.write, "deny");
   assert.equal(value.permission.edit, "deny");
   assert.equal(value.permission.bash["*"], "deny");

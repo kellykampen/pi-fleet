@@ -184,20 +184,24 @@ PY
 		|| no "ac-verifier launch github-pr.ts count=$ac_gh (want 1)"
 
 	echo
-	echo "4) conductor / project-lead boundaries NOT weakened"
+	echo "4) conductor / project-lead keep restricted tools + PS + hard denials (FLT-66 unattended)"
 	assert_file_contains "pi-conductor still loads permission-system" "bin/pi-conductor" \
 		'pi-permission-system|PI_PERMISSION_SYSTEM_PATH'
 	assert_file_contains "pi-project-lead still loads permission-system" "bin/pi-project-lead" \
 		'pi-permission-system|PI_PERMISSION_SYSTEM_PATH'
-	assert_file_contains "conductor.json keeps yoloMode false" "permission-system/conductor.json" \
-		'"yoloMode":\s*false'
-	assert_file_contains "project-lead.json keeps yoloMode false" "permission-system/project-lead.json" \
-		'"yoloMode":\s*false'
-	# Wrappers still gate --approve on FLEET_YOLO (not always-on).
-	assert_file_contains "pi-conductor still gates --approve on FLEET_YOLO" "bin/pi-conductor" \
-		'FLEET_YOLO.*--approve|\[ "\$\{FLEET_YOLO:-\}" = "1" \] && YOLO="--approve"'
-	assert_file_contains "pi-project-lead still gates --approve on FLEET_YOLO" "bin/pi-project-lead" \
-		'FLEET_YOLO.*--approve|\[ "\$\{FLEET_YOLO:-\}" = "1" \] && YOLO="--approve"'
+	# FLT-66: yoloMode true auto-approves allowlisted tools; deny still denies. Always --approve.
+	assert_file_contains "conductor.json has yoloMode true (unattended)" "permission-system/conductor.json" \
+		'"yoloMode":\s*true'
+	assert_file_contains "project-lead.json has yoloMode true (unattended)" "permission-system/project-lead.json" \
+		'"yoloMode":\s*true'
+	assert_file_contains "pi-conductor hardcodes --approve (unattended)" "bin/pi-conductor" \
+		'--approve'
+	assert_file_contains "pi-project-lead hardcodes --approve (unattended)" "bin/pi-project-lead" \
+		'--approve'
+	assert_file_contains "conductor.json still denies write" "permission-system/conductor.json" \
+		'"write":\s*"deny"'
+	assert_file_contains "project-lead.json still denies write" "permission-system/project-lead.json" \
+		'"write":\s*"deny"'
 
 	echo
 	echo "5) headless tool path without permission-system (allowlisted tool, no ask gate)"

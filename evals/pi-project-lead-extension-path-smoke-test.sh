@@ -183,13 +183,14 @@ check "pi-project-lead passes repo-local e2b extension" "$DIR/extensions/e2b" \
 
 assert_no_profile_extensions project-lead
 assert_no_profile_extensions conductor
-# FLT-56/FLT-60: wrapper-owned --extension seats must not double-load via profile.yml.
+# FLT-56/FLT-60/FLT-66: wrapper-owned --extension seats must not double-load via profile.yml.
 assert_no_profile_extensions ac-verifier
 assert_no_profile_extensions reviewer
+assert_no_profile_extensions implementer
 
 # Worker/utility profiles that still declare Linear keep the portable repo-relative reference,
 # never a developer-machine absolute path.
-for profile in docs implementer linear personal-assistant planner spike-breakdown; do
+for profile in docs linear personal-assistant planner spike-breakdown; do
 	assert_profile_repo_relative_linear_extension "$profile"
 done
 

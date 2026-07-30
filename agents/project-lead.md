@@ -9,6 +9,8 @@ systemPromptMode: replace
 inheritProjectContext: true
 completionGuard: false
 permission:
+  # FLT-66: no ask gates — unattended project-lead. Wrapper loads pi-permission-system with
+  # yoloMode true + project-lead.json hard denials; --tools omits write/edit. No interactive UI.
   "*": allow
   write: deny
   edit: deny
@@ -20,7 +22,9 @@ permission:
     "*": allow
     "*.env": deny
     "*.env.*": deny
+    "*.env.example": allow
     "**/.ssh/*": deny
+    "**/.aws/credentials": deny
   bash:
     "*": deny
     "cmux *": allow

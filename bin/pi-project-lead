@@ -14,8 +14,7 @@ FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$FLEET_ROOT/bin/lib/runtime-state.sh"
 . "$FLEET_ROOT/bin/lib/pi-project-lead-runtime.sh"
 pi_model_override_args project-lead "lead" "$@"
-YOLO=""
-[ "${FLEET_YOLO:-}" = "1" ] && YOLO="--approve"
+# FLT-66: always --approve (project trust) — unattended; not gated on FLEET_YOLO.
 # Load only canonical fleet secrets. Parse assignments as data: never source or eval this file.
 SECRETS_FILE="$(pi_fleet_runtime_path secrets secrets.env)"
 if [[ -e "$SECRETS_FILE" || -L "$SECRETS_FILE" ]]; then
@@ -70,8 +69,12 @@ pi_project_lead_prepare_runtime "$FLEET_ROOT"
 # FLT-35: --no-extensions blocks machine-global package auto-discovery (e.g. @jl1990/pi-scheduler);
 # the explicit --extension flags below are unaffected and still load.
 # Re-include pi-xai-oauth (registers provider xai-auth) so Grok casts work under --no-extensions.
+# FLT-66: always --approve so unattended lead never hits trust/permission UI. Security =
+# --tools allowlist (no write/edit) + project-lead.json hard denials + project-lead-policy.ts.
+# permission-system is loaded with yoloMode true (auto-allow allowlisted tools only; deny stays deny).
 . "$FLEET_ROOT/bin/lib/pi-xai-oauth-ext.sh"
-exec outfitter run --profile project-lead --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO \
+exec outfitter run --profile project-lead --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
+  --approve \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" --extension "$FLEET_ROOT/extensions/e2b" \
   --extension "$PI_PERMISSION_SYSTEM_PATH" \

@@ -11,8 +11,6 @@ FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
 . "$FLEET_ROOT/bin/lib/pi-conductor-runtime.sh"
 pi_model_override_args conductor "" "$@"
-YOLO=""
-[ "${FLEET_YOLO:-}" = "1" ] && YOLO="--approve"
 
 # Resolve the package before switching Pi to the isolated conductor agent/config overlay. The
 # dedicated policy cwd prevents a caller repo's project config from weakening conductor.json.
@@ -20,8 +18,12 @@ pi_conductor_prepare_runtime "$FLEET_ROOT"
 
 # FLT-35: --no-extensions blocks machine-global package auto-discovery. Explicit extensions remain:
 # Linear orchestration, pi-permission-system, conductor-policy, then pi-xai-oauth (xai-auth) when installed.
+# FLT-66: always --approve (project trust) so unattended seats never hit trust/permission UI.
+# Security = --tools allowlist (no write/edit) + conductor.json hard denials + conductor-policy.ts.
+# permission-system is loaded with yoloMode true (auto-allow allowlisted tools only; deny stays deny).
 . "$FLEET_ROOT/bin/lib/pi-xai-oauth-ext.sh"
-exec outfitter run --profile conductor --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO \
+exec outfitter run --profile conductor --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
+  --approve \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
   --extension "$PI_PERMISSION_SYSTEM_PATH" \

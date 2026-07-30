@@ -129,11 +129,29 @@ evals/unattended-reviewer-ac-smoke-test.sh
 This FLT-60 guard is deterministic and non-interactive (mocks `outfitter`). It proves
 `pi-reviewer` and `pi-ac-verifier` always launch with `--approve` + `--no-extensions`, never load
 `@gotgenes/pi-permission-system`, keep their `--tools` allowlists, have no `permission: ask` states
-in agent frontmatter, and still do not weaken conductor/project-lead permission overlays. An optional
+in agent frontmatter, and still keep conductor/project-lead restricted tools + hard denials. An optional
 headless tool probe (when `pi` is installed) confirms an allowlisted tool path runs without a
 permission-system ask gate.
 
 Last verified: [`results/unattended-reviewer-ac-latest.txt`](./results/unattended-reviewer-ac-latest.txt).
+
+## Unattended all fleet seats smoke (FLT-66)
+
+```bash
+evals/unattended-all-fleet-seats-smoke-test.sh
+```
+
+This FLT-66 guard is deterministic and non-interactive (mocks `outfitter`). It proves primary fleet
+seats stay unattended:
+
+- `pi-implementer`, `pi-project-lead`, `pi-conductor`, `pi-reviewer`, `pi-ac-verifier` always pass
+  `--approve` (not gated on `FLEET_YOLO`) and `--no-extensions`
+- agent frontmatter for those seats has no `permission: ask` states
+- lead/conductor still omit write/edit and keep hard `.env`/`.ssh` denials + seat policy extensions
+- implementer keeps write/edit/bash, loads `permission-system/implementer.json` (`yoloMode` + secret denials)
+- optional headless `-p` probe (when `pi` + PS installed) confirms no allow?/permission UI prompts
+
+Last verified: [`results/unattended-all-fleet-seats-latest.txt`](./results/unattended-all-fleet-seats-latest.txt).
 
 ## Spike direct-browser interview contract
 
