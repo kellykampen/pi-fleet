@@ -8,6 +8,10 @@ OUT="${1:-$TMP/model-overrides-latest.txt}"
 trap 'rm -rf "$TMP"' EXIT
 exec > >(tee "$OUT") 2>&1
 
+# Conductor requires the permission-system package before it reaches outfitter.
+# Point the isolated eval at a mock install so the test is self-contained.
+mkdir -p "$TMP/agent/npm/node_modules/@gotgenes/pi-permission-system"
+
 pass=0; fail=0
 check_contains() {
   local desc="$1" got="$2" want="$3"
@@ -37,6 +41,7 @@ run_wrapper() {
   local outfile="$TMP/args.txt"
   : > "$outfile"
   env -i HOME="$HOME" PATH="$TMP:$PATH" PI_FLEET_HOME="$TMP/fleet-home" \
+    PI_CODING_AGENT_DIR="$TMP/agent" FLEET_CONDUCTOR_RUNTIME_DIR="$TMP/conductor-runtime" \
     PI_SCHEDULER_TASKS_FILE="$TMP/scheduler-tasks.json" PI_SCHEDULER_TASKS_BOUNDARY="$TMP" \
     PI_FLEET_MOCK_OUT="$outfile" "$@"
   cat "$outfile"
@@ -57,7 +62,8 @@ args="$(run_wrapper PI_PROVIDER=openai-codex PI_MODEL=gpt-5.5 "$ROOT/bin/pi-revi
 check_contains "generic env controls reviewer provider/model" "$args" "-- --provider openai-codex --model gpt-5.5 --tools"
 
 args="$(run_wrapper PI_PROVIDER=openai-codex PI_MODEL=gpt-5.5 PI_AC_VERIFIER_MODEL=gpt-5.6-luna "$ROOT/bin/pi-ac-verifier" -p noop)"
-check_contains "role env beats generic env for ac-verifier model" "$args" "-- --provider openai-codex --model gpt-5.6-luna --tools"
+check_contains "role env beats generic env for ac-verifier model" "$args" "-- --provider openai-codex --model gpt-5.6-luna --no-extensions"
+check_not_contains "ac-verifier role model suppresses generic env model" "$args" "--model gpt-5.5"
 
 args="$(run_wrapper PI_PROVIDER=openai-codex PI_LEAD_MODEL=gpt-5.6-sol "$ROOT/bin/pi-project-lead" -p noop)"
 check_contains "role alias PI_LEAD_MODEL controls project-lead" "$args" "-- --provider openai-codex --model gpt-5.6-sol --no-extensions"

@@ -23,6 +23,7 @@ mkdir -p "$FAKE_HOME/.pi/agent/npm/node_modules/@gotgenes/pi-permission-system"
 
 cat >"$FAKE_BIN/outfitter" <<'EOF'
 #!/usr/bin/env bash
+printf 'ENV:FLEET_YOLO=%s\n' "${FLEET_YOLO-}"
 printf 'ENV:E2B_API_KEY=%s\n' "${E2B_API_KEY-}"
 printf 'ENV:FLEET_GITHUB_TOKEN=%s\n' "${FLEET_GITHUB_TOKEN-}"
 printf 'ENV:GH_TOKEN=%s\n' "${GH_TOKEN-}"
@@ -35,7 +36,7 @@ EOF
 chmod +x "$FAKE_BIN/outfitter"
 mkdir -p "$FAKE_HOME/.pi-fleet/secrets" "$FAKE_HOME/.pi/fleet"
 chmod 700 "$FAKE_HOME/.pi-fleet" "$FAKE_HOME/.pi-fleet/secrets"
-printf 'E2B_API_KEY=canonical-key\nFLEET_GITHUB_TOKEN=canonical-token\nGH_TOKEN=github-oauth-token\nOPENAI_API_KEY=model-key\nPI_AGENT_AUTH_JSON_B64=oauth-json-b64\nFLEET_GITHUB_APP_ID=12345\nFLEET_CONVEX_TOKEN=convex-token\n' >"$FAKE_HOME/.pi-fleet/secrets/secrets.env"
+printf 'FLEET_YOLO=1\nE2B_API_KEY=canonical-key\nFLEET_GITHUB_TOKEN=canonical-token\nGH_TOKEN=github-oauth-token\nOPENAI_API_KEY=model-key\nPI_AGENT_AUTH_JSON_B64=oauth-json-b64\nFLEET_GITHUB_APP_ID=12345\nFLEET_CONVEX_TOKEN=convex-token\n' >"$FAKE_HOME/.pi-fleet/secrets/secrets.env"
 chmod 600 "$FAKE_HOME/.pi-fleet/secrets/secrets.env"
 printf 'E2B_API_KEY=legacy-must-not-load\n' >"$FAKE_HOME/.pi/fleet/secrets.env"
 chmod 600 "$FAKE_HOME/.pi/fleet/secrets.env"
@@ -123,6 +124,8 @@ assert_wrapper_linear_extension pi-conductor
 # Project-lead also owns the E2B extension; verify it is wrapper-resolved and clone-local.
 project_lead_out="$(run_wrapper_from "$DIR/bin/pi-project-lead" /tmp)"
 project_lead_exts="$(printf '%s\n' "$project_lead_out" | extract_extension_args)"
+check "pi-project-lead ignores operational FLEET_YOLO in secrets" "ENV:FLEET_YOLO=" \
+	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:FLEET_YOLO=' | head -1)"
 check "pi-project-lead loads canonical private E2B secret" "ENV:E2B_API_KEY=canonical-key" \
 	"$(printf '%s\n' "$project_lead_out" | grep '^ENV:E2B_API_KEY=' | head -1)"
 check "pi-project-lead loads canonical private GitHub secret" "ENV:FLEET_GITHUB_TOKEN=canonical-token" \
