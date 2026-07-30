@@ -69,6 +69,12 @@ check_not_contains "project-lead does not pass unsupported --no-lens" "$args" "-
 check_contains "project-lead passes --no-extensions alongside model-override argv" "$args" "--model gpt-5.6-sol --no-extensions"
 check_contains "project-lead still loads explicit linear/e2b extensions" "$args" \
   "--extension $ROOT/extensions/linear.ts --extension $ROOT/extensions/e2b"
+# When pi-xai-oauth is installed, lead must re-include it after --no-extensions so xai-auth works.
+XAI_OAUTH_EXT="${HOME}/.pi/agent/npm/node_modules/pi-xai-oauth/extensions/xai-oauth.ts"
+if [ -f "$XAI_OAUTH_EXT" ]; then
+  check_contains "project-lead re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
+    "--extension $XAI_OAUTH_EXT"
+fi
 
 args="$(run_wrapper FLEET_YOLO=1 PI_PROVIDER=openai-codex PI_LEAD_MODEL=gpt-5.6-sol "$ROOT/bin/pi-project-lead" -p noop)"
 check_contains "project-lead maps FLEET_YOLO=1 to --approve before --no-extensions" "$args" "--model gpt-5.6-sol --approve --no-extensions"
@@ -79,6 +85,10 @@ check_contains "generic env controls conductor provider/model" "$args" "-- --pro
 check_contains "conductor passes --no-extensions alongside model-override argv" "$args" "--no-extensions"
 check_contains "conductor still loads explicit linear extension" "$args" "--extension $ROOT/extensions/linear.ts"
 check_not_contains "conductor does not pass --approve unless FLEET_YOLO=1" "$args" "--approve"
+if [ -f "$XAI_OAUTH_EXT" ]; then
+  check_contains "conductor re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
+    "--extension $XAI_OAUTH_EXT"
+fi
 
 args="$(run_wrapper FLEET_YOLO=1 PI_PROVIDER=openai-codex PI_MODEL=gpt-5.6-sol "$ROOT/bin/pi-conductor" -p noop)"
 check_contains "conductor maps FLEET_YOLO=1 to --approve before --no-extensions" "$args" "--model gpt-5.6-sol --approve --no-extensions"

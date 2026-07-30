@@ -109,7 +109,7 @@ not by which provider it happens to be.**
 | GLM-5.2 | `claudeglm` (or `--provider` equivalent per the harness in use) |
 | Kimi K2.7 Code | `claudekimi` (or `--provider` equivalent) |
 | Gemini (via agy) | `agy` |
-| Grok 4.5 | xAI direct or OpenRouter, per whatever's configured |
+| Grok 4.5 | `--provider xai-auth --model grok-4.5-latest` (requires `npm:pi-xai-oauth`; not built-in `xai`) |
 
 Before casting any of the previously-banned names (GLM, Kimi, Gemini/agy, Grok), check its current
 pace via the conductor's latest usage relay — EXHAUSTED means don't, OVER_PACE means ask first,

@@ -16,10 +16,12 @@ YOLO=""
 pi_conductor_prepare_runtime "$FLEET_ROOT"
 
 # FLT-35: --no-extensions blocks machine-global package auto-discovery. Explicit extensions remain:
-# Linear orchestration, pi-permission-system, then the immutable caller-config override backstop.
+# Linear orchestration, pi-permission-system, conductor-policy, then pi-xai-oauth (xai-auth) when installed.
+. "$FLEET_ROOT/bin/lib/pi-xai-oauth-ext.sh"
 exec outfitter run --profile conductor --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
   --extension "$PI_PERMISSION_SYSTEM_PATH" \
   --extension "$FLEET_ROOT/extensions/conductor-policy.ts" \
+  ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
   --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
