@@ -15,7 +15,8 @@ Mail the **project lead only** via `fleet-mail` (not the conductor; not mid-task
 # --to = owning lead named mailbox (<workspace>-project-lead), matching cmux pane/tab
 fleet-mail send --from worker --to pi-fleet-project-lead --type status --ticket <TICKET> \
   --body "compact progress" [--pr URL] [--head SHA]
-fleet-mail send --from worker --to pi-fleet-project-lead --type done|blocker|ask --ticket <TICKET> --body "…"
+fleet-mail send --from worker --to pi-fleet-project-lead --type <TYPE> --ticket <TICKET> --body "…"
+# <TYPE> is one of: done, blocker, ask
 ```
 
 `type=status` requires `--ticket` and **replaces** prior unacked status for that ticket. Prefer one

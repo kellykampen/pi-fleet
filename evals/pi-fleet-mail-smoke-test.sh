@@ -51,6 +51,15 @@ print("named-ok")
 PY
 "$MAIL" send --from pi-fleet-project-lead --to conductor --type status --ticket FLT-68 \
   --body "named rollup"
+conductor_named="$("$MAIL" inbox --mailbox conductor --unread --json)"
+python3 - "$conductor_named" <<'PY'
+import json,sys
+msgs=json.loads(sys.argv[1])
+matched=[m for m in msgs if m.get("from")=="pi-fleet-project-lead" and m.get("to")=="conductor"
+         and m.get("ticket")=="FLT-68" and m.get("body")=="named rollup"]
+assert matched, msgs
+print("named-rollup-ok")
+PY
 
 # node unit tests
 node --test "$ROOT/evals/fleet-mail.test.mjs"

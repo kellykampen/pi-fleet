@@ -17,7 +17,8 @@ fleet-mail send --from worker --to pi-fleet-project-lead --type status --ticket 
   --body "compact progress" [--pr URL] [--head SHA]
 
 # Blocker / done / ask
-fleet-mail send --from worker --to pi-fleet-project-lead --type blocker|done|ask --ticket <TICKET> --body "…"
+fleet-mail send --from worker --to pi-fleet-project-lead --type <TYPE> --ticket <TICKET> --body "…"
+# <TYPE> is one of: blocker, done, ask
 ```
 
 Rules:

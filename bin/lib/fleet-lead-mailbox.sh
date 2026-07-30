@@ -48,7 +48,7 @@ fleet_is_project_lead_mailbox() {
 }
 
 fleet_resolve_lead_mailbox() {
-  local explicit key candidate root base
+  local explicit key root base
   explicit="${FLEET_LEAD_MAILBOX:-}"
   if [[ -z "$explicit" ]] && fleet_is_project_lead_mailbox "${FLEET_MAIL_FROM:-}"; then
     explicit="${FLEET_MAIL_FROM}"
@@ -71,10 +71,9 @@ fleet_resolve_lead_mailbox() {
     if [[ -z "$key" ]]; then
       root="${FLEET_COORDINATION_ROOT:-$(pwd -P 2>/dev/null || pwd)}"
       base="$(basename "$root" 2>/dev/null || true)"
-      # Prefer repo folder name over worktree leaf when path looks like .worktrees/<ticket>
-      if [[ "$base" == flt-* || "$base" == wt/* || "$root" == *"/.worktrees/"* || "$root" == *"/worktrees/"* ]]; then
-        # walk up one for .worktrees/<name> → repo root basename is still better via FLEET_PROJECT_KEY
-        :
+      # Prefer repo folder name over worktree leaf for .../.worktrees/<ticket> or .../worktrees/<ticket>
+      if [[ "$root" == *"/.worktrees/"* || "$root" == *"/worktrees/"* ]]; then
+        base="$(basename "$(dirname "$(dirname "$root")")" 2>/dev/null || echo "$base")"
       fi
       key="$(fleet_sanitize_workspace_key "$base")"
     fi

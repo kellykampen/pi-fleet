@@ -90,12 +90,26 @@ else
 	echo "  got FLEET_LEAD_MAILBOX=${FLEET_LEAD_MAILBOX:-}"
 fi
 
+# Worktree path last-resort: walk up .worktrees/<ticket> → repo basename
+unset FLEET_LEAD_MAILBOX FLEET_MAIL_FROM FLEET_PROJECT_KEY CMUX_WORKSPACE_NAME FLEET_SEAT_NAME || true
+export FLEET_COORDINATION_ROOT="/tmp/example-repo/.worktrees/flt-68-lead-mailbox"
+fleet_resolve_lead_mailbox
+if [[ "${FLEET_LEAD_MAILBOX:-}" == "example-repo-project-lead" ]]; then
+	ok "bash resolver: worktree path → example-repo-project-lead"
+else
+	no "bash resolver: worktree path → example-repo-project-lead"
+	echo "  got FLEET_LEAD_MAILBOX=${FLEET_LEAD_MAILBOX:-}"
+fi
+unset FLEET_COORDINATION_ROOT || true
+
 # Node unit coverage for named topology
-if node --test "$DIR/evals/fleet-mail.test.mjs" >/tmp/flt-68-fleet-mail-test.out 2>&1; then
+tmpfile="$(mktemp "${TMPDIR:-/tmp}/flt-68-fleet-mail-test.XXXXXX")"
+trap 'rm -f "$tmpfile"' EXIT
+if node --test "$DIR/evals/fleet-mail.test.mjs" >"$tmpfile" 2>&1; then
 	ok "fleet-mail unit tests (includes FLT-68 named lead cases)"
 else
 	no "fleet-mail unit tests (includes FLT-68 named lead cases)"
-	tail -40 /tmp/flt-68-fleet-mail-test.out || true
+	tail -40 "$tmpfile" || true
 fi
 
 echo

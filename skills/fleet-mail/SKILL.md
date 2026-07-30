@@ -27,7 +27,8 @@ fleet-mail send \
   --body "compact progress" \
   [--pr URL] [--head SHA]
 
-fleet-mail send --from worker --to pi-fleet-project-lead --type blocker|done|ask --ticket <TICKET> --body "…"
+fleet-mail send --from worker --to pi-fleet-project-lead --type <TYPE> --ticket <TICKET> --body "…"
+# <TYPE> is one of: blocker, done, ask
 
 # Lead pull (idle / cadence — not mid-tool thrash)
 fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread   # e.g. pi-fleet-project-lead

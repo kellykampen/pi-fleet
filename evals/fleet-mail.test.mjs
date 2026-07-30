@@ -247,6 +247,14 @@ test("FLT-68: resolveProjectLeadMailbox prefers explicit env then workspace key"
     "pi-fleet-project-lead",
   );
   assert.equal(
+    mail.resolveProjectLeadMailbox({
+      FLEET_LEAD_MAILBOX: "pi-fleet-project-lead",
+      FLEET_PROJECT_KEY: "agent-skills",
+      CMUX_WORKSPACE_NAME: "ftd",
+    }),
+    "pi-fleet-project-lead",
+  );
+  assert.equal(
     mail.resolveProjectLeadMailbox({ FLEET_PROJECT_KEY: "agent-skills" }),
     "agent-skills-project-lead",
   );
