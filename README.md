@@ -49,7 +49,7 @@ or let the `pi-conductor`/`pi-project-lead` pick one via the bundled `model-clas
 > **Active GPT usage guard (FLT-55):** new `pi-*` worker/reviewer/AC-verifier/QA casts must not
 > use `openai-codex` / GPT without explicit CEO/conductor approval while the guard is active.
 > Preferred non-GPT alternatives: `--provider xai-auth --model grok-4.5-latest` and
-> `--provider kimi-coding --model k/3`. See [`docs/model-overrides.md`](docs/model-overrides.md)
+> `--provider kimi-coding --model k3`. See [`docs/model-overrides.md`](docs/model-overrides.md)
 > for the full override guidance.
 
 Pi-fleet runtime data lives only under private `~/.pi-fleet` (or an absolute `PI_FLEET_HOME`).

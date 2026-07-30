@@ -282,6 +282,7 @@ not by which provider it happens to be.**
 | Kimi K2.7 Code | `claudekimi` (or `--provider` equivalent) |
 | Gemini (via agy) | `agy` |
 | Grok 4.5 | `--provider xai-auth --model grok-4.5-latest` (requires `npm:pi-xai-oauth`; not built-in `xai`) |
+| Kimi K3 | `--provider kimi-coding --model k3` (requires `npm:pi-provider-kimi-code`; model id is `k3`, not `k/3`) |
 
 Before casting any of the previously-banned names (GLM, Kimi, Gemini/agy, Grok), check its current
 pace via the conductor's latest usage relay — EXHAUSTED means don't, OVER_PACE means ask first,
@@ -297,15 +298,15 @@ otherwise it's fair game the same as Claude or Codex.
 - This is a **temporary usage guard**, not a permanent roster change. It overrides the default-model table above for **new casts** until it is lifted.
 - **Preferred non-GPT alternatives** (exact Pi flags):
   - Grok 4.5: `--provider xai-auth --model grok-4.5-latest`
-  - Kimi K3: `--provider kimi-coding --model k/3`
+  - Kimi K3: `--provider kimi-coding --model k3`
 
   Example casts:
 
   ```bash
   cd <worktree> && pi-implementer --provider xai-auth --model grok-4.5-latest
-  cd <worktree> && pi-reviewer --provider kimi-coding --model k/3
-  cd <worktree> && pi-ac-verifier --provider kimi-coding --model k/3
-  cd <worktree> && pi-visual-qa --provider kimi-coding --model k/3
+  cd <worktree> && pi-reviewer --provider kimi-coding --model k3
+  cd <worktree> && pi-ac-verifier --provider kimi-coding --model k3
+  cd <worktree> && pi-visual-qa --provider kimi-coding --model k3
   ```
 
 - **Approval required for GPT casts:** if `model-classifier` or the task genuinely points to a GPT model, escalate to the conductor/CEO and get explicit approval before casting. A profile default is not approval.

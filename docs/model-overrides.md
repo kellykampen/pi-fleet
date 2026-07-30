@@ -27,7 +27,11 @@ When the task allows, cast non-GPT pi workers using these exact provider/model p
 | Preferred model | Pi flags | Typical seat |
 | --- | --- | --- |
 | Grok 4.5 | `--provider xai-auth --model grok-4.5-latest` | `pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-visual-qa` |
-| Kimi K3 | `--provider kimi-coding --model k/3` | `pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-visual-qa` |
+| Kimi K3 | `--provider kimi-coding --model k3` | `pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-visual-qa` |
+
+> **Model id is `k3`, not `k/3`.** The slash form is a docs typo that produces
+> `Warning: Model "k/3" not found for provider "kimi-coding". Using custom model id.` and can
+> hang or fall back under fleet wrappers.
 
 ### Grok / `xai-auth` requirements
 
@@ -52,16 +56,38 @@ When the task allows, cast non-GPT pi workers using these exact provider/model p
 - Do **not** cast `pi --provider xai-auth` under a bare `--no-extensions` invocation without also
   passing the oauth extension path (or using a fleet wrapper that already does).
 
+### Kimi / `kimi-coding` requirements
+
+- Provider id is **`kimi-coding`**, registered by the installed package **`npm:pi-provider-kimi-code`**.
+- The Kimi K3 model id is **`k3`** (and `k3-256k` for the 256k variant). Do not use `k/3`.
+- Interactive `pi` loads packages from `~/.pi/agent/settings.json`, so `/login kimi-coding` and
+  model pickers work there.
+- **Every** fleet wrapper that passes `--no-extensions` re-includes `pi-provider-kimi-code` via
+  `bin/lib/pi-kimi-code-ext.sh` when the package is installed (same seat set as `pi-xai-oauth` above).
+  Without that package under `--no-extensions`, K3 casts warn `Model "k3" not found` and may hang
+  or use a broken custom-model path because the package's stream/auth handlers never load.
+- Fleet worker cast examples:
+  ```bash
+  # Direct interactive (packages on; do not add bare --no-extensions here):
+  pi --provider kimi-coding --model k3 -p "Reply OK" --no-session --no-tools
+  # fleet workers (wrappers re-include kimi-code under --no-extensions):
+  pi-implementer --provider kimi-coding --model k3 -p "Reply OK"
+  pi-reviewer --provider kimi-coding --model k3
+  pi-ac-verifier --provider kimi-coding --model k3
+  ```
+- Do **not** cast `pi --provider kimi-coding --model k3` under a bare `--no-extensions` invocation
+  without also passing the kimi extension path (or using a fleet wrapper that already does).
+
 Exact cross-model workflows:
 
 ```bash
 # Workflow A: Grok implementation, Kimi review/verification
 cd <worktree> && pi-implementer --provider xai-auth --model grok-4.5-latest
-cd <worktree> && pi-reviewer --provider kimi-coding --model k/3
-cd <worktree> && pi-ac-verifier --provider kimi-coding --model k/3
+cd <worktree> && pi-reviewer --provider kimi-coding --model k3
+cd <worktree> && pi-ac-verifier --provider kimi-coding --model k3
 
 # Workflow B: Kimi implementation, Grok review/verification
-cd <worktree> && pi-implementer --provider kimi-coding --model k/3
+cd <worktree> && pi-implementer --provider kimi-coding --model k3
 cd <worktree> && pi-reviewer --provider xai-auth --model grok-4.5-latest
 cd <worktree> && pi-ac-verifier --provider xai-auth --model grok-4.5-latest
 ```
@@ -96,7 +122,7 @@ The guard does **not** relax verification quality:
 
 Roster-banned model families are not defaults: Gemini/agy, Grok/xAI, Kimi, and GLM.
 
-> **During the active GPT usage guard (see [GPT usage guard](#gpt-usage-guard--active-model-routing-override-flt-55) above), do not use these OpenAI defaults for new worker casts without explicit CEO/conductor approval.** Prefer `xai-auth/grok-4.5-latest` or `kimi-coding/k/3` instead.
+> **During the active GPT usage guard (see [GPT usage guard](#gpt-usage-guard--active-model-routing-override-flt-55) above), do not use these OpenAI defaults for new worker casts without explicit CEO/conductor approval.** Prefer `xai-auth/grok-4.5-latest` or `kimi-coding/k3` instead.
 
 ## Verification
 

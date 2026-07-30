@@ -8,6 +8,7 @@ PASS: implementer always --approve
 PASS: implementer always --no-extensions
 PASS: implementer loads linear
 PASS: implementer re-includes pi-xai-oauth
+PASS: implementer re-includes pi-provider-kimi-code
 PASS: implementer does not load permission-system
 PASS: implementer keeps write/edit/bash
 PASS: implementer still --approve when FLEET_YOLO=0
@@ -17,6 +18,7 @@ PASS: project-lead always --approve
 PASS: project-lead always --no-extensions
 PASS: project-lead loads policy extension
 PASS: project-lead re-includes pi-xai-oauth
+PASS: project-lead re-includes pi-provider-kimi-code
 PASS: project-lead does not load permission-system
 PASS: project-lead tools omit write/edit
 PASS: project-lead still --approve when FLEET_YOLO=0
@@ -26,6 +28,7 @@ PASS: conductor always --approve
 PASS: conductor always --no-extensions
 PASS: conductor loads policy extension
 PASS: conductor re-includes pi-xai-oauth
+PASS: conductor re-includes pi-provider-kimi-code
 PASS: conductor does not load permission-system
 PASS: conductor routing-only tools
 PASS: conductor tools omit write/edit/read/grep/find
@@ -34,10 +37,12 @@ PASS: conductor tools omit write/edit/read/grep/find
 PASS: reviewer always --approve
 PASS: reviewer always --no-extensions
 PASS: reviewer re-includes pi-xai-oauth
+PASS: reviewer re-includes pi-provider-kimi-code
 PASS: reviewer does not load permission-system
 PASS: ac-verifier always --approve
 PASS: ac-verifier always --no-extensions
 PASS: ac-verifier re-includes pi-xai-oauth
+PASS: ac-verifier re-includes pi-provider-kimi-code
 PASS: ac-verifier does not load permission-system
 
 5) agent frontmatter has no permission: block
@@ -59,5 +64,5 @@ PASS: allowlisted bash tool ran without permission-system (sentinel written)
 PASS: no permission-system ask gate in headless probe log
 
 ---
-42 passed, 0 failed
+47 passed, 0 failed
 VERDICT: PASS

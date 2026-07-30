@@ -10,9 +10,10 @@ export PATH="$DIR:$PATH"
 . "$DIR/lib/pi-model-env.sh"
 . "$DIR/lib/pi-wrapper-args.sh"
 . "$DIR/lib/pi-xai-oauth-ext.sh"
+. "$DIR/lib/pi-kimi-code-ext.sh"
 pi_model_override_args spike-breakdown "spike" "$@"
 pi_sanitize_passthrough_args "$@"
-# Re-include pi-xai-oauth so --provider xai-auth works under --no-extensions.
+# Re-include provider packages so --provider xai-auth / kimi-coding work under --no-extensions.
 exec outfitter run --profile spike-breakdown --agent pi -- \
   ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
   ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
@@ -21,4 +22,5 @@ exec outfitter run --profile spike-breakdown --agent pi -- \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
   --extension "$FLEET_ROOT/extensions/spike-breakdown-policy.ts" \
   ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
+  ${PI_KIMI_CODE_EXT_ARGS[@]+"${PI_KIMI_CODE_EXT_ARGS[@]}"} \
   --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,context7_resolve-library-id,context7_query-docs

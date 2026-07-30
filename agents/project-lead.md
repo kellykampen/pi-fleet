@@ -77,7 +77,7 @@ Rules:
 - **Active GPT usage guard (FLT-55):** do not cast new GPT/OpenAI worker agents
   (`pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-visual-qa`, etc.) unless explicitly
   CEO/conductor-approved. Prefer non-GPT pi workers: `--provider xai-auth --model grok-4.5-latest`
-  or `--provider kimi-coding --model k/3`. Preserve verification quality: the reviewer and AC
+  or `--provider kimi-coding --model k3`. Preserve verification quality: the reviewer and AC
   verifier must run on a different model than the implementer.
 - **Linear description body is content, not a path (FLT-61).** When creating/updating issues via
   `linear-cli`, use `-d "$(cat /tmp/body.md)"` or (create) `-d - < /tmp/body.md`. Never pass a bare

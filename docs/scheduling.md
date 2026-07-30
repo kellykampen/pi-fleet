@@ -44,7 +44,7 @@ profile instead.
 structurally prevents auto-discovered machine-global packages — including `@jl1990/pi-scheduler`
 if installed — from loading into those roles at all, rather than relying solely on
 `scheduler-status.sh` to purge whatever they register after the fact. Explicit `--extension` flags
-(Linear, E2B, and when installed `pi-xai-oauth` for the `xai-auth` provider) are unaffected and
+(Linear, E2B, and when installed `pi-xai-oauth` for `xai-auth` and `pi-provider-kimi-code` for `kimi-coding` / `k3`) are unaffected and
 still load.
 
 ## Historical: `@jl1990/pi-scheduler` and `pi-schedule-prompt`

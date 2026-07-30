@@ -21,9 +21,11 @@ pi_sanitize_passthrough_args "$@"
 pi_conductor_prepare_runtime "$FLEET_ROOT"
 
 # FLT-35: --no-extensions blocks machine-global package auto-discovery. Explicit extensions remain:
-# Linear orchestration, conductor-policy, then pi-xai-oauth (xai-auth) when installed.
+# Linear orchestration, conductor-policy, then pi-xai-oauth (xai-auth) and pi-provider-kimi-code
+# (kimi-coding / k3) when installed.
 # FLT-66/FLT-67: always --approve (CEO always-YOLO). No permission-system extension.
 . "$FLEET_ROOT/bin/lib/pi-xai-oauth-ext.sh"
+. "$FLEET_ROOT/bin/lib/pi-kimi-code-ext.sh"
 exec outfitter run --profile conductor --agent pi -- \
   ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
   ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
@@ -32,4 +34,5 @@ exec outfitter run --profile conductor --agent pi -- \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
   --extension "$FLEET_ROOT/extensions/conductor-policy.ts" \
   ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
+  ${PI_KIMI_CODE_EXT_ARGS[@]+"${PI_KIMI_CODE_EXT_ARGS[@]}"} \
   --tools bash,linear_get_issue,linear_list,linear_comment,linear_update

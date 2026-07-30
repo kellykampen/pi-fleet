@@ -68,7 +68,7 @@ Rules:
   lead, and make sure leads know the current load-guard threshold (you don't run builds yourself).
 - **Active GPT usage guard (FLT-55):** relay to every project lead that new GPT/OpenAI worker
   casts require explicit CEO/conductor approval. Preferred non-GPT alternatives:
-  `--provider xai-auth --model grok-4.5-latest` and `--provider kimi-coding --model k/3`.
+  `--provider xai-auth --model grok-4.5-latest` and `--provider kimi-coding --model k3`.
   Verification quality remains mandatory: the reviewer and AC verifier must run on a different
   model than the implementer.
 

@@ -39,7 +39,7 @@ Headless `-p` smokes and unattended QC must never hit allow-modals: `--approve` 
 1. `--tools` is **bash + Linear only** — omits `read`/`grep`/`find`/`ls`/`write`/`edit` so the seat
    cannot investigate product-repo source or PR diffs in-session.
 2. Always `--approve` + `--no-extensions`.
-3. Explicit extensions: Linear, `conductor-policy.ts`, optional `pi-xai-oauth`.
+3. Explicit extensions: Linear, `conductor-policy.ts`, optional `pi-xai-oauth` + `pi-provider-kimi-code`.
 4. Isolated agent overlay + policy cwd (`bin/lib/pi-conductor-runtime.sh`) keep coordination root
    as `FLEET_COORDINATION_ROOT` / `launch-cwd/` — **not** for PS isolation (PS is gone).
 5. `extensions/conductor-policy.ts` enforces the executable/subcommand allowlist and rejects shell
@@ -52,7 +52,7 @@ Headless `-p` smokes and unattended QC must never hit allow-modals: `--approve` 
 
 1. `--tools` omits `write` and `edit` (coordination + Linear + E2B only).
 2. Always `--approve` + `--no-extensions`.
-3. Explicit extensions: Linear, E2B, `project-lead-policy.ts`, optional `pi-xai-oauth`.
+3. Explicit extensions: Linear, E2B, `project-lead-policy.ts`, optional `pi-xai-oauth` + `pi-provider-kimi-code`.
 4. Isolated runtime via `bin/lib/pi-project-lead-runtime.sh`.
 5. `extensions/project-lead-policy.ts` enforces `evaluateCommand(..., { seat: "lead" })`.
 

@@ -10,8 +10,9 @@ exec > >(tee "$OUT") 2>&1
 
 # FLT-67: permission-system package is not required for any seat launch.
 XAI_OAUTH_EXT="$TMP/agent/npm/node_modules/pi-xai-oauth/extensions/xai-oauth.ts"
-mkdir -p "$(dirname "$XAI_OAUTH_EXT")"
-touch "$XAI_OAUTH_EXT"
+KIMI_CODE_EXT="$TMP/agent/npm/node_modules/pi-provider-kimi-code/index.ts"
+mkdir -p "$(dirname "$XAI_OAUTH_EXT")" "$(dirname "$KIMI_CODE_EXT")"
+touch "$XAI_OAUTH_EXT" "$KIMI_CODE_EXT"
 
 pass=0; fail=0
 check_contains() {
@@ -46,6 +47,7 @@ run_wrapper() {
     FLEET_PROJECT_LEAD_RUNTIME_DIR="$TMP/project-lead-runtime" \
     FLEET_IMPLEMENTER_RUNTIME_DIR="$TMP/implementer-runtime" \
     PI_XAI_OAUTH_EXT="$XAI_OAUTH_EXT" \
+    PI_KIMI_CODE_EXT="$KIMI_CODE_EXT" \
     PI_SCHEDULER_TASKS_FILE="$TMP/scheduler-tasks.json" PI_SCHEDULER_TASKS_BOUNDARY="$TMP" \
     PI_FLEET_MOCK_OUT="$outfile" "$@"
   cat "$outfile"
@@ -60,6 +62,8 @@ check_not_contains "implementer does not load permission-system" "$args" "pi-per
 check_contains "implementer loads explicit linear extension" "$args" "--extension $ROOT/extensions/linear.ts"
 check_contains "implementer re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"
+check_contains "implementer re-includes pi-provider-kimi-code for kimi-coding under --no-extensions" "$args" \
+  "--extension $KIMI_CODE_EXT"
 
 args="$(run_wrapper FLEET_YOLO=0 PI_IMPLEMENTER_PROVIDER=openai-codex PI_IMPLEMENTER_MODEL=gpt-5.6-sol "$ROOT/bin/pi-implementer" -p noop)"
 check_contains "implementer still --approve when FLEET_YOLO=0" "$args" "--approve --no-extensions"
@@ -76,6 +80,8 @@ check_contains "reviewer always passes --no-extensions" "$args" "--no-extensions
 check_not_contains "reviewer does not load permission-system" "$args" "pi-permission-system"
 check_contains "reviewer re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"
+check_contains "reviewer re-includes pi-provider-kimi-code for kimi-coding under --no-extensions" "$args" \
+  "--extension $KIMI_CODE_EXT"
 
 args="$(run_wrapper FLEET_YOLO=0 PI_PROVIDER=openai-codex PI_MODEL=gpt-5.5 "$ROOT/bin/pi-reviewer" -p noop)"
 check_contains "reviewer still --approve when FLEET_YOLO=0" "$args" "--approve --no-extensions"
@@ -88,6 +94,8 @@ check_contains "ac-verifier always passes --approve (unattended QC)" "$args" "--
 check_not_contains "ac-verifier does not load permission-system" "$args" "pi-permission-system"
 check_contains "ac-verifier re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"
+check_contains "ac-verifier re-includes pi-provider-kimi-code for kimi-coding under --no-extensions" "$args" \
+  "--extension $KIMI_CODE_EXT"
 
 args="$(run_wrapper FLEET_YOLO=0 PI_PROVIDER=openai-codex PI_MODEL=gpt-5.5 PI_AC_VERIFIER_MODEL=gpt-5.6-luna "$ROOT/bin/pi-ac-verifier" -p noop)"
 check_contains "ac-verifier still --approve when FLEET_YOLO=0" "$args" "--approve --no-extensions"
@@ -112,9 +120,11 @@ check_contains "project-lead tools keep coordination surface without write/edit"
   '--tools read\,grep\,find\,ls\,bash\,linear_get_issue\,linear_list\,linear_comment\,linear_update\,e2b_cast\,e2b_status\,e2b_wait\,e2b_cancel\,e2b_logs\,e2b_port_url'
 check_not_contains "project-lead tools omit write" "$args" "write,"
 check_not_contains "project-lead tools omit edit" "$args" ",edit,"
-# Lead must re-include pi-xai-oauth after --no-extensions so xai-auth works.
+# Lead must re-include provider packages after --no-extensions so xai-auth / kimi-coding work.
 check_contains "project-lead re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"
+check_contains "project-lead re-includes pi-provider-kimi-code for kimi-coding under --no-extensions" "$args" \
+  "--extension $KIMI_CODE_EXT"
 
 args="$(run_wrapper FLEET_YOLO=1 PI_PROVIDER=openai-codex PI_LEAD_MODEL=gpt-5.6-sol "$ROOT/bin/pi-project-lead" -p noop)"
 check_contains "project-lead keeps --approve before --no-extensions" "$args" "--approve --no-extensions"
@@ -132,6 +142,8 @@ check_contains "conductor always passes --approve (always YOLO, FLT-67)" "$args"
 check_not_contains "conductor does not load permission-system" "$args" "pi-permission-system"
 check_contains "conductor re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"
+check_contains "conductor re-includes pi-provider-kimi-code for kimi-coding under --no-extensions" "$args" \
+  "--extension $KIMI_CODE_EXT"
 
 args="$(run_wrapper FLEET_YOLO=0 PI_PROVIDER=openai-codex PI_MODEL=gpt-5.6-sol "$ROOT/bin/pi-conductor" -p noop)"
 check_contains "conductor still --approve when FLEET_YOLO=0" "$args" "--approve --no-extensions"
@@ -153,6 +165,8 @@ check_contains "planner always passes --approve" "$args" "--approve"
 check_contains "planner always passes --tools" "$args" "--tools"
 check_contains "planner re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"
+check_contains "planner re-includes pi-provider-kimi-code for kimi-coding under --no-extensions" "$args" \
+  "--extension $KIMI_CODE_EXT"
 
 args="$(run_wrapper FLEET_YOLO=0 PI_PLANNER_PROVIDER=openai-codex PI_PLANNER_MODEL=gpt-5.6-terra "$ROOT/bin/pi-planner" -p noop)"
 check_contains "planner still --approve when FLEET_YOLO=0" "$args" "--approve"
@@ -166,6 +180,8 @@ check_contains "spike-breakdown always passes --approve" "$args" "--approve"
 check_contains "spike-breakdown always passes --tools" "$args" "--tools"
 check_contains "spike-breakdown re-includes pi-xai-oauth for xai-auth under --no-extensions" "$args" \
   "--extension $XAI_OAUTH_EXT"
+check_contains "spike-breakdown re-includes pi-provider-kimi-code for kimi-coding under --no-extensions" "$args" \
+  "--extension $KIMI_CODE_EXT"
 
 args="$(run_wrapper FLEET_YOLO=0 PI_SPIKE_BREAKDOWN_PROVIDER=openai-codex PI_SPIKE_BREAKDOWN_MODEL=gpt-5.6-terra "$ROOT/bin/pi-spike-breakdown" -p noop)"
 check_contains "spike-breakdown still --approve when FLEET_YOLO=0" "$args" "--approve"
