@@ -74,12 +74,16 @@ node --test evals/pi-project-lead-config.test.mjs
 node --test evals/conductor-command-policy.test.mjs
 ```
 
-These guards prove `pi-project-lead` is a routing bottleneck in the **harness**, not only prose:
-`--tools` omits `write`/`edit` while keeping bash + E2B cast tools; the wrapper loads an isolated
-`permission-system/project-lead.json` overlay and `extensions/project-lead-policy.ts`; seat `lead`
-command policy allows cmux/gh-read/main-integration and denies implementer shell (`git commit`,
+These guards prove `pi-project-lead` is coordination-only / non-bottleneck in the **harness**, not
+only prose: `--tools` omits `write`/`edit` while keeping bash + E2B cast tools; the wrapper loads an
+isolated `permission-system/project-lead.json` overlay and `extensions/project-lead-policy.ts`; seat
+`lead` command policy allows cmux/gh-read/main-integration and denies implementer shell (`git commit`,
 `pnpm test`, `gh pr create`/`review`, interpreters); and skill/agent/profile prose forbids absorbing
-light implementation/review/AC/docs work into the lead session.
+light implementation/review/AC/docs work into the lead session. FLT-62 also requires explicit
+non-bottleneck phrases in those sources: **bottleneck forbidden**, **cast immediately**, **poll every
+2–5 minutes**, **parallel seats mandatory**, **silence while agents run is a process failure**, **no
+light product work**, compressed rollups, harness **no write/edit** / delegate-only, and no mid-turn
+`cmux send` into a Working worker (batch handoff file or one idle message only).
 
 ## Dual-source AC verification structural eval
 
@@ -295,6 +299,14 @@ cat-expansion and stdin deliver file contents while a bare path would store the 
 ```bash
 evals/linear-body-content-structural-test.sh
 ```
+
+## Non-bottleneck project-lead structural phrases (FLT-62)
+
+Covered by `evals/project-lead-delegate-guard-structural-test.sh` (above): skill + profile + agent
+must state **bottleneck forbidden**, **cast immediately**, **poll every 2–5 minutes**, **parallel
+seats mandatory**, **silence while agents run is a process failure**, **no light product work**,
+compressed rollups, harness **no write/edit** / delegate-only, and the mid-turn Working ban (batch
+handoff file or one idle message). Does not weaken FLT-57 topology or the harness write/edit deny.
 
 ## Gotchas
 
