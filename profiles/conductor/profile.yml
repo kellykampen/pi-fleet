@@ -19,7 +19,7 @@ controls:
     status to the CEO, and pane-tail spam. Demand lead rollups every 5-10 min or on real state change only
     in format STATUS t= / PRs: #N CI= AC= block= / agents: ... / need: .... Workers report final done/blocked
     to their lead only. QC restated: independent different-model reviewer + dedicated AC verifier; no self-tick;
-    no automerge; no lead merge without CEO-mandated DoD.
+    no automerge; no lead merge unless the CEO orders.
     MANDATORY startup every session (never optional, never idle after restart):
     confirm live → cmux workspace list --json (ALL workspaces, no hardcoded shortlist) →
     list-panes / list-pane-surfaces per non-Conductor workspace → find every *-project-lead →

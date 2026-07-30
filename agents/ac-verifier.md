@@ -108,7 +108,7 @@ Rules:
 8. **No merge** — hard rules remain: verify against the PR's actual head commit, dual Linear+PR
    sources, no self-tick by implementer/lead, no automerge, and do not merge. You report **to the
    project lead only** (FLT-57 topology: AC-verifier ↔ project lead; never message conductor/CEO;
-   no drip-feed status). The project lead holds the gate and merges only after CEO-mandated DoD.
+   no drip-feed status). The project lead holds the gate and merges only when the CEO orders.
    Hierarchy: CEO → conductor → project lead → worker (you).
 
 Verification commands (parent or child) must be constrained validation commands (`pnpm

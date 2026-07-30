@@ -69,7 +69,7 @@ CEO  →  conductor  →  project lead  →  worker
 | --- | --- | --- |
 | **CEO** | (human) | Goals, priorities/reprioritization, risk/money |
 | **Conductor** | `pi-conductor` | Cross-project routing; assigns project leads; escalates CEO decisions |
-| **Project lead** | `pi-project-lead` | One project/stream; casts workers; holds every gate; merges ticket PRs to main |
+| **Project lead** | `pi-project-lead` | One project/stream; casts workers; holds every gate; merges to main only when the CEO orders |
 | **Worker** | `pi-implementer`, `pi-reviewer`, … | Single-purpose work; reports to the project lead |
 
 **Cast** = spin up a worker seat (project lead → worker). The conductor assigns work to project
@@ -115,7 +115,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  [env model args] -
 | **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear *(no write/edit)* | Cross-project router with a default-deny command policy. It can orchestrate seats and update validated coordination notes through `fleet-note`, but cannot clone, build, run arbitrary scripts, or mutate source. |
 | **`claude-conductor`** | Claude Code (`--remote-control`) | Read/Grep/Glob + conductor-only Bash allowlist *(no Write/Edit)* | CEO-facing conductor with an authoritative fail-closed `PreToolUse` hook. It cannot use merge-flow commands; `FLEET_YOLO` cannot bypass the boundary. |
 | **`claude-project-lead`** | Claude Code (Opus by default) | Read/Grep/Glob + lead Bash allowlist *(no Write/Edit)* | Native project lead: orchestration plus narrow main integration (`fetch`, ff-only pull, checkout/switch main, merge/push, PR merge/comment, and worktree lifecycle). Build/install/script commands remain blocked. |
-| **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear + e2b *(no write/edit)* | Owns one project as the routing bottleneck — casts every implementation/review/AC/docs seat (via **model-classifier**), holds QC gates, merges fully gated PRs to main. Harness-enforced: no source mutation or implementation shell. |
+| **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear + e2b *(no write/edit)* | Owns one project as the routing bottleneck — casts every implementation/review/AC/docs seat (via **model-classifier**), holds QC gates, reports merge-ready; merges to main only when the CEO orders. Harness-enforced: no source mutation or implementation shell. |
 | **`pi-visual-qa`** | GPT-5.6 Terra (`openai-codex`) · medium | read, grep, find, ls, **bash** *(+ image, playwright)* | **Captures** the app screenshot (playwright) and compares it to the design comp. Tears down anything it spawns. Taste/visual default. |
 | **`pi-linear`** | GPT-5.5 (`openai-codex`) · low | read, grep, find, ls, **bash** + `linear_*` | Full Linear issue/project management (create, labels, relations, projects — via `linear-cli` + the `linear.ts` extension). |
 | **`pi-personal-assistant`** | **GPT-5.6 Terra** (`openai-codex`) · medium | read, grep, find, ls, write, edit, bash + `linear_*` | The operator's **personal assistant** — social/X, comms, notes, tasks. Runs the CLIs below under a **draft → approval → execute** gate (nothing sends without an explicit per-item OK). |
@@ -366,7 +366,7 @@ guard" in each.
 "does no work" delegation-only rule + routing table; the two-conductor model
 (`claude-conductor` = CEO-facing relay, `pi-conductor` = drives project leads); the
 **Docs-as-final-DoD-gate** canonical pipeline (short-lived ticket branch/worktree → review →
-AC-verify → visual-QA where applicable → CI → Docs pass → project-lead merge directly to main/Done,
+AC-verify → visual-QA where applicable → CI → Docs pass → project-lead reports merge-ready → merge to main only when the CEO orders → Done,
 see the [`pi-docs`](#the-profiles) profile); the hard roster lock (allowed:
 `claude-worker`/`claude-reviewer` Sonnet 5/Opus 4.8, `pi` `gpt-5.5`/`gpt-5.6`; banned: Grok/xAI,
 Kimi/`claudekimi`, GLM/`claudeglm`, Gemini/`agy`); pane/seat hygiene (no mass-close, project

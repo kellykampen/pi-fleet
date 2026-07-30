@@ -106,8 +106,7 @@ assert_file_contains "code-review skill forbids messaging conductor/CEO" \
 # QC restatement.
 for file in \
 	"skills/project-lead/SKILL.md" \
-	"skills/conductor/SKILL.md"
-do
+	"skills/conductor/SKILL.md"; do
 	assert_file_contains "$file restates independent reviewer + dedicated AC" \
 		"$file" \
 		'[Ii]ndependent[\s\S]*different-model reviewer[\s\S]*dedicated[\s\S]*(AC|`pi-ac-verifier`)'
@@ -117,9 +116,9 @@ do
 	assert_file_contains "$file restates no automerge" \
 		"$file" \
 		'[Nn]o automerge'
-	assert_file_contains "$file restates no lead merge without CEO-mandated DoD" \
+	assert_file_contains "$file restates no lead merge unless the CEO orders" \
 		"$file" \
-		'[Nn]o lead merge without CEO-mandated DoD'
+		'[Nn]o lead merge unless the CEO orders'
 done
 
 # Profiles / agents propagate topology.
@@ -171,12 +170,12 @@ assert_file_contains "project-lead skill still forbids self-implementation" \
 assert_file_contains "project-lead profile still forbids self-implementation" \
 	"profiles/project-lead/profile.yml" \
 	'Never implement, review, AC-verify, or docs-pass in your own session'
-assert_file_contains "project-lead skill still merges fully gated PRs to main" \
+assert_file_contains "project-lead skill forbids self-merge without CEO order" \
 	"skills/project-lead/SKILL.md" \
-	'merge the fully gated PR directly to \*\*main\*\*'
-assert_file_contains "conductor skill still says leads merge to main" \
+	'merge to \*\*main\*\* only when the CEO explicitly orders|Merge to main only when the CEO orders'
+assert_file_contains "conductor skill forbids lead self-merge without CEO order" \
 	"skills/conductor/SKILL.md" \
-	'merges? fully gated[\s\S]*main|project lead merges directly to main'
+	'merges to main only when the CEO orders|merge to main only when the CEO orders'
 
 echo "---"
 echo "$pass passed, $fail failed"
