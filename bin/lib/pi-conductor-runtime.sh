@@ -35,6 +35,19 @@ pi_conductor_prepare_runtime() {
   export FLEET_COORDINATION_ROOT="$launch_cwd"
   export PI_FLEET_ROOT="$fleet_root"
   export PATH="$fleet_root/bin:$PATH"
+
+  # FLT-69: ensure workspaces.json exists and expose path + helpers for the
+  # mandatory startup step that maps cmux workspace list → registry rows.
+  # shellcheck source=fleet-workspaces.sh
+  . "$fleet_root/bin/lib/fleet-workspaces.sh"
+  fleet_workspaces_ensure_file >/dev/null 2>&1 || true
+  if FLEET_WS_PATH="$(fleet_workspaces_path 2>/dev/null || true)"; then
+    export FLEET_WORKSPACES_PATH="$FLEET_WS_PATH"
+  fi
+  # Soft resolve when conductor itself is launched from a project checkout
+  # (portfolio metadata only — does not grant product-repo tools).
+  fleet_workspaces_resolve_and_export || true
+
   # Unset any leftover PS path from the environment so it cannot reappear in argv.
   unset PI_PERMISSION_SYSTEM_PATH 2>/dev/null || true
   cd "$policy_cwd"

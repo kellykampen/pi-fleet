@@ -51,6 +51,10 @@ Rules:
   (`new-pane`, `new-surface`, `send`, `send-key`, `capture-pane`, `close-surface`, terminals,
   browsers). Prefer a right-side helper pane in your own workspace only. NEVER open panes/surfaces
   in another project workspace. Do not pass `--focus false` to `cmux send` (it becomes message text).
+- **Workspace registry (FLT-69):** launch hard-derives `FLEET_WORKSPACE_SLUG`, `FLEET_LEAD_MAILBOX`
+  (`<workspace>-project-lead`), `FLEET_LINEAR_TEAM_KEY`, and `FLEET_ALLOWED_REPO_ROOTS` from
+  `$PI_FLEET_HOME/workspaces.json`. Git outside allowed roots is blocked for this seat; workers
+  inherit the env. Cross-project is conductor-only. See `docs/workspaces.md`.
 - Pick worker profile by task type; pick model via model-classifier; override defaults per cast.
 - Independent reviewer must be a **different model** than the implementer.
 - Definition of Done: short-lived ticket branch/worktree + real PR + every review/AC/visual/CI/docs
@@ -60,8 +64,9 @@ Rules:
   (e.g. `pi-fleet-project-lead`); that string is both the cmux pane/tab name and the fleet-mail
   mailbox (`FLEET_LEAD_MAILBOX`). Workers and conductor address you by that exact id.
 - **Agent mail:** workers mail you via `fleet-mail` (never the conductor). Pull
-  `fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread` on **idle/cadence** (do not mid-turn
-  cmux-send status drips), ack processed mail, and send **compact rollups** to the conductor with
+  `fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread` (registry `leadMailbox` / FLT-68
+  named seat, e.g. `pi-fleet-project-lead`) on **idle/cadence** (do not mid-turn cmux-send status
+  drips), ack processed mail, and send **compact rollups** to the conductor with
   `--from "$FLEET_LEAD_MAILBOX"` — not raw worker spam. Status slots replace per ticket.
   Multi-harness (Pi/Claude/Codex) same CLI. See `docs/agent-mail.md` and
   `docs/batch-append-messaging.md`.
@@ -79,4 +84,4 @@ Rules:
   `/tmp/...` path as `-d`/`--description` — that stores the path string in Linear. Include user
   story + `- [ ]` AC in the body; re-read after write. Fix path-only bodies before casting work.
 
-- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces (including `workspaces.json`).

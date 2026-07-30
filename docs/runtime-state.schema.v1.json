@@ -121,7 +121,8 @@
       {"path": "logs/personal", "owner": "personal scheduler", "authority": "personal schedule output", "sensitivity": "private", "retention": "5 MiB per log, three rotated generations"},
       {"path": "handoffs/conductor", "owner": "conductor", "authority": "coordination handoff", "sensitivity": "private", "retention": "one current.md plus explicit archive"},
       {"path": "handoffs/projects/<stable-id>", "owner": "project lead", "authority": "project coordination handoff", "sensitivity": "private", "retention": "one current.md plus explicit archive", "stableIdPattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ excluding . and .."},
-      {"path": "mail/<mailbox>", "owner": "fleet-mail", "authority": "async seat inbox", "sensitivity": "private", "retention": "unacked retained; acked pruned when inbox exceeds bound; rate under mail/rate/", "stableIdPattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$ excluding . and .."}
+      {"path": "mail/<mailbox>", "owner": "fleet-mail", "authority": "async seat inbox", "sensitivity": "private", "retention": "unacked retained; acked pruned when inbox exceeds bound; rate under mail/rate/", "stableIdPattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$ excluding . and .."},
+      {"path": "workspaces.json", "owner": "fleet-workspaces", "authority": "cmux/project workspace registry (FLT-69)", "sensitivity": "private", "retention": "operator-managed; schema v1"}
     ],
     "externalPaths": [
       {"path": "~/.pi/agent", "owner": "Pi", "policy": "external; pi-fleet may configure links and remove only validated pi-fleet-owned scheduler tasks"},

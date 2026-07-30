@@ -64,6 +64,26 @@ the same cmux workspace. Cast workers **only** into panes in **your** workspace
 (`${CMUX_WORKSPACE_ID}` / `$CMUX_WORKSPACE_ID`); you alone coordinate them. **NEVER** open panes,
 surfaces, terminals, or browsers in another project's workspace.
 
+## Workspace registry (FLT-69) — derived at launch
+
+`pi-project-lead` **hard-derives** your workspace from `$PI_FLEET_HOME/workspaces.json` (slug/alias
+→ cmux title → cwd/repo → basename) and exports:
+
+| Env | Meaning |
+| --- | --- |
+| `FLEET_WORKSPACE_SLUG` / `FLEET_PROJECT_KEY` | Registry slug |
+| `FLEET_LEAD_MAILBOX` / `FLEET_SEAT_NAME` | `<workspace>-project-lead` (e.g. `pi-fleet-project-lead`, `ftd-project-lead`) |
+| `FLEET_LINEAR_TEAM_KEY` | e.g. `FLT`, `FTD` |
+| `FLEET_ALLOWED_REPO_ROOTS` | Absolute roots this lead/workers may use (registry list, else git toplevel/cwd) |
+| `FLEET_WORKSPACES_PATH` | Path to the registry file |
+| `FLEET_MAIL_TO` | Workers inherit this as the lead mailbox target |
+
+**Hard-enforced:** lead `git -C` / absolute worktree paths outside `FLEET_ALLOWED_REPO_ROOTS` are
+blocked by the project-lead command policy. Workers inherit the env when cast from your process.
+**Instruction-only:** do not open other projects' panes/repos; cross-project routing is conductor-only.
+Edit registry: `fleet-workspaces init|list|show|resolve` or edit `$PI_FLEET_HOME/workspaces.json`
+([`docs/workspaces.md`](../../docs/workspaces.md)).
+
 Hierarchy (fixed vocabulary):
 
 - **CEO** — the human operator. Goals, priorities/reprioritization, and risk/money calls.

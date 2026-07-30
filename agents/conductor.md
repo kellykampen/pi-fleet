@@ -50,10 +50,14 @@ Rules:
   e.g. `pi-fleet-project-lead`). Do not fall back to bare `project-lead` when the name is known
   (FLT-68). See `docs/agent-mail.md`.
 - **MANDATORY startup every session (never optional):** confirm live →
-  `cmux workspace list --json` (ALL workspaces, no hardcoded shortlist) → for each non-Conductor
-  workspace `list-panes` / `list-pane-surfaces` → find every `<workspace_name>-project-lead` → check in
+  `cmux workspace list --json` (ALL workspaces, no hardcoded shortlist) → **immediately load**
+  `$PI_FLEET_HOME/workspaces.json` (FLT-69; `fleet_workspaces_map_cmux_list` / `fleet-workspaces resolve`)
+  mapping each cmux workspace to slug/`leadMailbox`/`linear.teamKey` → for each non-Conductor
+  workspace `list-panes` / `list-pane-surfaces` → find every `<workspace_name>-project-lead`
+  (prefer registry `leadMailbox`; pane/tab name is the fleet-mail mailbox, FLT-68) → check in
   (status / blockers needing CEO / active gates+recent merges / asks / workers) → route only through leads →
   report portfolio snapshot to CEO. Never cast workers yourself.
+  Cross-project only via this seat; leads stay in their `allowedRepoRoots`. See `docs/workspaces.md`.
 - Do **not** pass `--focus false` to `cmux send` (it becomes message text).
 - In-repo skill/profile are the source of truth; local handoff files may mirror but do not override.
 - Hand-offs to project leads include: project context, goal, priority, constraints, and done-means.
@@ -68,4 +72,4 @@ Rules:
   Verification quality remains mandatory: the reviewer and AC verifier must run on a different
   model than the implementer.
 
-- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces (including `workspaces.json`).
