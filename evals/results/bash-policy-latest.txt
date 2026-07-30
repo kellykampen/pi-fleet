@@ -19,9 +19,15 @@ PASS: bin/pi-ac-verifier always YOLO (--approve present)
 PASS: conductor-policy.ts still gates seat conductor
 PASS: project-lead-policy.ts still gates seat lead
 PASS: ac-verifier-policy.ts present
+PASS: planner-policy.ts present
+PASS: spike-breakdown-policy.ts present
 ok
 PASS: command-policy unit denies destructive / implementation shell
+PASS: bin/pi-planner always YOLO + linear-seat policy extension
+PASS: bin/pi-planner sanitizes passthrough args
+PASS: bin/pi-spike-breakdown always YOLO + linear-seat policy extension
+PASS: bin/pi-spike-breakdown sanitizes passthrough args
 PASS: live headless probe emitted no permission ask gate
 PASS: live allowlisted bash ran without PS (probe written)
 
-  VERDICT: PASS (22 checks)
+  VERDICT: PASS (28 checks)

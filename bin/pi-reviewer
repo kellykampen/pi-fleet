@@ -4,14 +4,19 @@
 # FLT-60/FLT-67: unattended QC seat. Always --approve (always YOLO). --no-extensions so no
 # global packages auto-load. Security boundary is the --tools allowlist only — no permission
 # prompts. pi-permission-system is fully removed from the fleet (FLT-67).
+# Enforced flags are last so callers cannot shadow --approve/--tools/--extension.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLEET_ROOT="$(cd "$DIR/.." && pwd)"
 . "$DIR/lib/pi-model-env.sh"
+. "$DIR/lib/pi-wrapper-args.sh"
 pi_model_override_args reviewer "" "$@"
+pi_sanitize_passthrough_args "$@"
 # Always YOLO (FLT-67): never gate on FLEET_YOLO.
-exec outfitter run --profile reviewer --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
+exec outfitter run --profile reviewer --agent pi -- \
+  ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
+  ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
   --approve \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
-  --tools read,grep,find,ls,linear_get_issue,linear_list "$@"
+  --tools read,grep,find,ls,linear_get_issue,linear_list

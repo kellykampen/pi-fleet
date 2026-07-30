@@ -8,7 +8,9 @@
 set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
+. "$FLEET_ROOT/bin/lib/pi-wrapper-args.sh"
 pi_model_override_args ac-verifier "" "$@"
+pi_sanitize_passthrough_args "$@"
 
 # Resolve pi-subagents so fanout works under --no-extensions (same pattern as other fleet seats).
 PI_SUBAGENTS_PATH=""
@@ -26,11 +28,13 @@ if [ -z "$PI_SUBAGENTS_PATH" ]; then
 fi
 
 # Always YOLO (FLT-67): never gate on FLEET_YOLO.
-exec outfitter run --profile ac-verifier --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
+exec outfitter run --profile ac-verifier --agent pi -- \
+  ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
+  ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
   --approve \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
   --extension "$FLEET_ROOT/extensions/github-pr.ts" \
   --extension "$FLEET_ROOT/extensions/ac-verifier-policy.ts" \
   --extension "$PI_SUBAGENTS_PATH" \
-  --tools read,grep,find,ls,bash,subagent,linear_get_issue,linear_list,linear_comment,linear_update,github_pr_view,github_pr_comment "$@"
+  --tools read,grep,find,ls,bash,subagent,linear_get_issue,linear_list,linear_comment,linear_update,github_pr_view,github_pr_comment

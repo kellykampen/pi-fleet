@@ -16,7 +16,7 @@ It **composes two upstream packages — nothing forked**:
 wrapper `--tools` + command-policy extensions). pi-fleet is the thin, versioned config + wrappers
 + skills on top.
 
-### Requirements
+## Requirements
 
 - [Pi](https://pi.dev) and [outfitter](https://pi.dev/packages/@ai-outfitter/outfitter) installed
 - Node.js 20+ and global pi packages: `pi-mcp-adapter`, `pi-subagents` (do **not** install `@gotgenes/pi-permission-system` — removed FLT-67)
@@ -326,9 +326,12 @@ pi-fleet/
    ```bash
    #!/usr/bin/env bash
    set -euo pipefail
-   . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pi-model-env.sh"
+   DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+   . "$DIR/lib/pi-model-env.sh"
+   . "$DIR/lib/pi-wrapper-args.sh"
    pi_model_override_args <role> "" "$@"
-   exec outfitter run --profile <role> --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --tools read,grep,find,ls,... "$@"
+   pi_sanitize_passthrough_args "$@"
+   exec outfitter run --profile <role> --agent pi -- ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} --approve --tools read,grep,find,ls,...
    ```
 
    then `chmod +x bin/pi-<role>`.

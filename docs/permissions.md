@@ -17,6 +17,14 @@ Security is **not** interactive permission UI. It is:
 There is **no** `permission-system/` directory, **no** `PI_PERMISSION_SYSTEM_PATH`, and **no**
 agent `permission:` frontmatter. Agent capability is the wrapper `--tools` list + policy extensions.
 
+**Conductor is not spawnable via pi-subagents.** The fail-closed bash gate lives in
+`bin/pi-conductor` → `extensions/conductor-policy.ts`. Spawning `agents/conductor.md` as a
+child would apply only `tools: bash` and skip that policy — do not do that. Use the wrapper.
+
+**Planner / spike-breakdown** keep bash for `linear-cli` / `pi-fleet-spike-interview` but load
+`extensions/planner-policy.ts` / `extensions/spike-breakdown-policy.ts` (shared evaluator
+`bin/lib/linear-seat-command-policy.mjs`) so always-YOLO cannot mutate repo source via shell.
+
 ## Always YOLO
 
 All Pi wrappers pass `--approve` always (not gated on `FLEET_YOLO`). `FLEET_YOLO` may still appear

@@ -14,9 +14,11 @@ FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
 "$FLEET_ROOT/bin/lib/scheduler-status.sh" || echo "pi-project-lead: scheduler-status check failed, continuing" >&2
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
+. "$FLEET_ROOT/bin/lib/pi-wrapper-args.sh"
 . "$FLEET_ROOT/bin/lib/runtime-state.sh"
 . "$FLEET_ROOT/bin/lib/pi-project-lead-runtime.sh"
 pi_model_override_args project-lead "lead" "$@"
+pi_sanitize_passthrough_args "$@"
 # Load only canonical fleet secrets. Parse assignments as data: never source or eval this file.
 SECRETS_FILE="$(pi_fleet_runtime_path secrets secrets.env)"
 if [[ -e "$SECRETS_FILE" || -L "$SECRETS_FILE" ]]; then
@@ -72,10 +74,12 @@ pi_project_lead_prepare_runtime "$FLEET_ROOT"
 # FLT-66/FLT-67: always --approve (CEO always-YOLO). No permission-system extension.
 # Re-include pi-xai-oauth (registers provider xai-auth) so Grok casts work under --no-extensions.
 . "$FLEET_ROOT/bin/lib/pi-xai-oauth-ext.sh"
-exec outfitter run --profile project-lead --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
+exec outfitter run --profile project-lead --agent pi -- \
+  ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
+  ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
   --approve \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" --extension "$FLEET_ROOT/extensions/e2b" \
   --extension "$FLEET_ROOT/extensions/project-lead-policy.ts" \
   ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
-  --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,e2b_cast,e2b_status,e2b_wait,e2b_cancel,e2b_logs,e2b_port_url "$@"
+  --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,e2b_cast,e2b_status,e2b_wait,e2b_cancel,e2b_logs,e2b_port_url

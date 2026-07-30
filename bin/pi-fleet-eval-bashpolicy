@@ -102,9 +102,20 @@ PYCHK
   else
     no "ac-verifier-policy.ts present"
   fi
+  if [ -f "$ROOT/extensions/planner-policy.ts" ]; then
+    ok "planner-policy.ts present"
+  else
+    no "planner-policy.ts present"
+  fi
+  if [ -f "$ROOT/extensions/spike-breakdown-policy.ts" ]; then
+    ok "spike-breakdown-policy.ts present"
+  else
+    no "spike-breakdown-policy.ts present"
+  fi
 
-  # Unit: command policy still denies destructive patterns for lead/conductor
-  if node --input-type=module - <<'JS'
+  # Unit: command policy still denies destructive patterns for lead/conductor.
+  # Run from $ROOT so the relative stdin ESM import resolves regardless of caller cwd.
+  if ( cd "$ROOT" && node --input-type=module - <<'JS'
 import assert from "node:assert/strict";
 import { evaluateCommand } from "./bin/lib/conductor-command-policy.mjs";
 for (const seat of ["conductor", "lead"]) {
@@ -115,13 +126,33 @@ for (const seat of ["conductor", "lead"]) {
 assert.equal(evaluateCommand("git commit -am x", { seat: "lead", cwd: "/repo" }).allowed, false);
 assert.equal(evaluateCommand("git push origin main", { seat: "lead", cwd: "/repo" }).allowed, true);
 assert.equal(evaluateCommand("git push origin main", { seat: "conductor", cwd: "/repo" }).allowed, false);
+const { evaluateLinearSeatCommand } = await import("./bin/lib/linear-seat-command-policy.mjs");
+assert.equal(evaluateLinearSeatCommand("linear-cli issues create T -t X -d body").allowed, true);
+assert.equal(evaluateLinearSeatCommand("pi-fleet-spike-interview run --issue S-1 --questions q.json").allowed, true);
+assert.equal(evaluateLinearSeatCommand("pnpm test").allowed, false);
+assert.equal(evaluateLinearSeatCommand("git commit -am x").allowed, false);
+assert.equal(evaluateLinearSeatCommand("rm -rf /").allowed, false);
 console.log("ok");
 JS
-  then
+  ); then
     ok "command-policy unit denies destructive / implementation shell"
   else
     no "command-policy unit denies destructive / implementation shell"
   fi
+
+
+  for f in bin/pi-planner bin/pi-spike-breakdown; do
+    if grep -q -- '--approve' "$ROOT/$f" && grep -q 'planner-policy\|spike-breakdown-policy' "$ROOT/$f"; then
+      ok "$f always YOLO + linear-seat policy extension"
+    else
+      no "$f always YOLO + linear-seat policy extension"
+    fi
+    if grep -q 'pi_sanitize_passthrough_args' "$ROOT/$f"; then
+      ok "$f sanitizes passthrough args"
+    else
+      no "$f sanitizes passthrough args"
+    fi
+  done
 
   # Optional live headless probe: no PS extension, --approve, allowlisted bash only.
   if command -v pi >/dev/null 2>&1; then

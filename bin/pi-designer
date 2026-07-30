@@ -2,5 +2,11 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/pi-model-env.sh"
+. "$DIR/lib/pi-wrapper-args.sh"
 pi_model_override_args designer "" "$@"
-exec outfitter run --profile designer --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --approve --tools read,grep,find,ls,write,edit,bash,context7_resolve-library-id,context7_query-docs "$@"
+pi_sanitize_passthrough_args "$@"
+exec outfitter run --profile designer --agent pi -- \
+  ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
+  ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
+  --approve \
+  --tools read,grep,find,ls,write,edit,bash,context7_resolve-library-id,context7_query-docs

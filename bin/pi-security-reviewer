@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
+# FLT-67: always YOLO. Enforced --approve/--tools are last so passthrough cannot widen the seat.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/pi-model-env.sh"
+. "$DIR/lib/pi-wrapper-args.sh"
 pi_model_override_args security-reviewer "" "$@"
-exec outfitter run --profile security-reviewer --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --approve --tools read,grep,find,ls "$@"
+pi_sanitize_passthrough_args "$@"
+exec outfitter run --profile security-reviewer --agent pi -- \
+  ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
+  ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
+  --approve \
+  --tools read,grep,find,ls

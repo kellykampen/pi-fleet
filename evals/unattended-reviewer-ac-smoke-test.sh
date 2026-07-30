@@ -160,9 +160,10 @@ run_implementer() {
 
 	echo
 	echo "3) agent frontmatter has no permission: block (FLT-67)"
-	for f in agents/reviewer.md agents/ac-verifier.md agents/ac-criterion-verifier.md \
-		agents/implementer.md agents/conductor.md agents/project-lead.md agents/docs.md; do
-		if python3 - "$DIR/$f" <<'PY'
+	# Cover every agents/*.md so a reintroduced permission: block cannot slip through.
+	for fpath in "$DIR"/agents/*.md; do
+		f="agents/$(basename "$fpath")"
+		if python3 - "$fpath" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)

@@ -2,9 +2,20 @@
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
 # spike-breakdown reads Linear + the repo and creates a Linear project/issues via linear-cli (bash).
 # Like pi-planner it has NO write/edit — it never touches repo source, only Linear.
+# FLT-67: always YOLO + fail-closed spike-breakdown-policy for bash.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FLEET_ROOT="$(cd "$DIR/.." && pwd)"
 export PATH="$DIR:$PATH"
 . "$DIR/lib/pi-model-env.sh"
+. "$DIR/lib/pi-wrapper-args.sh"
 pi_model_override_args spike-breakdown "spike" "$@"
-exec outfitter run --profile spike-breakdown --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --approve --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,context7_resolve-library-id,context7_query-docs "$@"
+pi_sanitize_passthrough_args "$@"
+exec outfitter run --profile spike-breakdown --agent pi -- \
+  ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
+  ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
+  --approve \
+  --no-extensions \
+  --extension "$FLEET_ROOT/extensions/linear.ts" \
+  --extension "$FLEET_ROOT/extensions/spike-breakdown-policy.ts" \
+  --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,context7_resolve-library-id,context7_query-docs

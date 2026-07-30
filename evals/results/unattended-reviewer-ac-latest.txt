@@ -22,13 +22,20 @@ PASS: ac-verifier does not grant write/edit
 PASS: ac-verifier still --approve when FLEET_YOLO=0
 
 3) agent frontmatter has no permission: block (FLT-67)
-PASS: agents/reviewer.md has no permission: frontmatter
-PASS: agents/ac-verifier.md has no permission: frontmatter
 PASS: agents/ac-criterion-verifier.md has no permission: frontmatter
-PASS: agents/implementer.md has no permission: frontmatter
+PASS: agents/ac-verifier.md has no permission: frontmatter
 PASS: agents/conductor.md has no permission: frontmatter
-PASS: agents/project-lead.md has no permission: frontmatter
+PASS: agents/designer.md has no permission: frontmatter
 PASS: agents/docs.md has no permission: frontmatter
+PASS: agents/implementer.md has no permission: frontmatter
+PASS: agents/linear.md has no permission: frontmatter
+PASS: agents/planner.md has no permission: frontmatter
+PASS: agents/project-lead.md has no permission: frontmatter
+PASS: agents/researcher.md has no permission: frontmatter
+PASS: agents/reviewer.md has no permission: frontmatter
+PASS: agents/security-reviewer.md has no permission: frontmatter
+PASS: agents/spike-breakdown.md has no permission: frontmatter
+PASS: agents/visual-qa.md has no permission: frontmatter
 
 3b) profiles omit extensions (no double-load against wrapper --extension)
 PASS: profiles/reviewer/profile.yml has no profile-managed extensions:
@@ -63,5 +70,5 @@ PASS: allowlisted bash tool ran without permission-system (sentinel written)
 PASS: no permission-system ask gate in headless probe log
 
 ---
-50 passed, 0 failed
+57 passed, 0 failed
 VERDICT: PASS

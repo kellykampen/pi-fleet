@@ -2,5 +2,11 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/pi-model-env.sh"
+. "$DIR/lib/pi-wrapper-args.sh"
 pi_model_override_args visual-qa "" "$@"
-exec outfitter run --profile visual-qa --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" --approve --tools read,grep,find,ls,bash,playwright_browser_navigate,playwright_browser_take_screenshot,playwright_browser_snapshot,playwright_browser_resize,playwright_browser_wait_for,playwright_browser_click,playwright_browser_tabs,playwright_browser_console_messages "$@"
+pi_sanitize_passthrough_args "$@"
+exec outfitter run --profile visual-qa --agent pi -- \
+  ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
+  ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
+  --approve \
+  --tools read,grep,find,ls,bash,playwright_browser_navigate,playwright_browser_take_screenshot,playwright_browser_snapshot,playwright_browser_resize,playwright_browser_wait_for,playwright_browser_click,playwright_browser_tabs,playwright_browser_console_messages
