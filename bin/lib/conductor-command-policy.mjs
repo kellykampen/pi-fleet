@@ -1,9 +1,10 @@
-import { isAbsolute, normalize, relative, resolve, sep } from "node:path";
+import { delimiter, isAbsolute, normalize, relative, resolve, sep } from "node:path";
 
 const COMMON_EXECUTABLES = new Set([
   "cmux",
   "linear-cli",
   "check-model-usage",
+  "fleet-workspaces",
 ]);
 /** Content readers that enable in-repo investigation / product code review. Lead keeps these; conductor does not. */
 const CONTENT_READ_UTILITIES = new Set([
@@ -154,6 +155,69 @@ function isInsideWorktreeRoot(pathValue, cwd) {
   const candidate = resolve(cwd, pathValue);
   const rel = relative(worktreeRoot, candidate);
   return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+/** FLT-69: parse FLEET_ALLOWED_REPO_ROOTS (path.delimiter-separated absolute roots). */
+function parseAllowedRepoRoots(env = process.env) {
+  const raw = env.FLEET_ALLOWED_REPO_ROOTS;
+  if (!raw || typeof raw !== "string" || raw.trim() === "") return [];
+  return raw
+    .split(delimiter)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => normalize(part));
+}
+
+function pathUnderAllowedRoots(candidate, allowedRoots) {
+  if (!allowedRoots || allowedRoots.length === 0) return true;
+  if (!candidate) return false;
+  const normalized = normalize(candidate);
+  for (const root of allowedRoots) {
+    if (normalized === root) return true;
+    const rel = relative(root, normalized);
+    if (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) return true;
+  }
+  return false;
+}
+
+/** Extract git -C <path> target if present. */
+function gitCPath(args) {
+  if (args[0] === "-C" && args[1] && !args[1].startsWith("-")) return args[1];
+  return undefined;
+}
+
+/**
+ * Hard boundary for lead: when FLEET_ALLOWED_REPO_ROOTS is set, git -C and
+ * absolute worktree paths must stay inside those roots. Empty env → no extra check
+ * (launch always exports at least launch cwd / git toplevel).
+ */
+function allowUnderRepoRoots(args, cwd, env = process.env) {
+  const roots = parseAllowedRepoRoots(env);
+  if (roots.length === 0) return { allowed: true };
+
+  const cPath = gitCPath(args);
+  if (cPath) {
+    const absolute = isAbsolute(cPath) ? normalize(cPath) : resolve(cwd, cPath);
+    if (!pathUnderAllowedRoots(absolute, roots)) {
+      return denied(`git -C path escapes FLEET_ALLOWED_REPO_ROOTS (${roots.join(", ")})`);
+    }
+  }
+
+  // worktree add/remove with absolute path
+  let cursor = 0;
+  if (args[0] === "-C") cursor = 2;
+  if (args[cursor] === "worktree" && (args[cursor + 1] === "add" || args[cursor + 1] === "remove")) {
+    const wt = worktreePath(args.slice(cursor + 2), args[cursor + 1]);
+    if (wt && isAbsolute(wt) && !pathUnderAllowedRoots(normalize(wt), roots)) {
+      return denied(`worktree path escapes FLEET_ALLOWED_REPO_ROOTS (${roots.join(", ")})`);
+    }
+  }
+
+  // If no -C, the effective repo is cwd — must itself be under a root.
+  if (!cPath && !pathUnderAllowedRoots(resolve(cwd), roots)) {
+    return denied(`cwd escapes FLEET_ALLOWED_REPO_ROOTS (${roots.join(", ")})`);
+  }
+  return { allowed: true };
 }
 
 function worktreePath(args, operation) {
@@ -354,6 +418,11 @@ export function evaluateCommand(command, options = {}) {
     return allowGh(args, seat) ? { allowed: true } : denied("GitHub command is outside the seat allowlist");
   }
   if (executable === "git") {
+    // FLT-69: hard-enforce allowedRepoRoots for project-lead git (and conductor if set).
+    if (seat === "lead" || seat === "conductor") {
+      const rootGate = allowUnderRepoRoots(args, cwd, process.env);
+      if (!rootGate.allowed) return rootGate;
+    }
     if (allowGitRead(args, seat)) return { allowed: true };
     if (seat === "lead" && allowLeadGit(args, cwd)) return { allowed: true };
     return denied("Git command is outside the seat allowlist");

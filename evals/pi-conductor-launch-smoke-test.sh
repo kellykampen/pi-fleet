@@ -21,6 +21,7 @@ cat > "$FAKE_BIN/outfitter" <<'EOFMOCK'
 printf 'CWD=%s\n' "$(pwd -P)"
 printf 'PI_CODING_AGENT_DIR=%s\n' "${PI_CODING_AGENT_DIR-}"
 printf 'FLEET_COORDINATION_ROOT=%s\n' "${FLEET_COORDINATION_ROOT-}"
+printf 'FLEET_WORKSPACES_PATH=%s\n' "${FLEET_WORKSPACES_PATH-}"
 printf 'PATH=%s\n' "$PATH"
 printf 'ARG=%s\n' "$@"
 EOFMOCK
@@ -38,8 +39,9 @@ rejects() {
   if printf '%s\n' "$output" | grep -Eq -- "$pattern"; then no "$desc"; else ok "$desc"; fi
 }
 
+FLEET_HOME="$FAKE_HOME/.pi-fleet"
 out=$(cd "$CALLER" && env PI_CODING_AGENT_DIR="$SOURCE_AGENT" FLEET_CONDUCTOR_RUNTIME_DIR="$RUNTIME" \
-  PATH="$FAKE_BIN:$PATH" "$DIR/bin/pi-conductor" --print hi)
+  PI_FLEET_HOME="$FLEET_HOME" PATH="$FAKE_BIN:$PATH" "$DIR/bin/pi-conductor" --print hi)
 contains "Pi runs from dedicated policy cwd" "CWD=$(cd "$RUNTIME/policy-cwd" && pwd -P)" "$out"
 contains "isolated agent overlay exported" "PI_CODING_AGENT_DIR=$RUNTIME/agent" "$out"
 contains "caller retained as coordination root" "FLEET_COORDINATION_ROOT=$(cd "$CALLER" && pwd -P)" "$out"
@@ -67,6 +69,16 @@ if [ -L "$RUNTIME/policy-cwd/launch-cwd" ] && [ "$(readlink "$RUNTIME/policy-cwd
   ok "policy cwd exposes caller through a stable read target"
 else
   no "policy cwd exposes caller through a stable read target"
+fi
+if printf '%s\n' "$out" | grep -Eq '^FLEET_WORKSPACES_PATH=.+/workspaces\.json$'; then
+  ok "conductor exports workspaces.json path after prepare"
+else
+  no "conductor exports workspaces.json path after prepare"
+fi
+if [ -f "$FLEET_HOME/workspaces.json" ]; then
+  ok "conductor seeds workspaces.json under PI_FLEET_HOME"
+else
+  no "conductor seeds workspaces.json under PI_FLEET_HOME"
 fi
 
 echo "---"

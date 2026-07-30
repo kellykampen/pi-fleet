@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pi-fleet.local/schemas/workspaces-v1.json",
+  "title": "pi-fleet workspaces registry (FLT-69)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "workspaces"],
+  "properties": {
+    "version": { "const": 1 },
+    "workspaces": {
+      "type": "object",
+      "minProperties": 0,
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      },
+      "additionalProperties": { "$ref": "#/$defs/workspace" }
+    }
+  },
+  "$defs": {
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cmuxTitles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "cwdMatchers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Basename, relative segment, absolute prefix, or **/segment matchers against launch cwd"
+        },
+        "repoMatchers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Matchers against git remote origin URL or repo toplevel path"
+        },
+        "linear": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "teamKey": { "type": "string", "minLength": 1 }
+          }
+        },
+        "leadMailbox": {
+          "type": "string",
+          "minLength": 1,
+          "description": "fleet-mail mailbox; MUST align with <workspace>-project-lead (e.g. pi-fleet-project-lead, ftd-project-lead)"
+        },
+        "allowedRepoRoots": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Absolute paths the project-lead/workers may operate under. Empty → launch git toplevel / cwd."
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": 1,
+      "workspaces": {
+        "fantastic-dev": {
+          "cmuxTitles": ["fantastic-dev", "Fantastic Dev", "ftd"],
+          "aliases": ["ftd", "fantastic"],
+          "cwdMatchers": ["fantastic-dev"],
+          "repoMatchers": ["fantastic-dev", "github.com/*/fantastic-dev"],
+          "linear": { "teamKey": "FTD" },
+          "leadMailbox": "ftd-project-lead",
+          "allowedRepoRoots": [],
+          "notes": "Default Fantastic Dev / FTD stream"
+        },
+        "pi-fleet": {
+          "cmuxTitles": ["pi-fleet", "Pi Fleet", "flt"],
+          "aliases": ["flt", "pi_fleet"],
+          "cwdMatchers": ["pi-fleet"],
+          "repoMatchers": ["pi-fleet", "github.com/*/pi-fleet"],
+          "linear": { "teamKey": "FLT" },
+          "leadMailbox": "pi-fleet-project-lead",
+          "allowedRepoRoots": [],
+          "notes": "Default pi-fleet / FLT stream"
+        }
+      }
+    }
+  ]
+}

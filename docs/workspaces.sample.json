@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "workspaces": {
+    "fantastic-dev": {
+      "cmuxTitles": ["fantastic-dev", "Fantastic Dev", "ftd"],
+      "aliases": ["ftd", "fantastic"],
+      "cwdMatchers": ["fantastic-dev"],
+      "repoMatchers": ["fantastic-dev", "github.com/*/fantastic-dev"],
+      "linear": { "teamKey": "FTD" },
+      "leadMailbox": "ftd-project-lead",
+      "allowedRepoRoots": [],
+      "notes": "Default Fantastic Dev / FTD stream"
+    },
+    "pi-fleet": {
+      "cmuxTitles": ["pi-fleet", "Pi Fleet", "flt"],
+      "aliases": ["flt", "pi_fleet"],
+      "cwdMatchers": ["pi-fleet"],
+      "repoMatchers": ["pi-fleet", "github.com/*/pi-fleet"],
+      "linear": { "teamKey": "FLT" },
+      "leadMailbox": "pi-fleet-project-lead",
+      "allowedRepoRoots": [],
+      "notes": "Default pi-fleet / FLT stream"
+    }
+  }
+}

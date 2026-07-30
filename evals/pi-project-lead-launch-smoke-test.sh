@@ -20,6 +20,10 @@ cat > "$FAKE_BIN/outfitter" <<'EOFMOCK'
 printf 'CWD=%s\n' "$(pwd -P)"
 printf 'PI_CODING_AGENT_DIR=%s\n' "${PI_CODING_AGENT_DIR-}"
 printf 'FLEET_COORDINATION_ROOT=%s\n' "${FLEET_COORDINATION_ROOT-}"
+printf 'FLEET_WORKSPACE_SLUG=%s\n' "${FLEET_WORKSPACE_SLUG-}"
+printf 'FLEET_LEAD_MAILBOX=%s\n' "${FLEET_LEAD_MAILBOX-}"
+printf 'FLEET_ALLOWED_REPO_ROOTS=%s\n' "${FLEET_ALLOWED_REPO_ROOTS-}"
+printf 'FLEET_WORKSPACES_PATH=%s\n' "${FLEET_WORKSPACES_PATH-}"
 printf 'PATH=%s\n' "$PATH"
 printf 'ARG=%s\n' "$@"
 EOFMOCK
@@ -37,7 +41,12 @@ rejects() {
   if printf '%s\n' "$output" | grep -Eq -- "$pattern"; then no "$desc"; else ok "$desc"; fi
 }
 
+# FLT-69: launch from a path that basename-matches pi-fleet default, with isolated PI_FLEET_HOME.
+FLEET_HOME="$FAKE_HOME/.pi-fleet"
+mkdir -p "$CALLER/pi-fleet-checkout"
+# Prefer explicit slug so resolve does not depend on git remotes in the temp tree.
 out=$(cd "$CALLER" && env PI_CODING_AGENT_DIR="$SOURCE_AGENT" FLEET_PROJECT_LEAD_RUNTIME_DIR="$RUNTIME" \
+  PI_FLEET_HOME="$FLEET_HOME" FLEET_WORKSPACE_SLUG=pi-fleet \
   PATH="$FAKE_BIN:$PATH" "$DIR/bin/pi-project-lead" --print hi)
 contains "Pi runs from dedicated policy cwd" "CWD=$(cd "$RUNTIME/policy-cwd" && pwd -P)" "$out"
 contains "isolated agent overlay exported" "PI_CODING_AGENT_DIR=$RUNTIME/agent" "$out"
@@ -65,6 +74,24 @@ if [ -L "$RUNTIME/policy-cwd/launch-cwd" ] && [ "$(readlink "$RUNTIME/policy-cwd
   ok "policy cwd exposes caller through a stable read target"
 else
   no "policy cwd exposes caller through a stable read target"
+fi
+contains "workspace slug derived from registry" "FLEET_WORKSPACE_SLUG=pi-fleet" "$out"
+contains "lead mailbox aligned to <workspace>-project-lead" "FLEET_LEAD_MAILBOX=pi-fleet-project-lead" "$out"
+if printf '%s\n' "$out" | grep -Eq '^FLEET_ALLOWED_REPO_ROOTS=.+'; then
+  ok "allowed repo roots exported for worker inheritance"
+else
+  no "allowed repo roots exported for worker inheritance"
+fi
+if printf '%s\n' "$out" | grep -Fq "FLEET_WORKSPACES_PATH=$FLEET_HOME/workspaces.json" \
+  || printf '%s\n' "$out" | grep -Eq '^FLEET_WORKSPACES_PATH=.+/workspaces\.json$'; then
+  ok "workspaces.json path exported"
+else
+  no "workspaces.json path exported"
+fi
+if [ -f "$FLEET_HOME/workspaces.json" ]; then
+  ok "workspaces.json seeded under PI_FLEET_HOME"
+else
+  no "workspaces.json seeded under PI_FLEET_HOME"
 fi
 
 echo "---"

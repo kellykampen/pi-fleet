@@ -22,6 +22,8 @@ namespace components.
   `current.md` may remain.
 - Async seat mail lives only under `<root>/mail/<mailbox>/` via `fleet-mail` (see
   [`docs/agent-mail.md`](../../docs/agent-mail.md)); never invent ad-hoc inbox files.
+- Workspace registry lives only at `<root>/workspaces.json` via `fleet-workspaces` (see
+  [`docs/workspaces.md`](../../docs/workspaces.md)); never invent alternate registry paths.
 - Migration and retention are report-only by default. Require an explicit apply action, never
   overwrite a conflict or delete a migration source, and roll back only unchanged created files.
   The sole bounded-evidence exception is scheduler cleanup: after it explicitly removes validated

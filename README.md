@@ -56,6 +56,12 @@ Pi-fleet runtime data lives only under private `~/.pi-fleet` (or an absolute `PI
 See the canonical [runtime-state contract](docs/runtime-state.md). Bootstrap creates/repairs this
 root but never silently migrates old data; use `bin/pi-fleet-state-migrate` to report first.
 
+**Workspace registry (FLT-69):** `$PI_FLEET_HOME/workspaces.json` maps cmux workspaces / checkouts
+to slug, `leadMailbox` (`<workspace>-project-lead`), Linear `teamKey`, and `allowedRepoRoots`.
+`pi-conductor` loads it right after `cmux workspace list`; `pi-project-lead` hard-derives workspace
++ repo roots at launch (workers inherit). CLI: `fleet-workspaces init|list|show|resolve`. Docs:
+[`docs/workspaces.md`](docs/workspaces.md).
+
 **Agent mail:** seats exchange structured async status via `fleet-mail` (not cmux send drip).
 Workers mail the owning project lead only; leads **pull** the inbox on idle/cadence (no mid-turn
 status steers) and post compact rollups to the conductor. Same CLI for Pi, Claude Code, and Codex.

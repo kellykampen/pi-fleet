@@ -28,10 +28,12 @@ controls:
     no automerge; no lead merge unless the CEO orders.
     MANDATORY startup every session (never optional, never idle after restart):
     confirm live → cmux workspace list --json (ALL workspaces, no hardcoded shortlist) →
+    immediately load $PI_FLEET_HOME/workspaces.json (FLT-69; fleet_workspaces_map_cmux_list /
+    fleet-workspaces resolve) for slug/leadMailbox/teamKey →
     list-panes / list-pane-surfaces per non-Conductor workspace → find every <workspace_name>-project-lead
-    (pane/tab name is the fleet-mail mailbox; e.g. pi-fleet-project-lead) →
+    (pane/tab name is the fleet-mail mailbox; prefer registry leadMailbox, e.g. pi-fleet-project-lead / ftd-project-lead) →
     check in (status/blockers/PRs/asks/workers+gates) → route only through leads →
-    report portfolio snapshot to CEO. Never cast worker seats yourself.
+    report portfolio snapshot to CEO. Never cast worker seats yourself. Cross-project via conductor only.
     Do not pass --focus false to cmux send (it becomes message text).
     In-repo skill/profile are source of truth; local handoff files may mirror but do not override.
     HARD RULE (CEO directive, 2026-07-12): AC-verify is a PRE-MERGE gate, not a post-merge check

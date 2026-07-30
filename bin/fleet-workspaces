@@ -1,0 +1,211 @@
+#!/usr/bin/env node
+"use strict";
+
+/**
+ * fleet-workspaces — inspect / init / resolve the PI_FLEET_HOME workspaces registry (FLT-69).
+ *
+ * Usage:
+ *   fleet-workspaces path
+ *   fleet-workspaces sample [--json]
+ *   fleet-workspaces init [--force]
+ *   fleet-workspaces list [--json]
+ *   fleet-workspaces show <slug> [--json]
+ *   fleet-workspaces resolve [--slug S] [--alias A] [--title T] [--cwd P] [--repo R] [--json] [--env]
+ *   fleet-workspaces help
+ *
+ * Edit path: $PI_FLEET_HOME/workspaces.json (default ~/.pi-fleet/workspaces.json)
+ * Or run `fleet-workspaces init` then edit that file by hand.
+ */
+
+const {
+  FleetWorkspacesError,
+  workspacesPath,
+  sampleDocument,
+  initWorkspaces,
+  listWorkspaces,
+  loadWorkspaces,
+  resolveWorkspace,
+  envForWorkspace,
+  SCHEMA_VERSION,
+} = require("./lib/fleet-workspaces.cjs");
+
+function fail(message, code = 1) {
+  process.stderr.write(`fleet-workspaces: ${message}\n`);
+  process.exit(code);
+}
+
+function usage() {
+  process.stdout.write(`fleet-workspaces — PI_FLEET_HOME workspace registry (FLT-69)
+
+Commands:
+  path                          print registry path
+  sample [--json]               print default sample document
+  init [--force]                write defaults if missing (or overwrite with --force)
+  list [--json]                 list registered workspaces
+  show <slug> [--json]          show one workspace
+  resolve [hints] [--json] [--env]
+                                resolve slug/alias → cmux title → cwd/repo → basename
+                                hints: --slug S --alias A --title T --cwd P --repo R
+  help
+
+Env:
+  PI_FLEET_HOME   runtime root (default ~/.pi-fleet)
+
+Edit:
+  $PI_FLEET_HOME/workspaces.json   (mode 0600; version ${SCHEMA_VERSION})
+  Schema fields per workspace: cmuxTitles, aliases, cwdMatchers, repoMatchers,
+  linear.teamKey, leadMailbox, allowedRepoRoots, notes.
+
+Defaults:
+  fantastic-dev → FTD / ftd-project-lead + cwdMatcher fantastic-dev
+  pi-fleet      → FLT / pi-fleet-project-lead
+
+Resolution order: slug/alias → cmux title → cwd/repo matchers → basename.
+`);
+}
+
+function parseArgs(argv) {
+  const out = { _: [] };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--") {
+      out._.push(...argv.slice(i + 1));
+      break;
+    }
+    if (arg.startsWith("--")) {
+      const eq = arg.indexOf("=");
+      if (eq !== -1) {
+        const key = arg.slice(2, eq);
+        out[key] = arg.slice(eq + 1);
+        continue;
+      }
+      const key = arg.slice(2);
+      const next = argv[i + 1];
+      if (next !== undefined && !next.startsWith("--")) {
+        out[key] = next;
+        i += 1;
+      } else {
+        out[key] = true;
+      }
+      continue;
+    }
+    out._.push(arg);
+  }
+  return out;
+}
+
+function printJson(value) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function main(argv) {
+  const args = parseArgs(argv);
+  const cmd = args._[0] || "help";
+  const wantJson = args.json === true || args.json === "true";
+
+  try {
+    if (cmd === "help" || cmd === "-h" || args.help === true) {
+      usage();
+      return;
+    }
+
+    if (cmd === "path") {
+      process.stdout.write(`${workspacesPath()}\n`);
+      return;
+    }
+
+    if (cmd === "sample") {
+      const doc = sampleDocument();
+      if (wantJson || true) printJson(doc);
+      return;
+    }
+
+    if (cmd === "init") {
+      const result = initWorkspaces({ force: args.force === true });
+      if (wantJson) {
+        printJson({ path: result.path, created: result.created, document: result.document });
+      } else {
+        process.stdout.write(
+          result.created
+            ? `wrote defaults → ${result.path}\n`
+            : `already exists → ${result.path} (use --force to overwrite)\n`,
+        );
+      }
+      return;
+    }
+
+    if (cmd === "list") {
+      const listed = listWorkspaces();
+      if (wantJson) {
+        printJson(listed);
+      } else {
+        process.stdout.write(`path: ${listed.path} (source=${listed.source})\n`);
+        for (const ws of listed.workspaces) {
+          process.stdout.write(
+            `  ${ws.slug}\tteam=${ws.linear.teamKey || "-"}\tlead=${ws.leadMailbox}\taliases=${ws.aliases.join(",") || "-"}\n`,
+          );
+        }
+      }
+      return;
+    }
+
+    if (cmd === "show") {
+      const slug = args._[1] || args.slug;
+      if (!slug) fail("show requires a slug");
+      const loaded = loadWorkspaces();
+      const entry = loaded.document.workspaces[slug] || null;
+      if (!entry) {
+        // try alias
+        const resolved = resolveWorkspace({ slug });
+        if (!resolved.workspace) fail(`unknown workspace: ${slug}`, 2);
+        if (wantJson) printJson(resolved.workspace);
+        else process.stdout.write(`${JSON.stringify(resolved.workspace, null, 2)}\n`);
+        return;
+      }
+      if (wantJson) printJson(entry);
+      else process.stdout.write(`${JSON.stringify(entry, null, 2)}\n`);
+      return;
+    }
+
+    if (cmd === "resolve") {
+      const hints = {
+        slug: args.slug || args._[1],
+        alias: args.alias,
+        cmuxTitle: args.title || args.cmuxTitle || args.name,
+        cwd: args.cwd,
+        repo: args.repo,
+        projectKey: args.projectKey || args["project-key"],
+      };
+      const resolved = resolveWorkspace(hints);
+      if (args.env === true) {
+        if (!resolved.workspace) fail(`could not resolve workspace (tried ${JSON.stringify(resolved.tried)})`, 2);
+        const env = envForWorkspace(resolved.workspace, hints.cwd || process.cwd(), {
+          workspacesPath: resolved.path,
+        });
+        for (const [key, value] of Object.entries(env)) {
+          if (value === "" || value === undefined) continue;
+          // shell-exportable lines
+          process.stdout.write(`export ${key}=${JSON.stringify(String(value))}\n`);
+        }
+        return;
+      }
+      if (wantJson) {
+        printJson(resolved);
+      } else if (!resolved.workspace) {
+        fail(`could not resolve workspace (tried ${JSON.stringify(resolved.tried)})`, 2);
+      } else {
+        process.stdout.write(
+          `${resolved.workspace.slug} via ${resolved.method} (lead=${resolved.workspace.leadMailbox}, team=${resolved.workspace.linear.teamKey || "-"})\n`,
+        );
+      }
+      return;
+    }
+
+    fail(`unknown command: ${cmd}`);
+  } catch (error) {
+    if (error instanceof FleetWorkspacesError) fail(error.message, 2);
+    fail(error && error.message ? error.message : String(error));
+  }
+}
+
+main(process.argv.slice(2));

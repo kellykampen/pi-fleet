@@ -110,18 +110,28 @@ Exact steps:
 
 1. Confirm live (to CEO if present); note mesh name.
 2. Discover **ALL** cmux workspaces: `cmux workspace list --json` (alias: `cmux list-workspaces`).
-3. For each non-Conductor workspace: `cmux list-panes --workspace <ws>` then
+3. **Load the workspace registry** (FLT-69) immediately after that list —
+   `$PI_FLEET_HOME/workspaces.json` (default `~/.pi-fleet/workspaces.json`). Map each cmux
+   workspace to slug / `leadMailbox` / `linear.teamKey`:
+   `cmux workspace list --json | fleet_workspaces_map_cmux_list`
+   (or `fleet-workspaces resolve --title "…" --json`). Resolution order: slug/alias → cmux
+   title → cwd/repo matchers → basename. Defaults include `fantastic-dev` → FTD/`ftd-project-lead`
+   and `pi-fleet` → FLT/`pi-fleet-project-lead`. Edit path / CLI: see
+   [`docs/workspaces.md`](../../docs/workspaces.md).
+4. For each non-Conductor workspace: `cmux list-panes --workspace <ws>` then
    `cmux list-pane-surfaces --workspace <ws>` (or per-pane) — map panes/surfaces.
-4. Identify every live `<workspace_name>-project-lead` surface (title/tab name MUST be exactly
+5. Identify every live `<workspace_name>-project-lead` surface (title/tab name MUST be exactly
    that form, e.g. `pi-fleet-project-lead`; wrapper binary may still be `pi-project-lead`).
-   Use that exact title as the fleet-mail mailbox when sending.
-5. **Check in** with each lead — ask for: status / blockers needing CEO / active gates and recent
+   Prefer the registry `leadMailbox` (FLT-69, aligned with FLT-68). Use that exact title as the
+   fleet-mail mailbox when sending.
+6. **Check in** with each lead — ask for: status / blockers needing CEO / active gates and recent
    merges / asks / workers. Send via:
    `cmux send --surface surface:<N> "…"` then `cmux send-key --surface surface:<N> enter`.
    Do **not** pass `--focus false` to `send` (it becomes message text).
-6. **Route** work only through those project leads. **Never cast workers yourself** — no
+7. **Route** work only through those project leads. **Never cast workers yourself** — no
    `pi-implementer`, `pi-reviewer`, or other worker wrappers from the conductor seat.
-7. Report a portfolio snapshot to the CEO (status / blockers / active gates and recent merges / asks).
+   Cross-project work is conductor-routed only; leads stay inside their `allowedRepoRoots`.
+8. Report a portfolio snapshot to the CEO (status / blockers / active gates and recent merges / asks).
 
 If a project has no live project lead, spawn or request one in **that project's workspace**, then
 assign. Do not open worker panes from the conductor workspace into other projects.
