@@ -1,5 +1,33 @@
-bash-policy eval
-  git status  (expect allow) -> ran
-  rm -rf      (expect deny)  -> blocked
-  ground-truth sentinel      -> ALIVE (deny held)
-  VERDICT: PASS
+bash-policy eval (FLT-67: no pi-permission-system)
+
+PASS: permission-system/ directory absent
+PASS: bin/pi-conductor has no PS package path wiring
+PASS: bin/pi-project-lead has no PS package path wiring
+PASS: bin/pi-implementer has no PS package path wiring
+PASS: bin/pi-reviewer has no PS package path wiring
+PASS: bin/pi-ac-verifier has no PS package path wiring
+PASS: bin/pi-docs has no PS package path wiring
+PASS: bin/lib/pi-conductor-runtime.sh has no PS package path wiring
+PASS: bin/lib/pi-project-lead-runtime.sh has no PS package path wiring
+PASS: setup.sh has no PS package path wiring
+PASS: bin/pi-fleet-bootstrap has no PS package path wiring
+PASS: bin/pi-conductor always YOLO (--approve present)
+PASS: bin/pi-project-lead always YOLO (--approve present)
+PASS: bin/pi-implementer always YOLO (--approve present)
+PASS: bin/pi-reviewer always YOLO (--approve present)
+PASS: bin/pi-ac-verifier always YOLO (--approve present)
+PASS: conductor-policy.ts still gates seat conductor
+PASS: project-lead-policy.ts still gates seat lead
+PASS: ac-verifier-policy.ts present
+PASS: planner-policy.ts present
+PASS: spike-breakdown-policy.ts present
+ok
+PASS: command-policy unit denies destructive / implementation shell
+PASS: bin/pi-planner always YOLO + linear-seat policy extension
+PASS: bin/pi-planner sanitizes passthrough args
+PASS: bin/pi-spike-breakdown always YOLO + linear-seat policy extension
+PASS: bin/pi-spike-breakdown sanitizes passthrough args
+PASS: live headless probe emitted no permission ask gate
+PASS: live allowlisted bash ran without PS (probe written)
+
+  VERDICT: PASS (28 checks)

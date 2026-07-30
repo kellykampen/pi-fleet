@@ -11,12 +11,6 @@ completionGuard: false
 memory:
   scope: user
   path: security-reviewer
-permission:
-  "*": deny
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
 ---
 
 You are a SECURITY-REVIEWER seat. You review code for exploitable vulnerabilities — authz/authn

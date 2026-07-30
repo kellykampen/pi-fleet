@@ -4,29 +4,32 @@
 # Bash remains for cmux, Linear CLI, portfolio metadata (gh pr list/checks, git status/log/branch),
 # and fleet-note — the immutable conductor-policy extension denies git diff/show, gh pr view,
 # gh api, and content readers that enable in-repo investigation.
+#
+# FLT-67: no @gotgenes/pi-permission-system. Always YOLO (--approve). Security boundary is the
+# --tools allowlist (no write/edit/read/grep/find) + immutable extensions/conductor-policy.ts.
 set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
 "$FLEET_ROOT/bin/lib/scheduler-status.sh" || echo "pi-conductor: scheduler-status check failed, continuing" >&2
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
+. "$FLEET_ROOT/bin/lib/pi-wrapper-args.sh"
 . "$FLEET_ROOT/bin/lib/pi-conductor-runtime.sh"
 pi_model_override_args conductor "" "$@"
+pi_sanitize_passthrough_args "$@"
 
-# Resolve the package before switching Pi to the isolated conductor agent/config overlay. The
-# dedicated policy cwd prevents a caller repo's project config from weakening conductor.json.
+# Isolated overlay + policy cwd; no permission-system package or config.
 pi_conductor_prepare_runtime "$FLEET_ROOT"
 
 # FLT-35: --no-extensions blocks machine-global package auto-discovery. Explicit extensions remain:
-# Linear orchestration, pi-permission-system, conductor-policy, then pi-xai-oauth (xai-auth) when installed.
-# FLT-66: always --approve (project trust) so unattended seats never hit trust/permission UI.
-# Security = --tools allowlist (no write/edit) + conductor.json hard denials + conductor-policy.ts.
-# permission-system is loaded with yoloMode true (auto-allow allowlisted tools only; deny stays deny).
+# Linear orchestration, conductor-policy, then pi-xai-oauth (xai-auth) when installed.
+# FLT-66/FLT-67: always --approve (CEO always-YOLO). No permission-system extension.
 . "$FLEET_ROOT/bin/lib/pi-xai-oauth-ext.sh"
-exec outfitter run --profile conductor --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" \
+exec outfitter run --profile conductor --agent pi -- \
+  ${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"} \
+  ${PI_PASSTHROUGH_ARGS[@]+"${PI_PASSTHROUGH_ARGS[@]}"} \
   --approve \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
-  --extension "$PI_PERMISSION_SYSTEM_PATH" \
   --extension "$FLEET_ROOT/extensions/conductor-policy.ts" \
   ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
-  --tools bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
+  --tools bash,linear_get_issue,linear_list,linear_comment,linear_update

@@ -8,21 +8,6 @@ tools: read, grep, find, ls, write, edit, bash
 systemPromptMode: append
 inheritProjectContext: true
 completionGuard: false
-permission:
-  "*": ask
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  write: allow
-  edit: allow
-  bash:
-    "*": ask
-    "git *": allow
-    "gh pr diff*": allow
-    "gh pr view*": allow
-    "rm -rf *": deny
-    "* | sh": deny
 ---
 
 You are the DOCS seat — the **final gate before merge/Done**, positioned after independent

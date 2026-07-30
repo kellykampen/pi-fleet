@@ -71,36 +71,24 @@ fi
 assert_file_contains "wrapper loads conductor-policy extension" \
 	"bin/pi-conductor" \
 	'extensions/conductor-policy\.ts'
-assert_file_contains "permission config denies git diff" \
-	"permission-system/conductor.json" \
-	'"git diff \*":\s*"deny"'
-assert_file_contains "permission config denies git show" \
-	"permission-system/conductor.json" \
-	'"git show \*":\s*"deny"'
-assert_file_contains "permission config denies gh pr view" \
-	"permission-system/conductor.json" \
-	'"gh pr view \*":\s*"deny"'
-assert_file_contains "permission config denies gh api" \
-	"permission-system/conductor.json" \
-	'"gh api \*":\s*"deny"'
-assert_file_contains "permission config denies cat content reader" \
-	"permission-system/conductor.json" \
-	'"cat \*":\s*"deny"'
-assert_file_contains "permission config allows gh pr list metadata" \
-	"permission-system/conductor.json" \
-	'"gh pr list \*":\s*"allow"'
-assert_file_contains "permission config allows gh pr checks metadata" \
-	"permission-system/conductor.json" \
-	'"gh pr checks \*":\s*"allow"'
-assert_file_contains "permission config allows cmux routing" \
-	"permission-system/conductor.json" \
-	'"cmux \*":\s*"allow"'
-assert_file_contains "permission config allows linear-cli routing" \
-	"permission-system/conductor.json" \
-	'"linear-cli \*":\s*"allow"'
-assert_file_contains "permission config allows fleet-mail lead rollups" \
-	"permission-system/conductor.json" \
-	'"fleet-mail \*":\s*"allow"'
+assert_file_contains "wrapper always --approve (always YOLO)" \
+	"bin/pi-conductor" \
+	'--approve'
+assert_file_lacks "wrapper does not load PI_PERMISSION_SYSTEM_PATH assignment" \
+	"bin/pi-conductor" \
+	'export PI_PERMISSION_SYSTEM_PATH|PI_PERMISSION_SYSTEM_PATH='
+assert_file_lacks "wrapper does not load PS as --extension" \
+	"bin/pi-conductor" \
+	'--extension.*@gotgenes/pi-permission-system|npm/node_modules/@gotgenes/pi-permission-system'
+if [ ! -e "$DIR/permission-system" ]; then
+	ok "permission-system/ directory is removed from repo"
+else
+	no "permission-system/ directory is removed from repo"
+fi
+# FLT-65 product-review denials live in conductor-command-policy.mjs (not PS JSON).
+assert_file_contains "command policy module present" \
+	"bin/lib/conductor-command-policy.mjs" \
+	'evaluateCommand'
 
 assert_file_contains "claude conductor denies Read" \
 	"claude-settings/conductor.json" \
@@ -140,9 +128,9 @@ done
 assert_file_contains "skill allows portfolio metadata gh pr list/checks" \
 	"skills/conductor/SKILL.md" \
 	'gh pr list.*gh pr checks|`gh pr list`.*`gh pr checks`'
-assert_file_contains "docs/permissions documents FLT-65 conductor denies" \
+assert_file_contains "docs/permissions documents FLT-65 conductor routing-only" \
 	"docs/permissions.md" \
-	'FLT-65 product-review'
+	'FLT-65|routing-only|bash \+ Linear'
 assert_file_contains "README documents pi-conductor routing-only tools" \
 	"README.md" \
 	'no read/grep/find/ls/write/edit|allowlisted \*\*bash\*\* \+ linear \*\(no read'
@@ -201,9 +189,12 @@ assert_file_contains "conductor skill still encodes FLT-57 topology" \
 assert_file_contains "project-lead skill still forbids self-implementation" \
 	"skills/project-lead/SKILL.md" \
 	'do not implement, review, AC-verify, docs-pass, or "just do a light'
-assert_file_contains "project-lead permission still allows gh pr view for gates" \
-	"permission-system/project-lead.json" \
-	'"gh pr view \*":\s*"allow"'
+assert_file_contains "project-lead-policy evaluates seat lead" \
+	"extensions/project-lead-policy.ts" \
+	'seat:\s*"lead"'
+assert_file_contains "project-lead wrapper keeps gh-capable bash policy via extension" \
+	"bin/pi-project-lead" \
+	'project-lead-policy\.ts'
 
 echo "---"
 echo "$pass passed, $fail failed"

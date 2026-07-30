@@ -112,7 +112,7 @@ EOF
 cat > "$FAKE_BIN_FULL/pi" <<'EOF'
 #!/usr/bin/env bash
 if [ "$1" = "list" ]; then
-  printf 'pi-mcp-adapter\npi-subagents\n@gotgenes/pi-permission-system\n'
+  printf 'pi-mcp-adapter\npi-subagents\n'
   exit 0
 fi
 exit 0
@@ -129,15 +129,19 @@ mkdir -p "$FAKE_HOME/.pi/agent"
 echo '{}' > "$FAKE_HOME/.pi/agent/auth.json"
 ln -s "$DIR/mcp.json" "$FAKE_HOME/.pi/agent/mcp.json"
 ln -s "$DIR/agents" "$FAKE_HOME/.pi/agent/agents"
-mkdir -p "$FAKE_HOME/.pi/agent/extensions/pi-permission-system"
-ln -s "$DIR/permission-system/config.json" "$FAKE_HOME/.pi/agent/extensions/pi-permission-system/config.json"
+# FLT-67: no permission-system config symlink required.
 
 out=$(env -i HOME="$FAKE_HOME" PATH="$FAKE_BIN_FULL:$MINIMAL_PATH" \
   PI_FLEET_INTERVIEW_TOOL_DIR="$INTERVIEW_TOOL_FULL" "$SCRIPT" --check 2>&1) && rc=0 || rc=$?
 check "--check with everything present exits 0" "0" "$rc"
 check_contains "--check reports OK git" "$out" "[OK]      git"
 check_contains "--check reports OK Node 20+" "$out" "[OK]      node 20+/npm"
-check_contains "--check reports OK pi-permission-system package" "$out" "[OK]      @gotgenes/pi-permission-system (pi package)"
+# FLT-67: permission-system package is intentionally not required/reported.
+if printf '%s' "$out" | grep -qF -- "@gotgenes/pi-permission-system"; then
+  echo "FAIL: --check still mentions pi-permission-system"; fail=$((fail + 1))
+else
+  echo "PASS: --check does not require pi-permission-system"; pass=$((pass + 1))
+fi
 check_contains "--check reports OK pinned interview CLI" "$out" "[OK]      agent-interview-cli@0.1.0 (repo-local)"
 check_contains "--check reports OK gh auth" "$out" "[OK]      gh (GitHub CLI) authenticated"
 check_contains "--check reports OK config symlinks" "$out" "[OK]      $FAKE_HOME/.pi/agent/mcp.json"

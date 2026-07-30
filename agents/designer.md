@@ -8,22 +8,6 @@ tools: read, grep, find, ls, write, edit, bash
 systemPromptMode: append
 inheritProjectContext: true
 completionGuard: false
-permission:
-  "*": ask
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  write: allow
-  edit: allow
-  bash:
-    "*": ask
-    "git status": allow
-    "git diff*": allow
-    "git log*": allow
-    "ls *": allow
-    "rm -rf *": deny
-    "* | sh": deny
 ---
 
 You produce DESIGN + plans, not implementation. You read the repo, reuse existing patterns, and

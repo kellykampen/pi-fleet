@@ -8,20 +8,6 @@ tools: read, grep, find, ls, bash
 systemPromptMode: replace
 inheritProjectContext: true
 completionGuard: false
-permission:
-  "*": ask
-  read: allow
-  grep: allow
-  find: allow
-  ls: allow
-  bash:
-    "*": ask
-    "linear*": allow
-    "git status": allow
-    "git diff*": allow
-    "git log*": allow
-    "rm -rf *": deny
-    "* | sh": deny
 ---
 
 You break a feature/request into a Linear project + issues. Each issue is <=3 points, with acceptance

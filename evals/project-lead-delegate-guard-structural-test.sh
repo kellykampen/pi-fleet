@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Deterministic structural guard: pi-project-lead is coordination-only / non-bottleneck in both prose and harness.
 #
-# Proves:
+# Proves (FLT-67: no permission-system; always YOLO):
 # 1) wrapper --tools omits write/edit and keeps coordination/E2B tools
-# 2) wrapper loads isolated runtime + permission system + project-lead-policy
+# 2) wrapper loads isolated runtime + project-lead-policy (NOT pi-permission-system)
 # 3) seat "lead" command policy allows coordination and denies implementation/review shell
 # 4) role prose forbids self-implementation / light-work absorption
 # 5) FLT-62 non-bottleneck phrases: bottleneck forbidden, cast immediately, poll cadence,
 #    parallel seats, silence-while-agents-run failure, no light product work, mid-turn cmux-send ban
+# 6) always --approve; no PS package/config paths
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -85,39 +86,30 @@ assert_file_contains "wrapper sources isolated project-lead runtime" \
 assert_file_contains "wrapper prepares isolated runtime before launch" \
 	"bin/pi-project-lead" \
 	'pi_project_lead_prepare_runtime'
-assert_file_contains "wrapper loads permission-system package" \
-	"bin/pi-project-lead" \
-	'--extension "\$PI_PERMISSION_SYSTEM_PATH"'
 assert_file_contains "wrapper loads project-lead-policy extension" \
 	"bin/pi-project-lead" \
 	'extensions/project-lead-policy\.ts'
 assert_file_contains "project-lead-policy evaluates seat lead" \
 	"extensions/project-lead-policy.ts" \
 	'seat:\s*"lead"'
-assert_file_contains "permission config denies write/edit" \
-	"permission-system/project-lead.json" \
-	'"write":\s*"deny".*"edit":\s*"deny"'
-assert_file_contains "permission config defaults bash to deny" \
-	"permission-system/project-lead.json" \
-	'"\*":\s*"deny"'
-assert_file_contains "permission config denies implementer package managers" \
-	"permission-system/project-lead.json" \
-	'"pnpm \*":\s*"deny"'
-assert_file_contains "permission config denies git commit" \
-	"permission-system/project-lead.json" \
-	'"git commit \*":\s*"deny"'
-assert_file_contains "permission config denies gh pr review" \
-	"permission-system/project-lead.json" \
-	'"gh pr review \*":\s*"deny"'
-assert_file_contains "permission config allows cmux casting" \
-	"permission-system/project-lead.json" \
-	'"cmux \*":\s*"allow"'
-assert_file_contains "permission config allows gh pr merge" \
-	"permission-system/project-lead.json" \
-	'"gh pr merge \*":\s*"allow"'
-assert_file_contains "permission config allows gh pr view" \
-	"permission-system/project-lead.json" \
-	'"gh pr view \*":\s*"allow"'
+assert_file_contains "wrapper always passes --approve (always YOLO)" \
+	"bin/pi-project-lead" \
+	'--approve'
+assert_file_lacks "wrapper does not load PI_PERMISSION_SYSTEM_PATH assignment" \
+	"bin/pi-project-lead" \
+	'export PI_PERMISSION_SYSTEM_PATH|PI_PERMISSION_SYSTEM_PATH='
+assert_file_lacks "wrapper does not load PS as --extension" \
+	"bin/pi-project-lead" \
+	'--extension.*@gotgenes/pi-permission-system|npm/node_modules/@gotgenes/pi-permission-system'
+if [ ! -e "$DIR/permission-system" ]; then
+	ok "permission-system/ directory is removed from repo"
+else
+	no "permission-system/ directory is removed from repo"
+fi
+# Runtime must not require the package (operational wiring; comments may mention removal).
+assert_file_lacks "runtime does not resolve npm pi-permission-system package" \
+	"bin/lib/pi-project-lead-runtime.sh" \
+	'npm/node_modules/@gotgenes/pi-permission-system|export PI_PERMISSION_SYSTEM_PATH|PI_PERMISSION_SYSTEM_PATH='
 
 # Shared command-policy unit surface already used by Claude lead + Pi conductor.
 POLICY_JS="$DIR/evals/.tmp-project-lead-policy-check.mjs"
@@ -272,7 +264,7 @@ assert_file_contains "README documents no write/edit for pi-project-lead" \
 	'pi-project-lead.*no write/edit'
 assert_file_contains "docs/permissions documents project-lead structural boundary" \
 	"docs/permissions.md" \
-	'Restricted project-lead policy'
+	'project-lead'
 assert_file_contains "seat tool-boundary matrix expects project-lead without write/edit" \
 	"bin/pi-fleet-eval" \
 	'project-lead:Y:N:N'
