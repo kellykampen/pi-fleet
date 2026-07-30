@@ -16,10 +16,35 @@
 
 pi_xai_oauth_ext_resolve() {
   PI_XAI_OAUTH_EXT_ARGS=()
-  local candidate="${PI_XAI_OAUTH_EXT:-$HOME/.pi/agent/npm/node_modules/pi-xai-oauth/extensions/xai-oauth.ts}"
-  if [ -f "$candidate" ]; then
-    PI_XAI_OAUTH_EXT_ARGS=(--extension "$candidate")
+  local candidate
+
+  if [ -n "${PI_XAI_OAUTH_EXT:-}" ]; then
+    candidate="$PI_XAI_OAUTH_EXT"
+    if [ -f "$candidate" ]; then
+      PI_XAI_OAUTH_EXT_ARGS=(--extension "$candidate")
+    fi
+    return
   fi
+
+  local candidates=()
+  if [ -n "${PI_CODING_AGENT_DIR:-}" ]; then
+    candidates+=("$PI_CODING_AGENT_DIR/npm/node_modules/pi-xai-oauth/extensions/xai-oauth.ts")
+  fi
+  candidates+=("$HOME/.pi/agent/npm/node_modules/pi-xai-oauth/extensions/xai-oauth.ts")
+  if [ -n "${PI_PACKAGE_DIR:-}" ]; then
+    candidates+=(
+      "$PI_PACKAGE_DIR/node_modules/pi-xai-oauth/extensions/xai-oauth.ts"
+      "$PI_PACKAGE_DIR/pi-xai-oauth/extensions/xai-oauth.ts"
+      "$PI_PACKAGE_DIR/extensions/xai-oauth.ts"
+    )
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    if [ -f "$candidate" ]; then
+      PI_XAI_OAUTH_EXT_ARGS=(--extension "$candidate")
+      return
+    fi
+  done
 }
 
 pi_xai_oauth_ext_resolve
