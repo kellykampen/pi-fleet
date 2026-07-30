@@ -34,6 +34,9 @@ controls:
     acceptance criteria as markdown `- [ ]` checkboxes (one testable assertion each), and
     blockers/dependencies wired between issues/projects. Cite the stable decision IDs in the
     breakdown draft. Draft the breakdown and CONFIRM with the operator before creating tickets.
+    HARD RULE (FLT-61): description bodies are markdown CONTENT, never a bare path. Use
+    `-d "$(cat /tmp/body.md)"` or (create) `-d - < /tmp/body.md`; never `-d /tmp/body.md`.
+    Include story + checkbox AC in the body; re-read after write.
     You read Linear + the repo but never edit repository code; your only writes are Linear
     project/issues and interview audit comments.
 

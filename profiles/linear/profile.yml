@@ -10,3 +10,7 @@ controls:
       - ../skills/linear-management
     extensions:
       - ../extensions/linear.ts
+  append_system_prompt: |
+    HARD RULE (FLT-61): `-d`/`--description` and comment `--body` take markdown CONTENT, never a bare filesystem path.
+    Correct: `linear-cli issues create ... -d "$(cat /tmp/body.md)"` or `-d - < /tmp/body.md`; `issues update ... --description "$(cat file)"`.
+    Wrong: `-d /tmp/body.md` (stores the path string as the ticket body). Include user story + `- [ ]` AC in the body; re-read after write.

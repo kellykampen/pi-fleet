@@ -109,5 +109,9 @@ Rules:
   CEO/conductor-approved. Prefer non-GPT pi workers: `--provider xai-auth --model grok-4.5-latest`
   or `--provider kimi-coding --model k/3`. Preserve verification quality: the reviewer and AC
   verifier must run on a different model than the implementer.
+- **Linear description body is content, not a path (FLT-61).** When creating/updating issues via
+  `linear-cli`, use `-d "$(cat /tmp/body.md)"` or (create) `-d - < /tmp/body.md`. Never pass a bare
+  `/tmp/...` path as `-d`/`--description` — that stores the path string in Linear. Include user
+  story + `- [ ]` AC in the body; re-read after write. Fix path-only bodies before casting work.
 
 - **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

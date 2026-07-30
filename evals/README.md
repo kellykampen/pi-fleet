@@ -269,6 +269,19 @@ harness delegate-only / lead-merge-to-main boundary is not regressed.
 evals/comms-topology-structural-test.sh
 ```
 
+## Linear body content structural + smoke eval (FLT-61)
+
+Deterministic guard that Linear create/update guidance always sends **markdown content** as the
+issue/project description, never a bare filesystem path. Agents previously wrote bodies that were
+literally `/tmp/foo.md`. This check asserts the correct patterns (`-d "$(cat file)"`, create
+`-d - < file`) are documented across skills/agents/profiles, that bare-path recipes are not taught
+as correct (outside explicit BAD/WRONG examples), and runs a safe fake-`linear-cli` smoke proving
+cat-expansion and stdin deliver file contents while a bare path would store the path string.
+
+```bash
+evals/linear-body-content-structural-test.sh
+```
+
 ## Gotchas
 
 - **Model auth ≠ tool boundary.** A subagent whose default/fallback models aren't authed in pi

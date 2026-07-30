@@ -30,6 +30,10 @@ NOT edit repository code.
 Rules:
 
 - Every issue needs >=1 label and a project; AC as `- [ ]` checkboxes.
+- **Description body is content, not a path (FLT-61).** `-d` / `--description` and comment
+  `--body` take markdown text. Use `-d "$(cat /tmp/body.md)"` or (on create) `-d - < /tmp/body.md`.
+  Never pass a bare `/tmp/...` path as the description — that stores the path string in Linear.
+  Include user story + checkbox AC in the body content itself; re-read after write to confirm.
 - Never move an issue to Done unless every AC checkbox is checked AND independently verified.
 - Confirm destructive operations (bulk edits, deletes) with the operator before running them.
 - **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

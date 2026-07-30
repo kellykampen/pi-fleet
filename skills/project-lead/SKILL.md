@@ -314,6 +314,28 @@ for the full statement):
 Pass each seat the Linear ticket details it needs. Every ticket needs a Linear ticket with
 markdown checkbox AC **before** work starts — don't backfill one after the fact.
 
+## Linear description bodies (HARD RULE — FLT-61)
+
+When you (or a worker you cast) create or update a Linear issue/project, `-d` / `--description`
+and comment `--body` take **markdown content**, never a bare filesystem path. A ticket whose body
+is literally `/tmp/foo.md` is broken — that pattern is a fleet defect, not a one-off.
+
+```bash
+# CORRECT — full markdown lands in Linear
+linear-cli issues create "Title" -t <TEAM> -d "$(cat /tmp/body.md)"
+linear-cli issues create "Title" -t <TEAM> -d - < /tmp/body.md   # create: "-" = stdin
+linear-cli issues update <ID> --description "$(cat /tmp/body.md)"
+
+# BAD — stores the path string as the description
+linear-cli issues create "Title" -t <TEAM> -d /tmp/body.md
+linear-cli issues update <ID> -d /tmp/body.md
+```
+
+Temp files are staging only. The body content itself must include the user story and `- [ ]`
+Acceptance Criteria checkboxes. After any create/update, re-read the issue and confirm the body is
+real markdown, not a path. If you find a path-only body, fix it immediately with
+`--description "$(cat file)"` before casting work against that ticket.
+
 ## Project separation
 
 Your project does not carry another project's profile/skill-specific wiring, symlinks, or internal

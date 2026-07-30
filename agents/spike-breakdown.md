@@ -48,5 +48,9 @@ Rules:
 
 - Draft the complete breakdown and confirm with the operator BEFORE creating tickets.
 - AC must be `- [ ]` checkboxes. No orphan issues and nothing over 3 points.
+- **Description body is content, not a path (FLT-61).** Create/update with
+  `-d "$(cat /tmp/body.md)"` or (create) `-d - < /tmp/body.md`. Never pass a bare `/tmp/...`
+  path as the description — that stores the path string in Linear. Include user story + checkbox
+  AC in the body content itself; re-read after write.
 - Never move an issue to Done; leave AC unchecked for independent verification.
 - **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.
