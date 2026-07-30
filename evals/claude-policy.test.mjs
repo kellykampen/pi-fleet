@@ -29,6 +29,8 @@ function invoke(seat, command, overrides = {}) {
 
 test("Claude hook allows seat-specific atomic commands", () => {
 	assert.equal(invoke("conductor", "cmux workspace list --json").status, 0);
+	assert.equal(invoke("conductor", "gh pr list --state open").status, 0);
+	assert.equal(invoke("conductor", "gh pr checks 42").status, 0);
 	for (const seat of ["conductor", "lead"]) {
 		assert.equal(invoke(seat, "uptime").status, 0);
 		assert.equal(invoke(seat, "git -C /repo status --short").status, 0);
@@ -39,6 +41,8 @@ test("Claude hook allows seat-specific atomic commands", () => {
 		"git pull --ff-only origin main",
 		"git push origin main",
 		"git worktree add .worktrees/flt-52 -b flt-52 main",
+		"gh pr view 42",
+		"git diff origin/main...HEAD",
 	])
 		assert.equal(invoke("lead", command).status, 0, command);
 	assert.equal(invoke("lead", "gh pr merge 42 --merge").status, 0);
@@ -49,6 +53,13 @@ test("Claude hook blocks with exit 2 when a command is outside policy", () => {
 		["conductor", "git merge feature"],
 		["conductor", "git -C /repo merge feature"],
 		["conductor", "uptime --pretty"],
+		// FLT-65: conductor product-review / in-repo investigation paths
+		["conductor", "gh pr view 42"],
+		["conductor", "gh api repos/o/r/pulls/42"],
+		["conductor", "git diff origin/main...HEAD"],
+		["conductor", "git show HEAD:README.md"],
+		["conductor", "cat README.md"],
+		["conductor", "rg safety ."],
 		["lead", "git -C /repo checkout main"],
 		["lead", "git checkout develop"],
 		["lead", "git switch develop"],
@@ -89,6 +100,21 @@ test("Claude policies are separate, real dontAsk settings with authoritative hoo
 	assert.ok(lead.permissions.allow.includes("Bash(git switch main:*)"));
 	assert.ok(!lead.permissions.allow.some((entry) => entry.includes("develop")));
 	assert.ok(!conductor.permissions.allow.includes("Bash(gh pr merge:*)"));
+	// FLT-65: conductor settings deny product investigation surfaces.
+	assert.ok(!conductor.permissions.allow.includes("Read"));
+	assert.ok(!conductor.permissions.allow.includes("Grep"));
+	assert.ok(!conductor.permissions.allow.includes("Glob"));
+	assert.ok(!conductor.permissions.allow.includes("Bash(gh pr view:*)"));
+	assert.ok(!conductor.permissions.allow.includes("Bash(git diff:*)"));
+	assert.ok(!conductor.permissions.allow.includes("Bash(git show:*)"));
+	assert.ok(conductor.permissions.deny.includes("Read"));
+	assert.ok(conductor.permissions.deny.includes("Bash(gh pr view:*)"));
+	assert.ok(conductor.permissions.deny.includes("Bash(gh api:*)"));
+	assert.ok(conductor.permissions.allow.includes("Bash(gh pr list:*)"));
+	assert.ok(conductor.permissions.allow.includes("Bash(gh pr checks:*)"));
+	// Lead keeps product-read surfaces for gate holding.
+	assert.ok(lead.permissions.allow.includes("Read"));
+	assert.ok(lead.permissions.allow.includes("Bash(gh pr view:*)"));
 	for (const policy of [conductor, lead]) {
 		assert.ok(policy.permissions.allow.includes("Bash(git -C:*)"));
 		assert.ok(policy.permissions.allow.includes("Bash(jq:*)"));

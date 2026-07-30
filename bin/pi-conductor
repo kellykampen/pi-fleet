@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Conductor coordinates project leads — same tool surface as project-lead (Linear + bash for casting
-# panes/wrappers), but the skill forbids implementing or casting workers directly.
+# Conductor is a portfolio router only (FLT-65): talk to project leads + CEO via cmux/Linear.
+# No product-repo investigation tools (read/grep/find), no write/edit, no product PR-diff review.
+# Bash remains for cmux, Linear CLI, portfolio metadata (gh pr list/checks, git status/log/branch),
+# and fleet-note — the immutable conductor-policy extension denies git diff/show, gh pr view,
+# gh api, and content readers that enable in-repo investigation.
 set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
@@ -24,4 +27,4 @@ exec outfitter run --profile conductor --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_M
   --extension "$PI_PERMISSION_SYSTEM_PATH" \
   --extension "$FLEET_ROOT/extensions/conductor-policy.ts" \
   ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
-  --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"
+  --tools bash,linear_get_issue,linear_list,linear_comment,linear_update "$@"

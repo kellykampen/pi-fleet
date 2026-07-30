@@ -19,21 +19,22 @@ test("Pi conductor config defaults Bash to deny while exposing no mutation tools
   assert.equal(value.permission.bash["*"], "deny");
 });
 
-test("Pi conductor config allows orchestration and explicitly denies implementation", async () => {
+test("Pi conductor config allows routing/metadata and denies product review paths (FLT-65)", async () => {
   const { permission } = await config();
   for (const pattern of [
     "cmux *",
     "linear-cli *",
     "check-model-usage *",
-    "gh pr view *",
+    "gh pr list *",
+    "gh pr checks *",
     "git status *",
-    "cat *",
+    "ls *",
     "jq *",
     "uptime",
     "fleet-note *",
     "fleet-mail *",
   ]) assert.equal(permission.bash[pattern], "allow", pattern);
-  for (const subcommand of ["status", "log", "diff", "show", "rev-parse"])
+  for (const subcommand of ["status", "log", "rev-parse"])
     for (const suffix of ["", " *"])
       assert.equal(
         permission.bash[`git -C * ${subcommand}${suffix}`],
@@ -46,6 +47,23 @@ test("Pi conductor config allows orchestration and explicitly denies implementat
     "git -C * branch --list *",
   ])
     assert.equal(permission.bash[pattern], "allow", pattern);
+
+  // Product review / in-repo investigation must be denied for the conductor seat.
+  for (const pattern of [
+    "gh pr view *",
+    "gh api *",
+    "git diff *",
+    "git show *",
+    "git -C * diff",
+    "git -C * diff *",
+    "git -C * show",
+    "git -C * show *",
+    "cat *",
+    "grep *",
+    "rg *",
+    "find *",
+  ]) assert.equal(permission.bash[pattern], "deny", pattern);
+
   for (const pattern of [
     "git clone *",
     "git checkout *",
