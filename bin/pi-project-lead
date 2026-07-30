@@ -2,12 +2,17 @@
 # Hybrid: outfitter composes skill/model/prompt; this wrapper hardcodes --tools (the boundary) and
 # extensions (outfitter/pi resolve profile.yml extension paths relative to cwd, not to profile.yml's
 # own location — see FLT-15 — so we resolve them here from the script's own path instead).
+#
+# Project-lead is a routing bottleneck, not a builder: no write/edit tools, isolated default-deny
+# permission overlay, and an immutable project-lead command policy. Coordination/casting/PR/status
+# and narrow main-integration verbs remain available; implementation and review work must be cast.
 set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Runtime evidence: personal launchd schedules must never bleed into pi's global scheduler store.
 "$FLEET_ROOT/bin/lib/scheduler-status.sh" || echo "pi-project-lead: scheduler-status check failed, continuing" >&2
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
 . "$FLEET_ROOT/bin/lib/runtime-state.sh"
+. "$FLEET_ROOT/bin/lib/pi-project-lead-runtime.sh"
 pi_model_override_args project-lead "lead" "$@"
 YOLO=""
 [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--approve"
@@ -59,6 +64,9 @@ PY
     export "$secret_key=$secret_value"
   done <<< "$normalized_secrets"
 fi
+# Resolve the package before switching Pi to the isolated project-lead agent/config overlay. The
+# dedicated policy cwd prevents a caller repo's project config from weakening project-lead.json.
+pi_project_lead_prepare_runtime "$FLEET_ROOT"
 # FLT-35: --no-extensions blocks machine-global package auto-discovery (e.g. @jl1990/pi-scheduler);
 # the explicit --extension flags below are unaffected and still load.
 # Re-include pi-xai-oauth (registers provider xai-auth) so Grok casts work under --no-extensions.
@@ -66,5 +74,7 @@ fi
 exec outfitter run --profile project-lead --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" --extension "$FLEET_ROOT/extensions/e2b" \
+  --extension "$PI_PERMISSION_SYSTEM_PATH" \
+  --extension "$FLEET_ROOT/extensions/project-lead-policy.ts" \
   ${PI_XAI_OAUTH_EXT_ARGS[@]+"${PI_XAI_OAUTH_EXT_ARGS[@]}"} \
-  --tools read,grep,find,ls,write,edit,bash,linear_get_issue,linear_list,linear_comment,linear_update,e2b_cast,e2b_status,e2b_wait,e2b_cancel,e2b_logs,e2b_port_url "$@"
+  --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,e2b_cast,e2b_status,e2b_wait,e2b_cancel,e2b_logs,e2b_port_url "$@"

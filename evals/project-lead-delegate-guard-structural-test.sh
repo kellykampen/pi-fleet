@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+# Deterministic structural guard: pi-project-lead is a routing bottleneck in both prose and harness.
+#
+# Proves:
+# 1) wrapper --tools omits write/edit and keeps coordination/E2B tools
+# 2) wrapper loads isolated runtime + permission system + project-lead-policy
+# 3) seat "lead" command policy allows coordination and denies implementation/review shell
+# 4) role prose forbids self-implementation / light-work absorption
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+pass=0
+fail=0
+ok() {
+	echo "PASS: $1"
+	pass=$((pass + 1))
+}
+no() {
+	echo "FAIL: $1"
+	fail=$((fail + 1))
+}
+assert_file_contains() {
+	local desc="$1" file="$2" pattern="$3"
+	if python3 - "$DIR/$file" "$pattern" <<'PY'; then
+import re
+import sys
+path, pattern = sys.argv[1], sys.argv[2]
+text = open(path, encoding="utf-8").read()
+sys.exit(0 if re.search(pattern, text, re.MULTILINE | re.DOTALL) else 1)
+PY
+		ok "$desc"
+	else
+		no "$desc"
+		echo "  missing pattern: $pattern"
+		echo "  in: $file"
+	fi
+}
+assert_file_lacks() {
+	local desc="$1" file="$2" pattern="$3"
+	if python3 - "$DIR/$file" "$pattern" <<'PY'; then
+import re
+import sys
+path, pattern = sys.argv[1], sys.argv[2]
+text = open(path, encoding="utf-8").read()
+sys.exit(0 if not re.search(pattern, text, re.MULTILINE | re.DOTALL) else 1)
+PY
+		ok "$desc"
+	else
+		no "$desc"
+		echo "  unexpectedly found pattern: $pattern"
+		echo "  in: $file"
+	fi
+}
+
+WRAPPER="$DIR/bin/pi-project-lead"
+tools_line="$(grep -E -- '--tools ' "$WRAPPER" | tail -1)"
+
+if printf '%s\n' "$tools_line" | grep -Eq -- '--tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,e2b_cast,e2b_status,e2b_wait,e2b_cancel,e2b_logs,e2b_port_url'; then
+	ok "pi-project-lead --tools is coordination-only (no write/edit)"
+else
+	no "pi-project-lead --tools is coordination-only (no write/edit)"
+	echo "  tools line: $tools_line"
+fi
+if printf '%s\n' "$tools_line" | grep -Eq 'write|edit'; then
+	no "pi-project-lead tools line still names write or edit"
+else
+	ok "pi-project-lead tools line still omits write/edit tokens"
+fi
+if printf '%s\n' "$tools_line" | grep -Eq 'e2b_cast|e2b_status|e2b_wait|e2b_cancel|e2b_logs|e2b_port_url'; then
+	ok "pi-project-lead keeps E2B cast tools"
+else
+	no "pi-project-lead keeps E2B cast tools"
+fi
+if printf '%s\n' "$tools_line" | grep -Eq ',bash,|,bash$'; then
+	ok "pi-project-lead keeps bash for casting/coordination"
+else
+	no "pi-project-lead keeps bash for casting/coordination"
+fi
+
+assert_file_contains "wrapper sources isolated project-lead runtime" \
+	"bin/pi-project-lead" \
+	'pi-project-lead-runtime\.sh'
+assert_file_contains "wrapper prepares isolated runtime before launch" \
+	"bin/pi-project-lead" \
+	'pi_project_lead_prepare_runtime'
+assert_file_contains "wrapper loads permission-system package" \
+	"bin/pi-project-lead" \
+	'--extension "\$PI_PERMISSION_SYSTEM_PATH"'
+assert_file_contains "wrapper loads project-lead-policy extension" \
+	"bin/pi-project-lead" \
+	'extensions/project-lead-policy\.ts'
+assert_file_contains "project-lead-policy evaluates seat lead" \
+	"extensions/project-lead-policy.ts" \
+	'seat:\s*"lead"'
+assert_file_contains "permission config denies write/edit" \
+	"permission-system/project-lead.json" \
+	'"write":\s*"deny".*"edit":\s*"deny"'
+assert_file_contains "permission config defaults bash to deny" \
+	"permission-system/project-lead.json" \
+	'"\*":\s*"deny"'
+assert_file_contains "permission config denies implementer package managers" \
+	"permission-system/project-lead.json" \
+	'"pnpm \*":\s*"deny"'
+assert_file_contains "permission config denies git commit" \
+	"permission-system/project-lead.json" \
+	'"git commit \*":\s*"deny"'
+assert_file_contains "permission config denies gh pr review" \
+	"permission-system/project-lead.json" \
+	'"gh pr review \*":\s*"deny"'
+assert_file_contains "permission config allows cmux casting" \
+	"permission-system/project-lead.json" \
+	'"cmux \*":\s*"allow"'
+assert_file_contains "permission config allows gh pr merge" \
+	"permission-system/project-lead.json" \
+	'"gh pr merge \*":\s*"allow"'
+assert_file_contains "permission config allows gh pr view" \
+	"permission-system/project-lead.json" \
+	'"gh pr view \*":\s*"allow"'
+
+# Shared command-policy unit surface already used by Claude lead + Pi conductor.
+POLICY_JS="$DIR/evals/.tmp-project-lead-policy-check.mjs"
+cat >"$POLICY_JS" <<'JS'
+import assert from "node:assert/strict";
+import { evaluateCommand } from "../bin/lib/conductor-command-policy.mjs";
+
+const allow = (command) =>
+	assert.equal(evaluateCommand(command, { seat: "lead", cwd: "/repo" }).allowed, true, command);
+const deny = (command) =>
+	assert.equal(evaluateCommand(command, { seat: "lead", cwd: "/repo" }).allowed, false, command);
+
+for (const command of [
+	"cmux new-pane --workspace ${CMUX_WORKSPACE_ID} --type terminal --direction right",
+	'cmux send --workspace "${CMUX_WORKSPACE_ID}" --surface surface:1 "cd /repo && pi-implementer"',
+	"cmux capture-pane --workspace ${CMUX_WORKSPACE_ID} --surface surface:1",
+	"gh pr view 42",
+	"gh pr list --state open",
+	"gh pr checks 42",
+	"gh pr merge 42 --merge",
+	"gh pr comment 42 --body gate-passed",
+	"git status --short",
+	"git fetch origin",
+	"git pull --ff-only origin main",
+	"git checkout main",
+	"git push origin main",
+	"git worktree add .worktrees/flt-1 -b flt-1 main",
+	"uptime",
+	"fleet-note append coordination/status.md ok",
+	"linear-cli issue get FLT-1",
+]) allow(command);
+
+for (const command of [
+	"git commit -am implementation",
+	"git clone https://example.invalid/repo.git",
+	"gh pr create --title t --body b",
+	"gh pr review 42 --approve",
+	"pnpm test",
+	"pnpm check:all",
+	"npm ci",
+	"node build.js",
+	"python3 script.py",
+	"bash script.sh",
+	"sed -i '' s/a/b/ source.ts",
+	"tee source.ts",
+]) deny(command);
+
+console.log("policy-unit-checks-ok");
+JS
+if node "$POLICY_JS" >/dev/null; then
+	ok "seat lead command policy allows coordination and denies implementation/review shell"
+else
+	no "seat lead command policy allows coordination and denies implementation/review shell"
+	node "$POLICY_JS" || true
+fi
+rm -f "$POLICY_JS"
+
+# Prose: routing bottleneck / cast immediately / no light self-work.
+assert_file_contains "skill names routing bottleneck" \
+	"skills/project-lead/SKILL.md" \
+	'routing bottleneck'
+assert_file_contains "skill forbids self-implementation including light fixes" \
+	"skills/project-lead/SKILL.md" \
+	'do not implement, review, AC-verify, docs-pass, or "just do a light'
+assert_file_contains "skill says cast immediately is non-negotiable" \
+	"skills/project-lead/SKILL.md" \
+	'Non-negotiable: cast, do not self-serve'
+assert_file_lacks "skill no longer offers docs pass yourself exception" \
+	"skills/project-lead/SKILL.md" \
+	'do it yourself for small/docs-adjacent'
+assert_file_contains "agent frontmatter tools omit write/edit" \
+	"agents/project-lead.md" \
+	'^tools: read, grep, find, ls, bash$'
+assert_file_contains "agent prose names routing bottleneck" \
+	"agents/project-lead.md" \
+	'routing bottleneck'
+assert_file_contains "agent prose forbids light self-work" \
+	"agents/project-lead.md" \
+	'do not implement, review, AC-verify, docs-pass, or "just fix a'
+assert_file_contains "profile append prompt forbids self-implementation" \
+	"profiles/project-lead/profile.yml" \
+	'Never implement, review, AC-verify, or docs-pass in your own session'
+assert_file_contains "README documents no write/edit for pi-project-lead" \
+	"README.md" \
+	'pi-project-lead.*no write/edit'
+assert_file_contains "docs/permissions documents project-lead structural boundary" \
+	"docs/permissions.md" \
+	'Restricted project-lead policy'
+assert_file_contains "seat tool-boundary matrix expects project-lead without write/edit" \
+	"bin/pi-fleet-eval" \
+	'project-lead:Y:N:N'
+assert_file_contains "evals README matrix places project-lead with conductor" \
+	"evals/README.md" \
+	'conductor, project-lead, ac-verifier'
+
+echo "---"
+echo "$pass passed, $fail failed"
+[ "$fail" -eq 0 ]

@@ -29,8 +29,8 @@ the expected matrix and prints `PASS`/`FAIL`.
 
 | Seat | bash | write | edit |
 | --- | --- | --- | --- |
-| implementer, designer, project-lead, personal-assistant, remotion | yes | yes | yes |
-| conductor, ac-verifier, planner, visual-qa, linear | yes | no | no |
+| implementer, designer, personal-assistant, remotion | yes | yes | yes |
+| conductor, project-lead, ac-verifier, planner, visual-qa, linear | yes | no | no |
 | reviewer, researcher, security-reviewer | no | no | no |
 
 Last verified run: [`results/seat-tools-latest.txt`](./results/seat-tools-latest.txt) — **12/12 PASS**.
@@ -64,6 +64,22 @@ This FLT-15 guard is non-interactive: it mocks `outfitter`, runs `bin/pi-project
 paths from the wrapper location. It also checks remaining profile-managed Linear extension entries
 stay portable (`../extensions/linear.ts`) and that profiles contain no machine-specific `/Users/...`
 paths.
+
+## Project-lead delegate-guard structural + launch smoke
+
+```bash
+evals/project-lead-delegate-guard-structural-test.sh
+evals/pi-project-lead-launch-smoke-test.sh
+node --test evals/pi-project-lead-config.test.mjs
+node --test evals/conductor-command-policy.test.mjs
+```
+
+These guards prove `pi-project-lead` is a routing bottleneck in the **harness**, not only prose:
+`--tools` omits `write`/`edit` while keeping bash + E2B cast tools; the wrapper loads an isolated
+`permission-system/project-lead.json` overlay and `extensions/project-lead-policy.ts`; seat `lead`
+command policy allows cmux/gh-read/main-integration and denies implementer shell (`git commit`,
+`pnpm test`, `gh pr create`/`review`, interpreters); and skill/agent/profile prose forbids absorbing
+light implementation/review/AC/docs work into the lead session.
 
 ## Dual-source AC verification structural eval
 
