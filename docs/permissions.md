@@ -62,6 +62,25 @@ arbitrary scripts as the doer. Implementation, review, AC-verify, and docs work 
 Instructions in the skill/profile are not the capability ceiling — the wrapper + isolated policy +
 immutable extension are.
 
+## Unattended QC seats (reviewer + AC verifier) — FLT-60
+
+`bin/pi-reviewer` and `bin/pi-ac-verifier` are **unattended** QC seats. They must complete review / AC
+verification without any permission modal or "allow this bash" prompt.
+
+1. Both wrappers always pass `--approve` (project trust) and **`--no-extensions`**. They do **not**
+   load `@gotgenes/pi-permission-system`. Interactive ask gates cannot appear because the extension
+   that emits them is not present.
+2. Security boundary remains the wrapper **`--tools` allowlist** (plus, for AC-verifier, the immutable
+   `extensions/ac-verifier-policy.ts` Bash gate). No write/edit on either seat; reviewer has no bash.
+3. `--approve` is **not** gated on `FLEET_YOLO` for these two seats (unlike implementer / conductor /
+   project-lead). Conductor and project-lead retain their isolated permission overlays and
+   FLEET_YOLO-gated `--approve` — do not widen those wrappers.
+4. Agent `permission:` frontmatter for `reviewer`, `ac-verifier`, and `ac-criterion-verifier` uses
+   deny-by-default with explicit `allow` for allowlisted tools and **no `ask` states**, so even if a
+   future change re-introduced the permission package, QC seats stay prompt-free.
+
+Eval: `evals/unattended-reviewer-ac-smoke-test.sh`.
+
 ## AC verifier comment-only PR evidence policy
 
 `bin/pi-ac-verifier` has a verifier-specific boundary for PR verification:
@@ -81,6 +100,8 @@ immutable extension are.
    `--no-extensions` so AC verification can fan out one `ac-criterion-verifier` child per criterion.
    Children are verify-only (bash + read/search; no write/edit, no Linear/PR mutation tools, no nested
    `subagent`). Only the parent synthesizes results, posts dual-source evidence, and checks passed boxes.
+6. FLT-60: the wrapper never loads the permission-system package; bash is gated solely by
+   `ac-verifier-policy.ts` + the `--tools` list (see Unattended QC seats above).
 
 This preserves the no-code-change boundary while fixing the previous failure mode where a verifier could
 verify AC but had no constrained path to post evidence on GitHub, and while allowing parallel per-criterion
@@ -160,6 +181,12 @@ For AC-verifier PR-evidence and dual-source AC rules, run:
 
 ```bash
 evals/ac-verification-dual-source-structural-test.sh
+```
+
+For unattended reviewer / AC-verifier (no permission-system ask gate), run:
+
+```bash
+evals/unattended-reviewer-ac-smoke-test.sh
 ```
 
 ## Layout rule

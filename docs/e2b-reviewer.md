@@ -12,8 +12,10 @@ pushes, never commits, and never opens or merges a PR.
    - fetches the PR's metadata (`gh pr view`) and diff (`gh pr diff`) —
      read-only, no clone/checkout of the target repo
    - hands both to `pi-reviewer` (see `bin/pi-reviewer` and
-     `profiles/reviewer/profile.yml` — unchanged by FLT-45), which runs with
-     **no write/edit/bash tools**, so it structurally cannot mutate anything
+     `profiles/reviewer/profile.yml`), which runs with **no write/edit/bash
+     tools**, so it structurally cannot mutate anything. FLT-60: the wrapper
+     alone loads `linear.ts` via absolute `--extension` under `--no-extensions`
+     (profile.yml does not declare extensions — avoids Tool conflicts).
    - posts pi-reviewer's findings as a plain PR **comment**
      (`gh pr comment`) — never a formal `gh pr review --approve` /
      `--request-changes`, which carries merge-blocking authority a bot
@@ -61,7 +63,7 @@ Reviewer casts resolve their GitHub token through a **different**
 precedence order than implementer casts:
 
 | Profile | Token precedence |
-|---|---|
+|  -- -  |  --- |
 | `implementer` | `FLEET_GITHUB_TOKEN` → `GH_TOKEN` |
 | `reviewer` | `FLEET_GITHUB_REVIEWER_TOKEN` → `FLEET_GITHUB_TOKEN` → `GH_TOKEN` |
 
@@ -141,18 +143,23 @@ fail-fast model-auth preflight, the generated runner script (asserts the
 read-only gh calls are present and no code-mutating command — `git
 push`/`git commit`/`git checkout`/`gh repo clone`/`gh pr merge`/`gh pr
 review` — ever appears, and that it `cd`s into a `/work` subdirectory before
-invoking `pi-reviewer` so `profile.yml`'s `../extensions/linear.ts`
-resolves), the reviewer result finalizer (succeeded / PR-fetch-failed /
-comment-post-failed / reviewer-process-failed paths), and
-`reconnectSandbox`/`refreshFromSandbox` carrying the reviewer-only result
-fields.
+invoking `pi-reviewer` from a known `/work` subtree), the reviewer result
+finalizer (succeeded / PR-fetch-failed / comment-post-failed /
+reviewer-process-failed paths), and `reconnectSandbox`/`refreshFromSandbox`
+carrying the reviewer-only result fields. Linear tools come from the
+wrapper's absolute `--extension` path (FLT-60), not profile-managed relative
+extensions.
 
 Live E2B runs against this PR (by the project lead, with real credentials)
 found and fixed two sandbox-only bugs this test suite couldn't catch without
 running the real `outfitter`/`pi` stack:
-1. A missing `cd` before invoking `pi-reviewer` broke `profile.yml`'s
-   extension resolution (`Failed to load extension /extensions/linear.ts`) —
-   fixed in `d5c2813`.
+
+
+1. A missing `cd` before invoking `pi-reviewer` broke relative extension
+   resolution when the profile still declared `../extensions/linear.ts`
+   (`Failed to load extension /extensions/linear.ts`) — fixed in `d5c2813`.
+   FLT-60 later removed profile-managed extensions entirely so the wrapper's
+   absolute path is the sole loader.
 2. No model/provider auth path was available in those runs, and a partial
    model override was silently dropped rather than erroring — addressed
    above (fail-fast preflight + paired-override validation). This part is

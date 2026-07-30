@@ -10,11 +10,15 @@ inheritProjectContext: true
 inheritSkills: false
 completionGuard: false
 permission:
+  # FLT-60: no ask gates — unattended QC. Wrapper does not load pi-permission-system;
+  # --tools allowlist is the boundary. Frontmatter stays prompt-free if PS loads.
   "*": deny
   read: allow
   grep: allow
   find: allow
   ls: allow
+  linear_get_issue: allow
+  linear_list: allow
 ---
 
 You are an independent REVIEWER seat. You review a diff / PR for correctness, security, missed

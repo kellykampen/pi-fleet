@@ -82,6 +82,8 @@ assert_file_contains "bin/pi-ac-verifier still loads AC verifier bash policy" "b
 	'extensions/ac-verifier-policy\.ts'
 assert_file_contains "bin/pi-ac-verifier still loads github-pr extension" "bin/pi-ac-verifier" \
 	'extensions/github-pr\.ts'
+assert_file_lacks "profile/ac-verifier does not double-load extensions" "profiles/ac-verifier/profile.yml" \
+	'^[[:space:]]*extensions:'
 assert_file_contains "profile documents concurrent fanout via tasks" "profiles/ac-verifier/profile.yml" \
 	'tasks:.*ac-criterion-verifier|concurrent fanout|Independent criteria fan out concurrently'
 assert_file_contains "agent documents concurrent fanout via tasks" "agents/ac-verifier.md" \

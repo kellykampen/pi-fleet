@@ -344,6 +344,12 @@ power (no `write`/`edit`; no commit/build/install/script shell). Claude conducto
 load separate `claude-settings/*.json` files; their seat-specific `PreToolUse` hook is authoritative
 and fails closed on unknown or compound commands.
 
+**Unattended QC (FLT-60):** `pi-reviewer` and `pi-ac-verifier` always pass `--approve` +
+`--no-extensions` and do **not** load `@gotgenes/pi-permission-system`. Their security boundary is
+the wrapper `--tools` allowlist (plus `ac-verifier-policy.ts` for bash on the AC seat) — never an
+interactive permission modal. Conductor/project-lead permission overlays stay isolated and are not
+widened.
+
 Details: [`docs/permissions.md`](./docs/permissions.md). **One project lead per project workspace.**
 
 After pulling: `bin/pi-fleet-bootstrap`, then restart seats.

@@ -1,0 +1,55 @@
+FLT-60 unattended reviewer/ac-verifier smoke
+
+1) pi-reviewer launch argv (no FLEET_YOLO)
+PASS: reviewer always passes --approve
+PASS: reviewer always passes --no-extensions
+PASS: reviewer loads explicit linear extension
+PASS: reviewer tools allowlist unchanged
+PASS: reviewer does not load permission-system package
+PASS: reviewer does not grant write/edit/bash
+PASS: reviewer still --approve when FLEET_YOLO=0
+
+2) pi-ac-verifier launch argv (no FLEET_YOLO)
+PASS: ac-verifier always passes --approve
+PASS: ac-verifier always passes --no-extensions
+PASS: ac-verifier loads linear extension
+PASS: ac-verifier loads github-pr extension
+PASS: ac-verifier loads bash policy extension
+PASS: ac-verifier loads pi-subagents extension
+PASS: ac-verifier tools allowlist unchanged
+PASS: ac-verifier does not load permission-system package
+PASS: ac-verifier does not grant write/edit
+PASS: ac-verifier still --approve when FLEET_YOLO=0
+
+3) agent frontmatter has no ask gates
+PASS: agents/reviewer.md has no permission ask state
+PASS: agents/reviewer.md deny-by-default permission fallback
+PASS: agents/ac-verifier.md has no permission ask state
+PASS: agents/ac-verifier.md deny-by-default permission fallback
+PASS: agents/ac-criterion-verifier.md has no permission ask state
+PASS: agents/ac-criterion-verifier.md deny-by-default permission fallback
+
+3b) profiles omit extensions (no double-load against wrapper --extension)
+PASS: profiles/reviewer/profile.yml has no profile-managed extensions:
+PASS: profiles/reviewer/profile.yml documents wrapper-owned extensions
+PASS: profiles/ac-verifier/profile.yml has no profile-managed extensions:
+PASS: profiles/ac-verifier/profile.yml documents wrapper-owned extensions
+PASS: reviewer launch has exactly one linear.ts extension
+PASS: ac-verifier launch has exactly one linear.ts extension
+PASS: ac-verifier launch has exactly one github-pr.ts extension
+
+4) conductor / project-lead boundaries NOT weakened
+PASS: pi-conductor still loads permission-system
+PASS: pi-project-lead still loads permission-system
+PASS: conductor.json keeps yoloMode false
+PASS: project-lead.json keeps yoloMode false
+PASS: pi-conductor still gates --approve on FLEET_YOLO
+PASS: pi-project-lead still gates --approve on FLEET_YOLO
+
+5) headless tool path without permission-system (allowlisted tool, no ask gate)
+PASS: allowlisted bash tool ran without permission-system (sentinel written)
+PASS: no permission-system ask gate in headless probe log
+
+---
+38 passed, 0 failed
+VERDICT: PASS

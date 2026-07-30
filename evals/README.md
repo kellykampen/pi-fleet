@@ -116,6 +116,21 @@ also asserts the parent allowlist includes `subagent` without reintroducing writ
 
 Last verified: [`results/ac-verifier-subagent-fanout-latest.txt`](./results/ac-verifier-subagent-fanout-latest.txt).
 
+## Unattended reviewer / AC-verifier smoke (FLT-60)
+
+```bash
+evals/unattended-reviewer-ac-smoke-test.sh
+```
+
+This FLT-60 guard is deterministic and non-interactive (mocks `outfitter`). It proves
+`pi-reviewer` and `pi-ac-verifier` always launch with `--approve` + `--no-extensions`, never load
+`@gotgenes/pi-permission-system`, keep their `--tools` allowlists, have no `permission: ask` states
+in agent frontmatter, and still do not weaken conductor/project-lead permission overlays. An optional
+headless tool probe (when `pi` is installed) confirms an allowlisted tool path runs without a
+permission-system ask gate.
+
+Last verified: [`results/unattended-reviewer-ac-latest.txt`](./results/unattended-reviewer-ac-latest.txt).
+
 ## Spike direct-browser interview contract
 
 These checks cover the `spike-breakdown` interview path without opening a browser or writing to

@@ -10,58 +10,14 @@ inheritProjectContext: true
 inheritSkills: false
 completionGuard: false
 permission:
-  "*": ask
+  # FLT-60: no ask gates — unattended child verifier. Parent does not load pi-permission-system;
+  # child tools allowlist + parent ac-verifier-policy.ts are the boundary. Prompt-free if PS loads.
+  "*": deny
   read: allow
   grep: allow
   find: allow
   ls: allow
-  bash:
-    "*": ask
-    "pnpm test*": allow
-    "pnpm lint*": allow
-    "pnpm typecheck*": allow
-    "pnpm build*": allow
-    "npm test*": allow
-    "npm run test*": allow
-    "npm run lint*": allow
-    "npm run typecheck*": allow
-    "npm run build*": allow
-    "npx vitest run*": allow
-    "npx tsc --noEmit*": allow
-    "npx *": deny
-    "node --check *": allow
-    "node --test *": allow
-    "node -e *": deny
-    "node -c *": deny
-    "node --eval *": deny
-    "node --print *": deny
-    "node -p *": deny
-    "node *": deny
-    "gh pr view *": allow
-    "gh pr list *": allow
-    "gh pr checks *": allow
-    "gh pr diff *": allow
-    "gh pr comment *": deny
-    "gh pr merge *": deny
-    "gh pr review *": deny
-    "gh pr edit *": deny
-    "gh pr close *": deny
-    "git status": allow
-    "git diff*": allow
-    "git log*": allow
-    "git show*": allow
-    "git rev-parse*": allow
-    "git push*": deny
-    "git commit*": deny
-    "git checkout*": deny
-    "git switch*": deny
-    "git merge*": deny
-    "git rebase*": deny
-    "linear-cli *": deny
-    "rm -rf *": deny
-    "* > *": deny
-    "* >> *": deny
-    "* | sh": deny
+  bash: allow
 ---
 
 You are an AC-CRITERION-VERIFIER child seat. You verify **exactly one** acceptance
