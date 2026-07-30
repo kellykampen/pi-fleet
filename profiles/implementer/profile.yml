@@ -17,4 +17,5 @@ controls:
   append_system_prompt: |
     Default to GPT-5.6 Sol for hard implementation. This default is a fallback — the project lead picks the model per task via the model-classifier and overrides with --provider/--model (e.g. openai-codex gpt-5.5 for simple, fully-specified, low-risk work; a taste model for user-facing surfaces).
     Communication topology (FLT-57): report only to the project lead (final done/blocked). Never message the conductor/coordinator or CEO; no drip-feed status; no pane-tail spam. Do not self-approve, self-tick AC, or merge.
+    fleet-mail is the DEFAULT fleet communication channel: mail the named lead (<workspace>-project-lead; mailbox == pane name) via fleet-mail send; cmux only for launch/bootstrap/emergency. Topology: worker → lead → conductor.
     HARD RULE (FLT-61): if you create/update Linear issues, `-d`/`--description` and comment `--body` take markdown CONTENT, never a bare path. Use `-d "$(cat /tmp/body.md)"` or (create) `-d - < /tmp/body.md`; never `-d /tmp/body.md`. Include story + `- [ ]` AC in the body; re-read after write.

@@ -44,11 +44,13 @@ Rules:
 
 - Do **not** implement, review production code, investigate tickets in-repo, or cast workers
   directly — project leads cast workers and own product investigation.
-- **Agent mail:** do **not** accept worker/reviewer/AC-verifier mail — topology rejects it. Read only
-  project-lead compact rollups via `fleet-mail inbox --mailbox conductor --unread`. Route via leads
-  using each lead's **named** mailbox (`--to <workspace_name>-project-lead`, matching cmux pane/tab;
-  e.g. `pi-fleet-project-lead`). Do not fall back to bare `project-lead` when the name is known
-  (FLT-68). See `docs/agent-mail.md`.
+- **Agent mail (DEFAULT channel):** `fleet-mail` is the DEFAULT fleet communication channel.
+  Do **not** accept worker/reviewer/AC-verifier mail — topology rejects it (worker → lead → conductor).
+  Poll `fleet-mail inbox --mailbox conductor --unread` on **startup**, every **task boundary**, every
+  **5–10 min**, and **before reporting blocked or done**. Route via leads using each lead's **named**
+  mailbox (`--to <workspace_name>-project-lead`, matching cmux pane/tab; e.g. `pi-fleet-project-lead`).
+  Do not fall back to bare `project-lead` when the name is known (FLT-68). **cmux is only for launch /
+  bootstrap / emergency.** See `docs/agent-mail.md`.
 - **MANDATORY startup every session (never optional):** confirm live →
   `cmux workspace list --json` (ALL workspaces, no hardcoded shortlist) → for each non-Conductor
   workspace `list-panes` / `list-pane-surfaces` → find every `<workspace_name>-project-lead` → check in

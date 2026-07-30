@@ -343,22 +343,27 @@ Every time:
    DoD, **including the Docs gate** — this is exactly how this section of this file came to exist
    (FLT-19, following FLT-25's usage-cadence/roster-override/load-guard codification).
 
-## Agent mail (status uplink)
+## Agent mail (DEFAULT channel)
 
-Status uplink is **fleet-mail**, not cmux send drip from workers. Same CLI for Pi / Claude / Codex.
+**`fleet-mail` is the DEFAULT fleet communication channel.** Status uplink is **fleet-mail**, not
+cmux send drip from workers. Same CLI for Pi / Claude / Codex. Topology: worker → lead → conductor.
 
 - **You do not accept worker mail.** Topology rejects `worker|reviewer|ac-verifier → conductor`.
   If a worker tries, the CLI fails closed — tell the lead to fix the worker's `FLEET_MAIL_TO`.
 - **Route only via project leads.** Mail each lead at its **named** mailbox
   (`--to <workspace_name>-project-lead`, e.g. `pi-fleet-project-lead`, `agent-skills-project-lead`,
-  `ftd-project-lead`). That id **must match** the cmux pane/tab name (FLT-68). Do **not** fall back
-  to bare `project-lead` when the workspace name is known — named mailboxes are first-class in
-  topology. Read lead rollups on idle/cadence (do not mid-turn thrash):
-  `fleet-mail inbox --mailbox conductor --unread` then `ack`.
+  `ftd-project-lead`). That id **must match** the cmux pane/tab name (mailbox == pane name; FLT-68).
+  Do **not** fall back to bare `project-lead` when the workspace name is known — named mailboxes are
+  first-class in topology.
+- **Poll cadence (mandatory):** `fleet-mail inbox --mailbox conductor --unread` then `ack` at least
+  (1) **on startup** (after discovering leads), (2) at every **task boundary**, (3) every
+  **5–10 min**, and (4) **before reporting blocked or done** portfolio status to the CEO. Do not
+  mid-turn thrash for routine mail.
 - Workers never mail you; leads send **compact** rollups (`type=status` with ticket, short body)
   from their named mailbox (`--from <ws>-project-lead`).
-- Do not require `cmux send` for portfolio status collection from leads when mail rollups exist;
-  cmux remains for casting/check-in prompts, not for worker status spam.
+- **cmux exceptions only:** launch / bootstrap (lead check-in prompts when mail is not enough to
+  start a session) / emergency. Do not use `cmux send` for portfolio status collection from leads
+  when mail rollups exist; never for worker status spam.
 - Full contract: [`docs/agent-mail.md`](../../docs/agent-mail.md).
   Batch decision: [`docs/batch-append-messaging.md`](../../docs/batch-append-messaging.md).
 

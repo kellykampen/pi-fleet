@@ -7,9 +7,11 @@ seats). You implement one assigned task end-to-end in the repo.
 - Report commit sha(s) + what changed + which AC each change satisfies. Do NOT claim "reviewed" —
   that's a different, different-harness seat's job. You never approve or merge your own work.
 
-## Status uplink — fleet-mail (same CLI as Pi / Codex)
+## Status uplink — fleet-mail is the DEFAULT channel (same CLI as Pi / Codex)
 
-Mail the **project lead only** via `fleet-mail` (not the conductor; not mid-task cmux drip):
+**`fleet-mail` is the DEFAULT fleet communication channel.** Mail the **project lead only** via
+`fleet-mail` (not the conductor; not mid-task cmux drip). cmux only for launch/bootstrap/emergency.
+Topology: worker → lead → conductor. Mail before reporting blocked or done.
 
 ```bash
 # --to = owning lead named mailbox (<workspace>-project-lead), matching cmux pane/tab

@@ -1,18 +1,38 @@
 ---
 name: fleet-mail
-description: Use the fleet-mail CLI for async status between fleet seats (workers → project-lead only). Prefer replaceable status slots over cmux mid-turn steers. Works for Pi, Claude Code, and Codex CLI via the same binary.
+description: DEFAULT fleet communication channel — use the fleet-mail CLI for agent-to-agent status (workers → named project-lead only). Prefer replaceable status slots over cmux mid-turn steers. Works for Pi, Claude Code, and Codex CLI via the same binary.
 ---
 
 # fleet-mail (multi-harness)
 
+**`fleet-mail` is the DEFAULT agent-to-agent fleet communication channel.**
 Single backend for agent mail. **Shell out to `fleet-mail`** — do not invent a second inbox,
 and do not drip status via `cmux send` into a busy lead/conductor pane.
 
+## DEFAULT rules
+
+- **Agent-to-agent via fleet-mail, not cmux** — except **launch**, **bootstrap** (cast +
+  initial brief), and **emergency** (hung seat / mail alone cannot recover).
+- **mailbox == cmux pane/tab name** exactly.
+- **Leads** = `<workspace_name>-project-lead` (e.g. `pi-fleet-project-lead`).
+- **Topology:** worker → project-lead → conductor (CLI fails closed on bypass).
+
 ## When to use
 
-- Worker progress / blocker / done / ask → **owning project lead**
+- Worker progress / blocker / done / ask → **owning project lead** (DEFAULT uplink)
 - Lead compact rollup → **conductor**
-- Lead (or conductor) reading unread mail on **idle / cadence**, then **ack**
+- Lead (or conductor) reading unread mail on the **poll cadence**, then **ack**
+
+## Poll cadence (read side)
+
+Poll `fleet-mail inbox --mailbox <id> --unread` at least:
+
+1. **On startup**
+2. **At every task boundary** (cast landed, PR opened, gate flipped, ticket start/finish)
+3. **Every 5–10 min** while seats are in flight
+4. **Before reporting blocked or done** (drain unread first)
+
+Workers write mail; leads/conductor pull. Prefer one replaceable `type=status --ticket T`.
 
 ## Commands
 
@@ -75,5 +95,6 @@ Batch/append decision: [`docs/batch-append-messaging.md`](../../docs/batch-appen
 ## Lead rule (anti-thrash)
 
 - **Do not** `cmux send` status into a lead that is mid-turn / mid-tool batch for routine updates.
-- Workers write mail; lead **pulls** when idle or on a short cadence.
+  cmux is for **launch / bootstrap / emergency** only — fleet-mail is the DEFAULT channel.
+- Workers write mail; lead **pulls** on startup / task boundary / 5–10 min / before blocked-done.
 - At most **one** optional idle nudge (handoff file or single message) if the lead must wake — never a steer storm.

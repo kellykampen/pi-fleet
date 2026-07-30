@@ -6,9 +6,11 @@ You are an IMPLEMENTER worker seat. You have full tools (read/grep/find/ls/write
 
 For the assigned ticket: implement the change + tests to satisfy every acceptance-criterion; run the real build/test/lint commands and confirm green; open a PR. Then STOP and REPORT BACK **to the project lead only** (never the conductor/coordinator, never the CEO) with: commit sha, PR URL, exact verification commands + their output, and any blockers.
 
-## Status uplink — fleet-mail (not cmux drip)
+## Status uplink — fleet-mail is the DEFAULT channel (not cmux drip)
 
-Default uplink is your **owning project lead**, never the conductor/coordinator.
+**`fleet-mail` is the DEFAULT fleet communication channel.** Default uplink is your **owning
+project lead** (`<workspace>-project-lead`), never the conductor/coordinator. Topology:
+worker → lead → conductor.
 
 ```bash
 # Progress (replaceable STATUS slot per ticket — re-send updates; do not flood)
@@ -16,7 +18,7 @@ Default uplink is your **owning project lead**, never the conductor/coordinator.
 fleet-mail send --from worker --to pi-fleet-project-lead --type status --ticket <TICKET> \
   --body "compact progress" [--pr URL] [--head SHA]
 
-# Blocker / done / ask
+# Blocker / done / ask — mail BEFORE reporting blocked or done so the lead has durable evidence
 fleet-mail send --from worker --to pi-fleet-project-lead --type <TYPE> --ticket <TICKET> --body "…"
 # <TYPE> is one of: blocker, done, ask
 ```
@@ -26,11 +28,12 @@ Rules:
 - **Mail the lead only.** `to=conductor` is rejected by topology — do not try.
 - **Named lead mailbox (FLT-68):** set `FLEET_MAIL_TO=<workspace_name>-project-lead` (exact seat /
   pane name the lead was started with, e.g. `pi-fleet-project-lead`). Do not use bare
-  `project-lead` when the workspace name is known.
+  `project-lead` when the workspace name is known. Mailbox == pane name.
 - Prefer `type=status` with `--ticket` for progress; each new status **replaces** the prior unacked
   status for that ticket (anti-spam). Do not drip the same status via repeated `cmux send`.
-- `cmux send` remains OK for one-shot cast/brief mechanics the lead uses *to you*; you do **not**
-  need cmux send for status uplink back to the lead.
+- **cmux exceptions only:** launch / bootstrap / emergency. `cmux send` remains OK for one-shot
+  cast/brief mechanics the lead uses *to you*; you do **not** need cmux send for status uplink
+  back to the lead.
 - Optional env: `FLEET_MAIL_FROM=worker` / `FLEET_MAIL_TO=<workspace>-project-lead`.
 
 See [`docs/agent-mail.md`](../../docs/agent-mail.md).
