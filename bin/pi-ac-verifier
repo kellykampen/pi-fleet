@@ -1,14 +1,32 @@
 #!/usr/bin/env bash
 # Hybrid: outfitter composes skill/model/prompt/extensions; this wrapper hardcodes --tools (the boundary).
+# FLT-56: parent fans out one ac-criterion-verifier child per AC via pi-subagents (`subagent` tool).
 set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$FLEET_ROOT/bin/lib/pi-model-env.sh"
 pi_model_override_args ac-verifier "" "$@"
 YOLO=""
 [ "${FLEET_YOLO:-}" = "1" ] && YOLO="--approve"
+
+# Resolve pi-subagents so fanout works under --no-extensions (same pattern as other fleet seats).
+PI_SUBAGENTS_PATH=""
+for candidate in \
+  "${PI_CODING_AGENT_DIR:-}/npm/node_modules/pi-subagents" \
+  "${HOME}/.pi/agent/npm/node_modules/pi-subagents"; do
+  if [ -n "$candidate" ] && { [ -e "$candidate/index.ts" ] || [ -e "$candidate/package.json" ]; }; then
+    PI_SUBAGENTS_PATH="$candidate"
+    break
+  fi
+done
+if [ -z "$PI_SUBAGENTS_PATH" ]; then
+  echo "pi-ac-verifier: pi-subagents not found; install with: pi install npm:pi-subagents" >&2
+  exit 1
+fi
+
 exec outfitter run --profile ac-verifier --agent pi -- "${PI_MODEL_ARGS[@]+"${PI_MODEL_ARGS[@]}"}" $YOLO \
   --no-extensions \
   --extension "$FLEET_ROOT/extensions/linear.ts" \
   --extension "$FLEET_ROOT/extensions/github-pr.ts" \
   --extension "$FLEET_ROOT/extensions/ac-verifier-policy.ts" \
-  --tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,github_pr_view,github_pr_comment "$@"
+  --extension "$PI_SUBAGENTS_PATH" \
+  --tools read,grep,find,ls,bash,subagent,linear_get_issue,linear_list,linear_comment,linear_update,github_pr_view,github_pr_comment "$@"

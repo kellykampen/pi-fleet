@@ -83,10 +83,14 @@ assert_file_contains "profile/ac-verifier declares github-pr extension" "profile
 	'../extensions/github-pr\.ts'
 assert_file_contains "agent/ac-verifier declares github_pr_comment tool" "agents/ac-verifier.md" \
 	'github_pr_view, github_pr_comment'
+assert_file_contains "agent/ac-verifier declares subagent tool for AC fanout" "agents/ac-verifier.md" \
+	'\bsubagent\b'
 assert_file_contains "bin/pi-ac-verifier exposes github_pr_comment" "bin/pi-ac-verifier" \
 	'github_pr_comment'
+assert_file_contains "bin/pi-ac-verifier exposes subagent for AC fanout" "bin/pi-ac-verifier" \
+	'\bsubagent\b'
 assert_file_contains "bin/pi-ac-verifier omits write/edit tools" "bin/pi-ac-verifier" \
-	'--tools read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update,github_pr_view,github_pr_comment'
+	'--tools read,grep,find,ls,bash,subagent,linear_get_issue,linear_list,linear_comment,linear_update,github_pr_view,github_pr_comment'
 assert_file_contains "bin/pi-ac-verifier loads constrained GitHub PR extension" "bin/pi-ac-verifier" \
 	'extensions/github-pr\.ts'
 assert_file_contains "bin/pi-ac-verifier loads AC verifier bash policy" "bin/pi-ac-verifier" \

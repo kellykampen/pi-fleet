@@ -1,0 +1,40 @@
+PASS: agents/ac-verifier.md parent still dual-sources Linear + PR AC
+PASS: agents/ac-verifier.md parent fans out one child per criterion
+PASS: agents/ac-verifier.md parent synthesizes before marking complete
+PASS: agents/ac-verifier.md parent posts dual-source PR + Linear evidence
+PASS: agents/ac-verifier.md parent checks only PASSed criteria
+PASS: agents/ac-verifier.md parent keeps hard rules (head / no self-tick / no merge)
+PASS: profiles/ac-verifier/profile.yml parent still dual-sources Linear + PR AC
+PASS: profiles/ac-verifier/profile.yml parent fans out one child per criterion
+PASS: profiles/ac-verifier/profile.yml parent synthesizes before marking complete
+PASS: profiles/ac-verifier/profile.yml parent posts dual-source PR + Linear evidence
+PASS: profiles/ac-verifier/profile.yml parent checks only PASSed criteria
+PASS: profiles/ac-verifier/profile.yml parent keeps hard rules (head / no self-tick / no merge)
+PASS: agent/ac-verifier declares subagent tool
+PASS: bin/pi-ac-verifier exposes subagent tool
+PASS: bin/pi-ac-verifier loads pi-subagents extension
+PASS: bin/pi-ac-verifier still omits write/edit
+PASS: bin/pi-ac-verifier does not grant write tool
+PASS: bin/pi-ac-verifier does not grant edit tool
+PASS: bin/pi-ac-verifier still loads AC verifier bash policy
+PASS: bin/pi-ac-verifier still loads github-pr extension
+PASS: profile documents concurrent fanout via tasks
+PASS: agent documents concurrent fanout via tasks
+PASS: child agent roster entry exists
+PASS: child tools are verify-only (bash+read, no write/edit/subagent/linear/github)
+PASS: child does not declare write
+PASS: child does not declare edit
+PASS: child does not declare subagent (no nested fanout)
+PASS: child does not declare linear_update
+PASS: child does not declare github_pr_comment
+PASS: child must not tick boxes / edit / merge
+PASS: child returns structured PASS/FAIL evidence
+PASS: child returns evidence[] and blockers[]
+PASS: child verifies single criterion against PR head
+PASS: child completionGuard disabled (bash validator)
+PASS: subagent tools eval includes ac-criterion-verifier as bash-only
+PASS: evals README documents FLT-56 fanout structural guard
+PASS: tracked FLT-56 content scan completed successfully
+PASS: FLT-56 rule has canonical tracked-file evidence
+---
+38 passed, 0 failed
