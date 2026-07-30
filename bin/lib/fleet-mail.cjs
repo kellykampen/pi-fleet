@@ -3,9 +3,13 @@
  *
  * Topology (enforced):
  *   worker | reviewer | ac-verifier  →  project-lead only
+ *     (named: <workspace>-project-lead, legacy: project-lead[/:<scope>])
  *   project-lead                     →  conductor (compact rollup)
- *   conductor                        →  project-lead
+ *   conductor                        →  project-lead (named or legacy)
  *   conductor never accepts worker/reviewer/ac-verifier mail
+ *
+ * FLT-68: preferred lead mailbox is exactly <workspace_name>-project-lead and
+ * MUST match the cmux pane/tab name (e.g. pi-fleet-project-lead).
  *
  * Anti-spam:
  *   - rate limit per from→to (non-status)
@@ -90,14 +94,97 @@ function normalizeMailbox(name) {
   return trimmed;
 }
 
+/**
+ * Project-lead mailboxes (FLT-68):
+ *   - preferred: <workspace_name>-project-lead  (must match cmux pane/tab name)
+ *     e.g. pi-fleet-project-lead, agent-skills-project-lead, ftd-project-lead
+ *   - legacy bare: project-lead
+ *   - legacy scoped: project-lead:<scope>
+ */
+function isProjectLeadMailbox(mailbox) {
+  const id = normalizeMailbox(mailbox);
+  if (id === "project-lead") return true;
+  if (id.startsWith("project-lead:")) {
+    const scope = id.slice("project-lead:".length);
+    return scope.length > 0 && !scope.includes(":");
+  }
+  if (id.endsWith("-project-lead")) {
+    const prefix = id.slice(0, -"-project-lead".length);
+    // Non-empty workspace prefix; no colon (colon form is legacy role:scope only).
+    return prefix.length > 0 && !prefix.includes(":");
+  }
+  return false;
+}
+
 function baseRole(mailbox) {
   const id = normalizeMailbox(mailbox);
+  if (id === "coordinator" || id === "conductor") return "conductor";
+  if (isProjectLeadMailbox(id)) return "project-lead";
+
   const head = id.split(":")[0];
-  if (!BASE_ROLES.includes(head) && head !== "conductor") {
-    // Allow project-scoped ids that still start with a known role.
+  if (!BASE_ROLES.includes(head)) {
     throw new FleetMailError(`unknown mailbox role: ${id}`, "bad_mailbox");
   }
   return head === "coordinator" ? "conductor" : head;
+}
+
+/**
+ * Resolve the canonical project-lead mailbox for a seat launch / worker uplink.
+ * Prefers explicit env, then workspace/project key, never invents a wrong name.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string|null} mailbox id, or null if no workspace key is known
+ */
+function resolveProjectLeadMailbox(env = process.env) {
+  const explicit =
+    (env.FLEET_LEAD_MAILBOX && String(env.FLEET_LEAD_MAILBOX).trim()) ||
+    (env.FLEET_MAIL_FROM && isSafeLeadFrom(env.FLEET_MAIL_FROM) && String(env.FLEET_MAIL_FROM).trim()) ||
+    "";
+  if (explicit) {
+    const id = normalizeMailbox(explicit);
+    if (!isProjectLeadMailbox(id)) {
+      throw new FleetMailError(
+        `FLEET_LEAD_MAILBOX/FLEET_MAIL_FROM must be a project-lead mailbox (got ${id})`,
+        "bad_mailbox",
+      );
+    }
+    return id;
+  }
+
+  const keyRaw =
+    (env.FLEET_PROJECT_KEY && String(env.FLEET_PROJECT_KEY).trim()) ||
+    (env.CMUX_WORKSPACE_NAME && String(env.CMUX_WORKSPACE_NAME).trim()) ||
+    "";
+  if (!keyRaw) return null;
+
+  const key = sanitizeWorkspaceKey(keyRaw);
+  if (!key) {
+    throw new FleetMailError(`invalid workspace key for lead mailbox: ${keyRaw}`, "bad_mailbox");
+  }
+  return normalizeMailbox(`${key}-project-lead`);
+}
+
+function isSafeLeadFrom(value) {
+  try {
+    return isProjectLeadMailbox(String(value));
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeWorkspaceKey(raw) {
+  // Match MAILBOX_RE-friendly workspace tokens used as cmux workspace / pane titles.
+  const cleaned = String(raw)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!cleaned || cleaned === "." || cleaned === "..") return "";
+  // Drop a trailing -project-lead if someone passed the full seat name as the key.
+  if (cleaned.endsWith("-project-lead")) {
+    return cleaned.slice(0, -"-project-lead".length);
+  }
+  return cleaned;
 }
 
 function assertTopology(from, to) {
@@ -444,7 +531,10 @@ module.exports = {
   FleetMailError,
   resolveRuntimeRoot,
   normalizeMailbox,
+  isProjectLeadMailbox,
   baseRole,
+  resolveProjectLeadMailbox,
+  sanitizeWorkspaceKey,
   assertTopology,
   sendMessage,
   listInbox,

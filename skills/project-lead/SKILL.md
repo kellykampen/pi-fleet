@@ -24,17 +24,33 @@ must not thrash your own (or a worker's) session with mid-turn steers for routin
 - Multi-harness workers (Pi, Claude Code, Codex) all use the **same** CLI; see
   [`skills/fleet-mail/SKILL.md`](../fleet-mail/SKILL.md) and [`docs/codex-fleet-mail.md`](../../docs/codex-fleet-mail.md).
 
+### Seat name + mailbox (FLT-68) — mandatory
+
+On startup you are named exactly:
+
+```text
+<workspace_name>-project-lead
+```
+
+Examples: `agent-skills-project-lead`, `ftd-project-lead`, `pi-fleet-project-lead`.
+
+That string is **both** your cmux pane/tab name and your `fleet-mail` mailbox. Launch wrappers
+export it as `FLEET_LEAD_MAILBOX` / `FLEET_MAIL_FROM` / `FLEET_SEAT_NAME` (see
+`bin/lib/fleet-lead-mailbox.sh`). Prefer `FLEET_PROJECT_KEY` or `CMUX_WORKSPACE_NAME` when spawning.
+Workers and the conductor must address you by this exact id — not bare `project-lead` when the
+workspace name is known.
+
 ### Mechanics
 
 - **Workers mail the lead only** (topology-enforced). They never mail the conductor.
-- Poll with `fleet-mail inbox --mailbox project-lead --unread` (or your project-scoped mailbox),
-  `show`, then `ack` when processed.
+- Poll with `fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread` (e.g.
+  `pi-fleet-project-lead`), `show`, then `ack` when processed.
 - **STATUS slots replace:** a worker's `type=status --ticket T` replaces their prior unacked status
   for T — read the latest body, do not expect a flood of status lines.
 - **You** post **compact rollups** to the conductor (not raw worker mail):
 
   ```bash
-  fleet-mail send --from project-lead --to conductor --type status --ticket FLT-58 \
+  fleet-mail send --from "$FLEET_LEAD_MAILBOX" --to conductor --type status --ticket FLT-58 \
     --body "FLT-58: implementer done; reviewer in flight; AC pending"
   ```
 
@@ -42,11 +58,11 @@ must not thrash your own (or a worker's) session with mid-turn steers for routin
   for delivery. Full contract: [`docs/agent-mail.md`](../../docs/agent-mail.md).
   Decision: [`docs/batch-append-messaging.md`](../../docs/batch-append-messaging.md).
 
-**One project lead owns one cmux workspace** (one `<PROJECT_KEY>-project-lead` / `pi-project-lead`
-per project workspace). Never cast a second project lead in the same cmux workspace. Cast workers
-**only** into panes in **your** workspace (`${CMUX_WORKSPACE_ID}` / `$CMUX_WORKSPACE_ID`); you alone
-coordinate them. **NEVER** open panes, surfaces, terminals, or browsers in another project's
-workspace.
+**One project lead owns one cmux workspace** (one `<workspace_name>-project-lead` seat name + mailbox
+per project workspace; wrapper binary remains `pi-project-lead`). Never cast a second project lead in
+the same cmux workspace. Cast workers **only** into panes in **your** workspace
+(`${CMUX_WORKSPACE_ID}` / `$CMUX_WORKSPACE_ID`); you alone coordinate them. **NEVER** open panes,
+surfaces, terminals, or browsers in another project's workspace.
 
 Hierarchy (fixed vocabulary):
 

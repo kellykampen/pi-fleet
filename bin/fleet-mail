@@ -52,6 +52,12 @@ Topology:
   project-lead                → conductor (compact rollups) or workers
   conductor                   → project-lead only (rejects worker mail)
 
+Lead mailbox naming (FLT-68):
+  Preferred: <workspace_name>-project-lead  (must match cmux pane/tab name)
+    e.g. agent-skills-project-lead, ftd-project-lead, pi-fleet-project-lead
+  Legacy also accepted: project-lead  or  project-lead:<scope>
+  Named leads are first-class topology peers of bare project-lead.
+
 Status anti-spam:
   type=status requires --ticket; a new status replaces prior unacked status
   for the same from→to+ticket slot instead of flooding the inbox.

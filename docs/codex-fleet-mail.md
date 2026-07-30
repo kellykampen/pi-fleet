@@ -23,7 +23,8 @@ setup loads, if it supports skill packs — still shell out to the CLI; do not r
 
 ```bash
 export FLEET_MAIL_FROM=worker:my-ticket
-export FLEET_MAIL_TO=project-lead   # or project-lead:<project-key>
+# FLT-68: named lead mailbox matches cmux pane/tab (<workspace>-project-lead)
+export FLEET_MAIL_TO=pi-fleet-project-lead
 
 # Replaceable progress (same ticket overwrites prior unacked status)
 fleet-mail send --type status --ticket FLT-63 --body "tests green; opening PR" --pr "$PR_URL" --head "$(git rev-parse --short HEAD)"
@@ -34,18 +35,20 @@ fleet-mail send --type done --ticket FLT-63 --body "PR #N ready; sha abc1234"
 
 Rules:
 
-- Mail **project-lead only** — never conductor.
+- Mail **project-lead only** — never conductor. Prefer the **named** lead id
+  (`<workspace_name>-project-lead`, e.g. `pi-fleet-project-lead`).
 - Prefer `type=status` with `--ticket` over repeated chat/status steers.
 - Do not depend on the lead receiving a mid-turn interrupt; mail is durable until ack.
 
 ## Lead pattern (if Codex is the lead harness)
 
 ```bash
-fleet-mail inbox --mailbox project-lead --unread
-fleet-mail show  --mailbox project-lead
-fleet-mail ack   --mailbox project-lead --id <id>
+export FLEET_LEAD_MAILBOX=pi-fleet-project-lead   # must match cmux pane/tab
+fleet-mail inbox --mailbox "$FLEET_LEAD_MAILBOX" --unread
+fleet-mail show  --mailbox "$FLEET_LEAD_MAILBOX"
+fleet-mail ack   --mailbox "$FLEET_LEAD_MAILBOX" --id <id>
 
-fleet-mail send --from project-lead --to conductor --type status --ticket FLT-63 \
+fleet-mail send --from "$FLEET_LEAD_MAILBOX" --to conductor --type status --ticket FLT-63 \
   --body "FLT-63: implementer done; reviewer in flight"
 ```
 
@@ -55,9 +58,10 @@ Pull on **idle / cadence**. Do not inject routine status as steers into a busy s
 
 ```bash
 evals/pi-fleet-mail-smoke-test.sh
+evals/lead-named-mailbox-structural-test.sh
 # or
-fleet-mail send --from worker:demo --to project-lead --type status --ticket DEMO --body hi
-fleet-mail inbox --mailbox project-lead --unread
+fleet-mail send --from worker:demo --to pi-fleet-project-lead --type status --ticket DEMO --body hi
+fleet-mail inbox --mailbox pi-fleet-project-lead --unread
 ```
 
 Full contract: [agent-mail.md](./agent-mail.md). Decision: [batch-append-messaging.md](./batch-append-messaging.md).

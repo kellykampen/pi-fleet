@@ -36,7 +36,23 @@ fi
 empty="$("$MAIL" inbox --mailbox project-lead --unread --json)"
 [[ "$empty" == "[]" ]]
 
+# FLT-68: named <workspace>-project-lead is a first-class mailbox (no generic fallback required)
+"$MAIL" send --from conductor --to pi-fleet-project-lead --type status --ticket FLT-68 \
+  --body "named assign"
+"$MAIL" send --from worker:flt-68 --to pi-fleet-project-lead --type status --ticket FLT-68 \
+  --body "named worker status"
+named="$("$MAIL" inbox --mailbox pi-fleet-project-lead --unread --json)"
+python3 - "$named" <<'PY'
+import json,sys
+msgs=json.loads(sys.argv[1])
+assert len(msgs)==2, msgs
+assert all(m["to"]=="pi-fleet-project-lead" for m in msgs), msgs
+print("named-ok")
+PY
+"$MAIL" send --from pi-fleet-project-lead --to conductor --type status --ticket FLT-68 \
+  --body "named rollup"
+
 # node unit tests
 node --test "$ROOT/evals/fleet-mail.test.mjs"
 
-echo "ok - fleet-mail smoke (send/inbox/ack + topology + status replace + unit tests)"
+echo "ok - fleet-mail smoke (send/inbox/ack + topology + status replace + named lead + unit tests)"

@@ -28,7 +28,8 @@ controls:
     no automerge; no lead merge unless the CEO orders.
     MANDATORY startup every session (never optional, never idle after restart):
     confirm live → cmux workspace list --json (ALL workspaces, no hardcoded shortlist) →
-    list-panes / list-pane-surfaces per non-Conductor workspace → find every *-project-lead →
+    list-panes / list-pane-surfaces per non-Conductor workspace → find every <workspace_name>-project-lead
+    (pane/tab name is the fleet-mail mailbox; e.g. pi-fleet-project-lead) →
     check in (status/blockers/PRs/asks/workers+gates) → route only through leads →
     report portfolio snapshot to CEO. Never cast worker seats yourself.
     Do not pass --focus false to cmux send (it becomes message text).
