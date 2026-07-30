@@ -28,7 +28,9 @@ test("conductor-policy.ts evaluates seat conductor", async () => {
   assert.match(policy, /seat:\s*"conductor"/);
 });
 
-test("seat conductor command policy allows orchestration and denies implementation", () => {
+// FLT-65: conductor is routing/metadata only — no product PR view/diff investigation.
+// FLT-67: policy is enforced by conductor-command-policy.mjs (not permission-system JSON).
+test("seat conductor command policy allows orchestration and denies product review / implementation", () => {
   const allow = (command) =>
     assert.equal(evaluateCommand(command, { seat: "conductor", cwd: "/repo" }).allowed, true, command);
   const deny = (command) =>
@@ -36,13 +38,16 @@ test("seat conductor command policy allows orchestration and denies implementati
   for (const command of [
     "cmux workspace list",
     "linear-cli issue get FLT-1",
-    "gh pr view 1",
+    "gh pr list --state open",
+    "gh pr checks 1",
     "git status --short",
     "uptime",
     "fleet-note append coordination/status.md ok",
     "fleet-mail inbox --mailbox conductor --unread",
   ]) allow(command);
   for (const command of [
+    "gh pr view 1",
+    "gh api repos/o/r/pulls/1",
     "git clone https://example.invalid/r.git",
     "git merge feature/x",
     "git push origin main",

@@ -74,12 +74,17 @@ node --test evals/pi-project-lead-config.test.mjs
 node --test evals/conductor-command-policy.test.mjs
 ```
 
-These guards prove `pi-project-lead` is a routing bottleneck in the **harness**, not only prose:
-`--tools` omits `write`/`edit` while keeping bash + E2B cast tools; the wrapper loads an isolated
-`extensions/project-lead-policy.ts` (no permission-system; FLT-67); seat `lead`. Conductor is routing-only (FLT-65): bash+Linear tools only.
-command policy allows cmux/gh-read/main-integration and denies implementer shell (`git commit`,
-`pnpm test`, `gh pr create`/`review`, interpreters); and skill/agent/profile prose forbids absorbing
-light implementation/review/AC/docs work into the lead session.
+These guards prove `pi-project-lead` is coordination-only / non-bottleneck in the **harness**, not
+only prose: `--tools` omits `write`/`edit` while keeping bash + E2B cast tools; the wrapper loads an
+isolated `extensions/project-lead-policy.ts` (no permission-system; FLT-67) and always passes
+`--approve`; seat `lead` command policy allows cmux/gh-read/main-integration and denies implementer
+shell (`git commit`, `pnpm test`, `gh pr create`/`review`, interpreters); and skill/agent/profile
+prose forbids absorbing light implementation/review/AC/docs work into the lead session. FLT-62 also
+requires explicit non-bottleneck phrases in those sources: **bottleneck forbidden**, **cast
+immediately**, **poll every 2–5 minutes**, **parallel seats mandatory**, **silence while agents run
+is a process failure**, **no light product work**, compressed rollups, harness **no write/edit** /
+delegate-only, and no mid-turn `cmux send` into a Working worker (batch handoff file or one idle
+message only). Conductor remains routing-only (FLT-65): bash + Linear tools only.
 
 ## Dual-source AC verification structural eval
 

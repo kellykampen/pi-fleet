@@ -186,7 +186,7 @@ run_ac() {
 	echo "5) agent frontmatter has no permission: block"
 	for f in agents/implementer.md agents/project-lead.md agents/conductor.md \
 		agents/reviewer.md agents/ac-verifier.md agents/ac-criterion-verifier.md; do
-		if python3 - "$DIR/$f" <<'PY'; then
+		if python3 - "$DIR/$f" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)

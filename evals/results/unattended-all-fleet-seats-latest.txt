@@ -1,72 +1,58 @@
-FLT-66 unattended all fleet seats smoke
+FLT-66/FLT-67 unattended all fleet seats + no permission-system
 
-1) pi-implementer launch argv (always unattended)
-PASS: implementer always passes --approve
-PASS: implementer always passes --no-extensions
-PASS: implementer loads explicit linear extension
-PASS: implementer loads permission-system package
-PASS: implementer tools keep write/edit/bash
+0) permission-system directory removed
+PASS: permission-system/ directory is removed from repo
+
+1) pi-implementer
+PASS: implementer always --approve
+PASS: implementer always --no-extensions
+PASS: implementer loads linear
+PASS: implementer does not load permission-system
+PASS: implementer keeps write/edit/bash
 PASS: implementer still --approve when FLEET_YOLO=0
-PASS: implementer runtime pins permission-system/implementer.json
-PASS: implementer.json has yoloMode true
-PASS: implementer.json denies .env secrets
-PASS: implementer.json denies .ssh secrets
 
-2) pi-project-lead launch argv (always unattended, no write/edit)
-PASS: project-lead always passes --approve
-PASS: project-lead always passes --no-extensions
-PASS: project-lead loads permission-system package
-PASS: project-lead loads project-lead-policy
+2) pi-project-lead
+PASS: project-lead always --approve
+PASS: project-lead always --no-extensions
+PASS: project-lead loads policy extension
+PASS: project-lead does not load permission-system
 PASS: project-lead tools omit write/edit
-PASS: project-lead tools do not grant write/edit
 PASS: project-lead still --approve when FLEET_YOLO=0
-PASS: project-lead.json has yoloMode true
-PASS: project-lead.json denies write
-PASS: project-lead.json denies edit
-PASS: project-lead.json denies .env secrets
-PASS: project-lead.json denies .ssh secrets
 
-3) pi-conductor launch argv (always unattended, no write/edit)
-PASS: conductor always passes --approve
-PASS: conductor always passes --no-extensions
-PASS: conductor loads permission-system package
-PASS: conductor loads conductor-policy
-PASS: conductor tools omit write/edit
-PASS: conductor tools do not grant write/edit
-PASS: conductor still --approve when FLEET_YOLO=0
-PASS: conductor.json has yoloMode true
-PASS: conductor.json denies write
-PASS: conductor.json denies edit
-PASS: conductor.json denies .env secrets
-PASS: conductor.json denies .ssh secrets
+3) pi-conductor (FLT-65 routing-only)
+PASS: conductor always --approve
+PASS: conductor always --no-extensions
+PASS: conductor loads policy extension
+PASS: conductor does not load permission-system
+PASS: conductor routing-only tools
+PASS: conductor tools omit write/edit/read/grep/find
 
-4) pi-reviewer + pi-ac-verifier remain unattended (FLT-60)
-PASS: reviewer always passes --approve
-PASS: reviewer always passes --no-extensions
-PASS: reviewer does not load permission-system package
-PASS: ac-verifier always passes --approve
-PASS: ac-verifier always passes --no-extensions
-PASS: ac-verifier does not load permission-system package
+4) pi-reviewer + pi-ac-verifier
+PASS: reviewer always --approve
+PASS: reviewer always --no-extensions
+PASS: reviewer does not load permission-system
+PASS: ac-verifier always --approve
+PASS: ac-verifier always --no-extensions
+PASS: ac-verifier does not load permission-system
 
-5) agent frontmatter has no ask gates (primary seats)
-PASS: agents/implementer.md has no permission ask state
-PASS: agents/project-lead.md has no permission ask state
-PASS: agents/conductor.md has no permission ask state
-PASS: agents/reviewer.md has no permission ask state
-PASS: agents/ac-verifier.md has no permission ask state
-PASS: agents/ac-criterion-verifier.md has no permission ask state
+5) agent frontmatter has no permission: block
+PASS: agents/implementer.md has no permission: frontmatter
+PASS: agents/project-lead.md has no permission: frontmatter
+PASS: agents/conductor.md has no permission: frontmatter
+PASS: agents/reviewer.md has no permission: frontmatter
+PASS: agents/ac-verifier.md has no permission: frontmatter
+PASS: agents/ac-criterion-verifier.md has no permission: frontmatter
 
-6) wrappers do not gate --approve on FLEET_YOLO (always-on)
-PASS: pi-implementer does not gate --approve on FLEET_YOLO
-PASS: pi-project-lead does not gate --approve on FLEET_YOLO
-PASS: pi-conductor does not gate --approve on FLEET_YOLO
-PASS: pi-implementer hardcodes --approve
-PASS: pi-project-lead hardcodes --approve
-PASS: pi-conductor hardcodes --approve
+6) wrappers have no PS operational wiring
+PASS: pi-implementer has no PI_PERMISSION assignment
+PASS: pi-project-lead has no PI_PERMISSION assignment
+PASS: pi-conductor has no PI_PERMISSION assignment
+PASS: no implementer-runtime PS package resolve
 
-7) headless -p smoke: no allow? / permission UI prompts (when pi installed)
-PASS: headless -p probe emitted no permission ask prompt
+7) optional headless probe (no PS, --approve)
+PASS: allowlisted bash tool ran without permission-system (sentinel written)
+PASS: no permission-system ask gate in headless probe log
 
 ---
-53 passed, 0 failed
+37 passed, 0 failed
 VERDICT: PASS
