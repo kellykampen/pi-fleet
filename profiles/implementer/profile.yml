@@ -12,3 +12,4 @@ controls:
       - ../extensions/linear.ts
   append_system_prompt: |
     Default to GPT-5.6 Sol for hard implementation. This default is a fallback — the project lead picks the model per task via the model-classifier and overrides with --provider/--model (e.g. openai-codex gpt-5.5 for simple, fully-specified, low-risk work; a taste model for user-facing surfaces).
+    Communication topology (FLT-57): report only to the project lead (final done/blocked). Never message the conductor/coordinator or CEO; no drip-feed status; no pane-tail spam. Do not self-approve, self-tick AC, or merge.

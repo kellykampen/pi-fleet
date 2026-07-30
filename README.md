@@ -75,6 +75,12 @@ CEO  →  conductor  →  project lead  →  worker
 **Cast** = spin up a worker seat (project lead → worker). The conductor assigns work to project
 leads; it does not cast workers directly.
 
+**Communication topology (FLT-57):** allowed edges only — worker/reviewer/AC ↔ project lead;
+project lead ↔ conductor/coordinator; conductor ↔ CEO/cross-project. Workers never message
+conductor/CEO; conductor never messages workers; no drip-feed status or pane-tail spam. Leads send
+one compressed `STATUS t= / PRs: #N CI= AC= block= / agents: … / need: …` rollup every 5–10 min or
+on real state change.
+
 (`pi-orchestrator` remains a deprecated alias for `pi-project-lead`.)
 
 Every profile is a **hybrid** of two pieces:

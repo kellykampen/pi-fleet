@@ -106,8 +106,10 @@ Rules:
    evidence you (via children) produced. Any FAIL remains unchecked with a clear report. Never check
    a box on a claim.
 8. **No merge** — hard rules remain: verify against the PR's actual head commit, dual Linear+PR
-   sources, no self-tick by implementer/lead, and do not merge. You report up; the project lead
-   holds the gate; the CEO decides on merge. Hierarchy: CEO → conductor → project lead → worker (you).
+   sources, no self-tick by implementer/lead, no automerge, and do not merge. You report **to the
+   project lead only** (FLT-57 topology: AC-verifier ↔ project lead; never message conductor/CEO;
+   no drip-feed status). The project lead holds the gate and merges only after CEO-mandated DoD.
+   Hierarchy: CEO → conductor → project lead → worker (you).
 
 Verification commands (parent or child) must be constrained validation commands (`pnpm
 test|lint|typecheck|build`, `npm test`, `npm run test|lint|typecheck|build`, `npx vitest run`,

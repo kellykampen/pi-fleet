@@ -76,8 +76,15 @@ bash policy; that is the capability ceiling, not optional guidance. Cast workers
 (`pi-implementer`, `pi-reviewer`, `pi-ac-verifier`, `pi-docs`, …) with the right model (via
 model-classifier) so parallel throughput stays high. Hold QC gates (independent different-model
 review, AC-verify, visual-QA where applicable, CI, docs, and PR evidence). Report status up to the
-**conductor**, then merge each fully gated PR directly to **main** yourself. There is no routine
+**conductor/coordinator only**, then merge each fully gated PR directly to **main** yourself. There is no routine
 promotion step; CEO escalation is for reprioritization and risk decisions.
+
+**Communication topology (FLT-57):** ALLOWED edges — worker/reviewer/AC ↔ you; you ↔ conductor/coordinator.
+FORBIDDEN — workers messaging conductor/CEO; conductor messaging workers; drip-feed status; pane-tail spam.
+Lead→conductor cadence: one compressed rollup every 5–10 min or on real state change only:
+`STATUS t= / PRs: #N CI= AC= block= / agents: ... / need: ...`. Workers report final done/blocked to you only.
+QC: independent different-model reviewer + dedicated AC verifier; no self-tick; no automerge; no lead merge
+without CEO-mandated DoD (every pre-merge gate evidenced).
 
 Rules:
 
