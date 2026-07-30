@@ -5,18 +5,27 @@ const COMMON_EXECUTABLES = new Set([
   "linear-cli",
   "check-model-usage",
 ]);
-const READ_UTILITIES = new Set([
+/** Content readers that enable in-repo investigation / product code review. Lead keeps these; conductor does not. */
+const CONTENT_READ_UTILITIES = new Set([
   "cat",
-  "ls",
   "grep",
   "rg",
   "head",
   "tail",
   "wc",
   "find",
-  "jq",
 ]);
-const READ_ONLY_GIT = new Set(["status", "log", "diff", "show", "rev-parse"]);
+/** Orientation / metadata utilities both seats may use. */
+const METADATA_READ_UTILITIES = new Set(["ls", "jq"]);
+const ALL_READ_UTILITIES = new Set([
+  ...CONTENT_READ_UTILITIES,
+  ...METADATA_READ_UTILITIES,
+]);
+/** Git metadata only — no product file/diff content. */
+const METADATA_GIT = new Set(["status", "log", "rev-parse"]);
+/** Git content readers (diff/show) — lead only. Conductor must never use these for product review. */
+const CONTENT_GIT = new Set(["diff", "show"]);
+const READ_ONLY_GIT = new Set([...METADATA_GIT, ...CONTENT_GIT]);
 const UNSAFE_GIT_READ_OPTIONS = new Set(["--ext-diff", "--textconv", "--output"]);
 const UNSAFE_FIND_ACTIONS = new Set([
   "-delete",
@@ -114,7 +123,7 @@ function hasUnsafeVariable(tokens) {
   });
 }
 
-function allowGitRead(args) {
+function allowGitRead(args, seat) {
   let cursor = 0;
   if (args[0] === "-C") {
     if (!args[1] || args[1].startsWith("-")) return false;
@@ -125,7 +134,14 @@ function allowGitRead(args) {
   const unsafeReadOption = rest.some(
     (arg) => UNSAFE_GIT_READ_OPTIONS.has(arg) || arg.startsWith("--output="),
   );
-  if (READ_ONLY_GIT.has(subcommand)) return !unsafeReadOption;
+  if (unsafeReadOption) return false;
+  // FLT-65: conductor never reads product diffs/file contents via git.
+  if (seat === "conductor") {
+    if (METADATA_GIT.has(subcommand)) return true;
+    if (subcommand === "branch") return rest.length === 0 || rest[0] === "--list";
+    return false;
+  }
+  if (READ_ONLY_GIT.has(subcommand)) return true;
   if (subcommand !== "branch") return false;
   return rest.length === 0 || rest[0] === "--list";
 }
@@ -226,9 +242,15 @@ function allowLeadGit(args, cwd) {
 }
 
 function allowGh(args, seat) {
+  // Never allow raw GitHub API content pulls (patch/diff/files) as a review path.
+  if (args[0] === "api") return false;
   if (args[0] === "issue" && args[1] === "view") return true;
   if (args[0] !== "pr") return false;
-  if (["view", "list", "checks"].includes(args[1])) return true;
+  // Portfolio metadata both seats may need.
+  if (["list", "checks"].includes(args[1])) return true;
+  // FLT-65: conductor must never `gh pr view` product PR bodies/diffs for review.
+  // Project leads keep view for gate holding (not as implementer/reviewer doers).
+  if (args[1] === "view") return seat === "lead";
   if (seat === "lead" && ["merge", "comment"].includes(args[1])) return true;
   return false;
 }
@@ -310,7 +332,13 @@ export function evaluateCommand(command, options = {}) {
   const executable = tokens[0];
   const args = tokens.slice(1);
   if (COMMON_EXECUTABLES.has(executable)) return { allowed: true };
-  if (READ_UTILITIES.has(executable)) {
+  // FLT-65: conductor is routing-only — no content readers that enable product in-repo investigation.
+  if (seat === "conductor") {
+    if (CONTENT_READ_UTILITIES.has(executable)) {
+      return denied("conductor may not read product/source content; route investigation to the project lead");
+    }
+    if (METADATA_READ_UTILITIES.has(executable)) return { allowed: true };
+  } else if (ALL_READ_UTILITIES.has(executable)) {
     if (executable === "find" && args.some((arg) => UNSAFE_FIND_ACTIONS.has(arg))) {
       return denied("find mutation and execution actions are not allowed");
     }
@@ -326,7 +354,7 @@ export function evaluateCommand(command, options = {}) {
     return allowGh(args, seat) ? { allowed: true } : denied("GitHub command is outside the seat allowlist");
   }
   if (executable === "git") {
-    if (allowGitRead(args)) return { allowed: true };
+    if (allowGitRead(args, seat)) return { allowed: true };
     if (seat === "lead" && allowLeadGit(args, cwd)) return { allowed: true };
     return denied("Git command is outside the seat allowlist");
   }

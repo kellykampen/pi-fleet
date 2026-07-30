@@ -195,6 +195,25 @@ immutable second command gate.
 
 Last verified: [`results/conductor-policy-latest.txt`](./results/conductor-policy-latest.txt).
 
+## Conductor routing-only structural guard (FLT-65)
+
+```bash
+evals/conductor-restrict-structural-test.sh
+node --test evals/conductor-command-policy.test.mjs
+evals/pi-conductor-config.test.mjs
+evals/pi-conductor-launch-smoke-test.sh
+evals/claude-policy.test.mjs
+```
+
+Proves the conductor is **routing-only**: wrapper `--tools` is bash + Linear only (no
+`read`/`grep`/`find`/`ls`/`write`/`edit`); `permission-system/conductor.json` and the shared
+`evaluateCommand(..., { seat: "conductor" })` deny product PR-diff review paths
+(`git diff`/`git show`/`gh pr view`/`gh api`/content readers) while allowing portfolio metadata
+(`gh pr list`/`checks`, `git status`/`log`/`branch`/`rev-parse`, cmux, linear-cli); Claude conductor
+settings deny Read/Grep/Glob and the same Bash review paths; skill/agent/profile prose carries the
+FLT-65 HARD RULES phrases. Project-lead gate tools (`gh pr view`, content readers) remain allowed
+for the lead seat (delegate-only still enforced separately).
+
 ## Banned-terms guard (MANDATORY pre-merge gate)
 
 pi-fleet must never carry another project's canonical-file footprint (see "Project separation" in

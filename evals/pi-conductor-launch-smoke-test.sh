@@ -45,8 +45,9 @@ contains "caller retained as coordination root" "FLEET_COORDINATION_ROOT=$(cd "$
 contains "permission package explicitly loaded" "ARG=$SOURCE_AGENT/npm/node_modules/@gotgenes/pi-permission-system" "$out"
 contains "immutable conductor policy extension loaded" "ARG=$DIR/extensions/conductor-policy.ts" "$out"
 contains "fleet-note directory is prepended to PATH" "PATH=$DIR/bin:$FAKE_BIN:$PATH" "$out"
-contains "restricted tool list" "ARG=read,grep,find,ls,bash,linear_get_issue,linear_list,linear_comment,linear_update" "$out"
+contains "routing-only tool list (FLT-65)" "ARG=bash,linear_get_issue,linear_list,linear_comment,linear_update" "$out"
 rejects "write/edit are absent from tool list" '^ARG=.*(write|edit)' "$out"
+rejects "product investigation tools absent from tool list" '^ARG=.*(read|grep|find|,ls,)' "$out"
 
 for config in \
   "$RUNTIME/agent/extensions/pi-permission-system/config.json" \

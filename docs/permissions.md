@@ -17,15 +17,27 @@ turns an explicit `deny` into an allow.
 
 ## Restricted conductor policy
 
-`bin/pi-conductor` has a separate structural boundary:
+`bin/pi-conductor` has a separate structural boundary (FLT-52 + **FLT-65 routing-only**):
 
-1. Its `--tools` list omits `write` and `edit`.
+1. Its `--tools` list is **routing-only**: `bash,linear_get_issue,linear_list,linear_comment,linear_update`.
+   It omits `write`, `edit`, and product-investigation tools (`read`, `grep`, `find`, `ls`).
 2. It explicitly loads `@gotgenes/pi-permission-system` with
    `permission-system/conductor.json`, whose Bash fallback is `deny`.
 3. It starts Pi from a dedicated policy cwd with an isolated agent overlay. The caller's cwd is retained
    as `FLEET_COORDINATION_ROOT` and exposed readably at `launch-cwd/`, without loading its `.pi` policy.
 4. `extensions/conductor-policy.ts` independently enforces the same executable/subcommand allowlist and
    rejects shell control flow, redirects, substitutions, wrappers, and parse uncertainty.
+
+**FLT-65 product-review / in-repo investigation denies (conductor seat only):**
+
+- **Denied:** `git diff`, `git show`, `gh pr view`, `gh api`, content readers
+  (`cat`/`grep`/`rg`/`head`/`tail`/`wc`/`find`), package managers/interpreters, merge/implement paths.
+- **Allowed portfolio metadata / routing:** `cmux`, `linear-cli`, Linear tools, `gh pr list`,
+  `gh pr checks`, `gh issue view`, `git status`/`log`/`branch`/`rev-parse` (and the same via
+  `git -C`), `ls`, `jq`, `uptime`, `fleet-note`, `fleet-mail`, `check-model-usage`.
+
+Project leads keep `gh pr view` and content readers for gate holding; they still must not absorb
+product implementation/review as doers (see Restricted project-lead policy).
 
 The isolated cwd matters because the permission package's normal merge order lets a project config override
 a global config. Without isolation, a caller repository could set `bash: { "*": "allow" }`. The dedicated
@@ -34,7 +46,7 @@ it does not weaken the seat.
 
 The permission package's `path` surface is access-mode-blind: a path denial blocks reads and writes alike.
 Runtime probing confirmed it cannot preserve broad reads while selectively allowing coordination writes.
-Consequently, conductor seats have no general file-mutation tool.
+Consequently, conductor seats have no general file-mutation tool and no product content-read tool surface.
 
 ## Restricted project-lead policy
 
@@ -127,7 +139,8 @@ This is the only direct write path for these restricted seats.
 
 The wrappers load separate settings files:
 
-- `claude-settings/conductor.json` — orchestration, read commands, and zero-argument `uptime`; merge flow denied.
+- `claude-settings/conductor.json` — orchestration + portfolio metadata only (no product Read/Grep/Glob,
+  no `gh pr view` / `git diff` / `git show` / content readers); zero-argument `uptime`; merge flow denied.
 - `claude-settings/project-lead.json` — the conductor set plus main integration, PR merge/comment,
   merge preparation, and worktree lifecycle.
 

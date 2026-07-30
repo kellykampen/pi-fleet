@@ -12,32 +12,22 @@ const deny = (command, seat = "conductor", cwd = "/repo") =>
 		`${seat}: ${command}`,
 	);
 
-test("allows the conductor orchestration and read command set", () => {
+test("allows the conductor routing and portfolio-metadata command set (FLT-65)", () => {
 	for (const command of [
 		"cmux workspace list --json",
 		'cmux send --surface surface:12 "status && blockers"',
 		"linear-cli issue get FLT-52",
 		"check-model-usage",
-		"gh pr view 42",
 		"gh pr list --state open",
 		"gh pr checks 42",
 		"gh issue view 52",
 		"git status --short",
 		"git log -5 --oneline",
-		"git diff origin/main...HEAD",
-		"git show HEAD:README.md",
 		"git rev-parse HEAD",
 		"git branch",
 		"git branch --list 'flt-*'",
 		"uptime",
-		"cat README.md",
 		"ls -la",
-		"grep -n safety README.md",
-		"rg safety .",
-		"head -20 README.md",
-		"tail -20 README.md",
-		"wc -l README.md",
-		"find . -maxdepth 2 -type f",
 		"jq -r .state issue.json",
 		"fleet-note append .claude/orchestration/MORNING-ESCALATIONS.md status",
 		"fleet-mail inbox --mailbox conductor --unread",
@@ -46,6 +36,28 @@ test("allows the conductor orchestration and read command set", () => {
 		'fleet-mail send --from project-lead --to conductor --type status --ticket FLT-58 --body rollup',
 	])
 		allow(command);
+});
+
+test("denies conductor product PR-diff / in-repo investigation commands (FLT-65)", () => {
+	for (const command of [
+		"gh pr view 42",
+		"gh pr view 42 --json body",
+		"gh pr view 42 --patch",
+		"gh api repos/o/r/pulls/42",
+		"gh api repos/o/r/pulls/42/files",
+		"git diff origin/main...HEAD",
+		"git show HEAD:README.md",
+		"git -C /repo diff HEAD~1",
+		"git -C /repo show HEAD:README.md",
+		"cat README.md",
+		"grep -n safety README.md",
+		"rg safety .",
+		"head -20 README.md",
+		"tail -20 README.md",
+		"wc -l README.md",
+		"find . -maxdepth 2 -type f",
+	])
+		deny(command);
 });
 
 test("allows lead-only integration, worktree, and evidence commands", () => {
@@ -64,18 +76,21 @@ test("allows lead-only integration, worktree, and evidence commands", () => {
 		"git worktree remove .worktrees/flt-52",
 		"gh pr merge 42 --merge",
 		"gh pr comment 42 --body gate-passed",
+		"gh pr view 42",
+		"git diff origin/main...HEAD",
+		"git show HEAD:README.md",
+		"cat README.md",
+		"rg safety .",
 	])
 		allow(command, "lead");
 });
 
-test("allows git -C only when followed by a read-only subcommand", () => {
+test("allows git -C only when followed by a seat-appropriate read-only subcommand", () => {
 	for (const seat of ["conductor", "lead"]) {
 		for (const command of [
 			"git -C /repo status",
 			"git -C /repo status --short",
 			"git -C ../repo log -5 --oneline",
-			"git -C '/repo with spaces' diff HEAD~1",
-			"git -C /repo show HEAD:README.md",
 			"git -C /repo rev-parse HEAD",
 			"git -C /repo branch",
 			"git -C /repo branch --list",
@@ -95,6 +110,15 @@ test("allows git -C only when followed by a read-only subcommand", () => {
 			"git -C /repo worktree list",
 		])
 			deny(command, seat);
+	}
+
+	// Lead keeps content reads via git -C; conductor does not.
+	for (const command of [
+		"git -C '/repo with spaces' diff HEAD~1",
+		"git -C /repo show HEAD:README.md",
+	]) {
+		allow(command, "lead");
+		deny(command, "conductor");
 	}
 });
 
@@ -167,6 +191,7 @@ test("denies implementation, research runtimes, and reviewer-only actions to bot
 			"fleet-note write src/deep/HANDOFF bad",
 			"fleet-note write .claude/orchestration/OTHER-HANDOFF.md bad",
 			"gh pr review 42 --approve",
+			"gh api repos/o/r/pulls/42",
 			"git diff --output=bin/foo.sh HEAD",
 			"git diff --ext-diff HEAD",
 			"git show --textconv HEAD:file",
