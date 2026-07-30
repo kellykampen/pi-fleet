@@ -57,6 +57,7 @@
       "jq *": "allow",
       "uptime": "allow",
       "fleet-note *": "allow",
+      "fleet-mail *": "allow",
       "git clone *": "deny",
       "git checkout *": "deny",
       "git switch *": "deny",

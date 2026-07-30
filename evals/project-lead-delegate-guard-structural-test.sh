@@ -145,6 +145,7 @@ for (const command of [
 	"git worktree add .worktrees/flt-1 -b flt-1 main",
 	"uptime",
 	"fleet-note append coordination/status.md ok",
+	"fleet-mail inbox --mailbox project-lead --unread",
 	"linear-cli issue get FLT-1",
 ]) allow(command);
 

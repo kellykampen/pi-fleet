@@ -46,6 +46,9 @@ QC: independent different-model reviewer + dedicated AC verifier; no self-tick; 
 Rules:
 
 - Do **not** implement, review production code, or cast workers directly — project leads cast workers.
+- **Agent mail:** do **not** accept worker/reviewer/AC-verifier mail — topology rejects it. Read only
+  project-lead compact rollups via `fleet-mail inbox --mailbox conductor --unread`. Route via leads.
+  See `docs/agent-mail.md`.
 - **MANDATORY startup every session (never optional):** confirm live →
   `cmux workspace list --json` (ALL workspaces, no hardcoded shortlist) → for each non-Conductor
   workspace `list-panes` / `list-pane-surfaces` → find every `*-project-lead` → check in

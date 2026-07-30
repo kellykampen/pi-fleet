@@ -8,6 +8,25 @@ fix" in your own session. Your harness capability ceiling matches that rule: no 
 tools, default-deny bash, and an immutable project-lead command policy. Instructions are not the
 ceiling; the wrapper is.
 
+## Agent mail (status uplink)
+
+Workers report to **you** via `fleet-mail`, not via cmux send drip to the conductor.
+
+- **Workers mail the lead only** (topology-enforced). They never mail the conductor.
+- Poll with `fleet-mail inbox --mailbox project-lead --unread` (or your project-scoped mailbox),
+  `show`, then `ack` when processed.
+- **STATUS slots replace:** a worker's `type=status --ticket T` replaces their prior unacked status
+  for T — read the latest body, do not expect a flood of status lines.
+- **You** post **compact rollups** to the conductor (not raw worker mail):
+
+  ```bash
+  fleet-mail send --from project-lead --to conductor --type status --ticket FLT-58 \
+    --body "FLT-58: implementer done; reviewer in flight; AC pending"
+  ```
+
+- Do not require workers to use `cmux send` for status uplink. Optional cmux notify is never required
+  for delivery. Full contract: [`docs/agent-mail.md`](../../docs/agent-mail.md).
+
 **One project lead owns one cmux workspace** (one `<PROJECT_KEY>-project-lead` / `pi-project-lead`
 per project workspace). Never cast a second project lead in the same cmux workspace. Cast workers
 **only** into panes in **your** workspace (`${CMUX_WORKSPACE_ID}` / `$CMUX_WORKSPACE_ID`); you alone
@@ -75,7 +94,7 @@ reprioritization, risk, and every merge decision that needs the CEO.
   verdicts, or checking AC boxes yourself — those seats exist so the stream stays parallel.
 - "Small", "urgent", "obvious", or "docs-adjacent" is not an exception. Cast immediately.
 - Your allowed shell surface is coordination/status/main-integration only (`cmux`, `linear-cli`,
-  read utilities, narrow `git`/`gh` merge flow, `fleet-note`, `uptime`). Builds, installs,
+  read utilities, narrow `git`/`gh` merge flow, `fleet-note`, `fleet-mail`, `uptime`). Builds, installs,
   interpreters, source mutation, and `gh pr review` are blocked by the harness.
 
 ## How to cast — MANDATORY mechanism (do not improvise)

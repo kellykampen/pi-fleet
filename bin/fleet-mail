@@ -1,0 +1,202 @@
+#!/usr/bin/env node
+"use strict";
+
+/**
+ * fleet-mail — durable async inbox between pi-fleet seats.
+ *
+ * Usage:
+ *   fleet-mail send  --from <mailbox> --to <mailbox> --type status|blocker|done|ask|review|ac \
+ *                    [--ticket T] [--pr URL] [--head SHA] [--body TEXT] [--notify]
+ *   fleet-mail inbox --mailbox <mailbox> [--unread] [--type T] [--ticket T] [--json] [--limit N]
+ *   fleet-mail show  --mailbox <mailbox> [--id ID] [--json]
+ *   fleet-mail ack   --mailbox <mailbox> --id ID [--id ID2 ...]
+ *   fleet-mail help
+ *
+ * Storage: $PI_FLEET_HOME/mail (default ~/.pi-fleet/mail)
+ * Topology + anti-spam are enforced in bin/lib/fleet-mail.mjs.
+ */
+
+const {
+  FleetMailError,
+  sendMessage,
+  listInbox,
+  showMessage,
+  ackMessages,
+  formatMessageLine,
+  MESSAGE_TYPES,
+} = require("./lib/fleet-mail.cjs");
+
+function fail(message, code = 1) {
+  process.stderr.write(`fleet-mail: ${message}\n`);
+  process.exit(code);
+}
+
+function usage() {
+  process.stdout.write(`fleet-mail — durable async inbox between fleet seats
+
+Commands:
+  send   --from <mb> --to <mb> --type <${MESSAGE_TYPES.join("|")}> [--ticket T] [--pr URL] [--head SHA] [--body TEXT]
+  inbox  --mailbox <mb> [--unread] [--type T] [--ticket T] [--limit N] [--json]
+  show   --mailbox <mb> [--id ID] [--json]
+  ack    --mailbox <mb> --id ID [--id ID2 ...]
+
+Env:
+  PI_FLEET_HOME              runtime root (default ~/.pi-fleet)
+  FLEET_MAIL_FROM            default --from
+  FLEET_MAIL_TO              default --to (workers should set owning lead)
+  FLEET_MAIL_RATE_LIMIT      max non-status msgs per window (default 30)
+  FLEET_MAIL_RATE_WINDOW_MS  rate window (default 60000)
+
+Topology:
+  worker|reviewer|ac-verifier → project-lead only (never conductor)
+  project-lead                → conductor (compact rollups) or workers
+  conductor                   → project-lead only (rejects worker mail)
+
+Status anti-spam:
+  type=status requires --ticket; a new status replaces prior unacked status
+  for the same from→to+ticket slot instead of flooding the inbox.
+`);
+}
+
+function parseArgs(argv) {
+  const out = { _: [] };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--") {
+      out._.push(...argv.slice(i + 1));
+      break;
+    }
+    if (arg.startsWith("--")) {
+      const eq = arg.indexOf("=");
+      if (eq !== -1) {
+        const key = arg.slice(2, eq);
+        const value = arg.slice(eq + 1);
+        if (out[key] === undefined) out[key] = value;
+        else if (Array.isArray(out[key])) out[key].push(value);
+        else out[key] = [out[key], value];
+        continue;
+      }
+      const key = arg.slice(2);
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("--")) {
+        out[key] = true;
+        continue;
+      }
+      i += 1;
+      if (out[key] === undefined) out[key] = next;
+      else if (Array.isArray(out[key])) out[key].push(next);
+      else out[key] = [out[key], next];
+      continue;
+    }
+    out._.push(arg);
+  }
+  return out;
+}
+
+function asList(value) {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function main() {
+  const argv = process.argv.slice(2);
+  if (argv.length === 0 || argv[0] === "help" || argv[0] === "--help" || argv[0] === "-h") {
+    usage();
+    return;
+  }
+
+  const command = argv[0];
+  const args = parseArgs(argv.slice(1));
+
+  try {
+    if (command === "send") {
+      const from = args.from || process.env.FLEET_MAIL_FROM;
+      const to = args.to || process.env.FLEET_MAIL_TO;
+      const type = args.type;
+      if (!from || !to || !type) fail("send requires --from --to --type");
+      const body = args.body !== undefined ? String(args.body) : (args._[0] || "");
+      const result = sendMessage(
+        {
+          from,
+          to,
+          type,
+          body,
+          ticket: args.ticket,
+          pr: args.pr,
+          head: args.head,
+        },
+        {
+          rateLimit: process.env.FLEET_MAIL_RATE_LIMIT
+            ? Number(process.env.FLEET_MAIL_RATE_LIMIT)
+            : undefined,
+          rateWindowMs: process.env.FLEET_MAIL_RATE_WINDOW_MS
+            ? Number(process.env.FLEET_MAIL_RATE_WINDOW_MS)
+            : undefined,
+        },
+      );
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      } else {
+        const replaced = result.replaced ? ` (replaced ${result.replaced})` : "";
+        process.stdout.write(`sent ${result.message.id}${replaced}\n`);
+      }
+      return;
+    }
+
+    if (command === "inbox") {
+      const mailbox = args.mailbox || args.to || process.env.FLEET_MAIL_FROM;
+      if (!mailbox) fail("inbox requires --mailbox");
+      const messages = listInbox(mailbox, {
+        unread: Boolean(args.unread),
+        type: args.type,
+        ticket: args.ticket,
+        from: args.from,
+        limit: args.limit ? Number(args.limit) : undefined,
+        newestFirst: Boolean(args["newest-first"]),
+      });
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify(messages, null, 2)}\n`);
+      } else if (messages.length === 0) {
+        process.stdout.write("(empty)\n");
+      } else {
+        for (const message of messages) {
+          process.stdout.write(`${formatMessageLine(message)}\n`);
+        }
+      }
+      return;
+    }
+
+    if (command === "show") {
+      const mailbox = args.mailbox || process.env.FLEET_MAIL_FROM;
+      if (!mailbox) fail("show requires --mailbox");
+      const message = showMessage(mailbox, {
+        id: args.id,
+        unread: args.unread === undefined ? true : Boolean(args.unread),
+      });
+      if (!message) {
+        process.stdout.write("(empty)\n");
+        return;
+      }
+      if (args.json) process.stdout.write(`${JSON.stringify(message, null, 2)}\n`);
+      else process.stdout.write(`${formatMessageLine(message)}\n`);
+      return;
+    }
+
+    if (command === "ack") {
+      const mailbox = args.mailbox || process.env.FLEET_MAIL_FROM;
+      const ids = asList(args.id);
+      if (!mailbox || ids.length === 0) fail("ack requires --mailbox and --id");
+      const result = ackMessages(mailbox, ids);
+      if (args.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      else process.stdout.write(`acked ${result.acked.join(" ")}\n`);
+      return;
+    }
+
+    fail(`unknown command: ${command}`);
+  } catch (error) {
+    if (error instanceof FleetMailError) fail(error.message);
+    fail(error instanceof Error ? error.message : String(error));
+  }
+}
+
+main();

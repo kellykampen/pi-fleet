@@ -53,7 +53,7 @@ Consequently, conductor seats have no general file-mutation tool.
 **Keeps coordination power:** `cmux` cast/send/capture, Linear read/comment/update, read utilities,
 `gh pr view/list/checks`, `gh pr merge/comment`, narrow main-integration git (`fetch`, ff-only
 `pull`, `checkout`/`switch main`, `merge`, `push origin <one-ref>`, worktree lifecycle under
-`.worktrees/`), `fleet-note`, `uptime`, and E2B cast tools.
+`.worktrees/`), `fleet-note`, `fleet-mail`, `uptime`, and E2B cast tools.
 
 **Loses product-implementation power:** no `write`/`edit`; no `git commit` / `git clone`; no
 `gh pr create` / `gh pr review`; no `npm`/`pnpm`/`yarn`/`bun`/`node`/`python`/`make`/`cargo` or
@@ -109,7 +109,7 @@ verification without giving children mutation authority.
 
 ## Validated coordination notes
 
-Both conductor and project-lead seats (Pi and Claude native) can invoke `fleet-note` through their restricted Bash policy.
+Both conductor and project-lead seats (Pi and Claude native) can invoke `fleet-note` and `fleet-mail` through their restricted Bash policy. `fleet-mail` is the durable async inbox for status uplink (see [`agent-mail.md`](./agent-mail.md)); topology and anti-spam are enforced inside the CLI.
 The helper receives its root from the launcher, not from model arguments. It supports only `append` and
 `write`, rejects absolute paths and `..`, resolves existing parents and targets, rejects symlink escapes,
 and permits only:

@@ -255,6 +255,49 @@ function allowFleetNote(tokens) {
   );
 }
 
+const FLEET_MAIL_COMMANDS = new Set(["send", "inbox", "show", "ack", "help"]);
+const FLEET_MAIL_FLAGS = new Set([
+  "--from",
+  "--to",
+  "--type",
+  "--ticket",
+  "--pr",
+  "--head",
+  "--body",
+  "--mailbox",
+  "--id",
+  "--unread",
+  "--json",
+  "--limit",
+  "--newest-first",
+  "--notify",
+  "--help",
+  "-h",
+]);
+
+function allowFleetMail(tokens) {
+  if (tokens.length < 2) return tokens.length === 1;
+  const sub = tokens[1];
+  if (!FLEET_MAIL_COMMANDS.has(sub)) return false;
+  // Lead/conductor may invoke fleet-mail for coordination only; topology is enforced inside the CLI.
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.startsWith("--")) {
+      const eq = token.indexOf("=");
+      const flag = eq === -1 ? token : token.slice(0, eq);
+      if (!FLEET_MAIL_FLAGS.has(flag)) return false;
+      if (eq === -1 && index + 1 < tokens.length && !tokens[index + 1].startsWith("--")) {
+        // value token consumed loosely; reject shell metachar already handled by tokenizer
+        index += 1;
+      }
+      continue;
+    }
+    // positional body text is allowed for send
+    if (sub !== "send" && sub !== "help") return false;
+  }
+  return true;
+}
+
 export function evaluateCommand(command, options = {}) {
   const { seat, cwd = process.cwd() } = options;
   if (seat !== "conductor" && seat !== "lead") return denied("unknown seat policy");
@@ -275,6 +318,9 @@ export function evaluateCommand(command, options = {}) {
   }
   if (executable === "fleet-note") {
     return allowFleetNote(tokens) ? { allowed: true } : denied("fleet-note target or arguments are not allowed");
+  }
+  if (executable === "fleet-mail") {
+    return allowFleetMail(tokens) ? { allowed: true } : denied("fleet-mail arguments are not allowed");
   }
   if (executable === "gh") {
     return allowGh(args, seat) ? { allowed: true } : denied("GitHub command is outside the seat allowlist");

@@ -65,3 +65,5 @@ Return a single structured result (JSON object or fenced `json` block) with:
   in `evidence`.
 - On FAIL, leave a clear blocker; never invent a PASS.
 - Do not call other subagents. Complete only this one criterion and stop.
+
+- **Runtime state:** follow `skills/fleet-state/SKILL.md`; use only the canonical private runtime namespaces.

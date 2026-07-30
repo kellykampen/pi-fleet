@@ -56,6 +56,11 @@ Pi-fleet runtime data lives only under private `~/.pi-fleet` (or an absolute `PI
 See the canonical [runtime-state contract](docs/runtime-state.md). Bootstrap creates/repairs this
 root but never silently migrates old data; use `bin/pi-fleet-state-migrate` to report first.
 
+**Agent mail:** seats exchange structured async status via `fleet-mail` (not cmux send drip).
+Workers mail the owning project lead only; leads post compact rollups to the conductor. See
+[`docs/agent-mail.md`](docs/agent-mail.md) and the pi-messenger decision record
+[`docs/pi-messenger-decision.md`](docs/pi-messenger-decision.md).
+
 ## Hierarchy
 
 Fixed vocabulary for every skill, agent, and cast:
@@ -112,7 +117,7 @@ pi-<role>  ==  outfitter run --profile <role> --agent pi  --  [env model args] -
 | **`pi-planner`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Breaks a feature into a Linear project + ≤3-pt issues with checkbox AC + blockers. |
 | **`pi-spike-breakdown`** | GPT-5.6 Terra · high | read, grep, find, ls, bash + linear | Turns a Linear **spike** into a Linear project + ≤3-pt issues. Its primary interview channel is pinned `agent-interview-cli` opening a direct browser form. Stable decisions and exact answers are persisted and posted to the source spike before decomposition; cancellation/timeout/non-interactive fallback fails loudly. See [spike interviews](docs/spike-interviews.md). Reads Linear + repo; no repo `write`/`edit`. |
 | **`pi-security-reviewer`** | GPT-5.6 Sol (`openai-codex`) · high | read, grep, find, ls *(read-only)* | Security-focused review — reports exploitable vulns with severity + file:line. Strong reasoning default. |
-| **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear *(no write/edit)* | Cross-project router with a default-deny command policy. It can orchestrate seats and update validated coordination notes through `fleet-note`, but cannot clone, build, run arbitrary scripts, or mutate source. |
+| **`pi-conductor`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear *(no write/edit)* | Cross-project router with a default-deny command policy. It can orchestrate seats, update validated coordination notes through `fleet-note`, and read lead rollups via `fleet-mail`, but cannot clone, build, run arbitrary scripts, or mutate source. |
 | **`claude-conductor`** | Claude Code (`--remote-control`) | Read/Grep/Glob + conductor-only Bash allowlist *(no Write/Edit)* | CEO-facing conductor with an authoritative fail-closed `PreToolUse` hook. It cannot use merge-flow commands; `FLEET_YOLO` cannot bypass the boundary. |
 | **`claude-project-lead`** | Claude Code (Opus by default) | Read/Grep/Glob + lead Bash allowlist *(no Write/Edit)* | Native project lead: orchestration plus narrow main integration (`fetch`, ff-only pull, checkout/switch main, merge/push, PR merge/comment, and worktree lifecycle). Build/install/script commands remain blocked. |
 | **`pi-project-lead`** | GPT-5.5 · high | read, grep, find, ls, allowlisted **bash** + linear + e2b *(no write/edit)* | Owns one project as the routing bottleneck — casts every implementation/review/AC/docs seat (via **model-classifier**), holds QC gates, reports merge-ready; merges to main only when the CEO orders. Harness-enforced: no source mutation or implementation shell. |

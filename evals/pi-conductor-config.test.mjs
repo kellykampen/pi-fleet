@@ -31,6 +31,7 @@ test("Pi conductor config allows orchestration and explicitly denies implementat
     "jq *",
     "uptime",
     "fleet-note *",
+    "fleet-mail *",
   ]) assert.equal(permission.bash[pattern], "allow", pattern);
   for (const subcommand of ["status", "log", "diff", "show", "rev-parse"])
     for (const suffix of ["", " *"])
